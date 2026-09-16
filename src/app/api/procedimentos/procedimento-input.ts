@@ -1,5 +1,6 @@
-// Lógica pura (testável) do cadastro de Procedimentos — Item 8.
-// Espelha o padrão de fornecedor-input.ts / conta-input.ts.
+// Lógica pura (testável) do cadastro de Procedimentos — Item 8 + pacote/retorno call 09/09.
+
+export const PRAZO_RETORNO_PADRAO_DIAS = 35
 
 export interface ProcedimentoPayload {
   nome: string
@@ -10,11 +11,12 @@ export interface ProcedimentoPayload {
   tem_retorno: boolean
   prazo_retorno_dias: number | null
   valor_retorno: number | null
+  tem_pacote: boolean
+  intervalo_recorrencia_dias: number | null
+  quantidade_sugerida_pacote: number | null
   ativo: boolean
 }
 
-// Código automático quando não informado — mesmo estilo de generateNumero() em
-// prescricoes (prefixo + fatia final do timestamp), livre de corrida.
 export function generateCodigo(): string {
   return `PROC-${Date.now().toString().slice(-8)}`
 }
@@ -30,15 +32,18 @@ export function parseInteger(value: unknown): number | null {
   return parsed == null ? null : Math.trunc(parsed)
 }
 
-// Payload compartilhado entre POST e PUT. Enforça a coerência do retorno:
-// quando tem_retorno = false, prazo e valor de retorno voltam a null (nunca
-// violam o check `procedimentos_retorno_coerente` da migration 084).
 export function buildProcedimentoPayload(
   body: Record<string, unknown>,
   opts: { autoCodigo: boolean },
 ): ProcedimentoPayload {
   const codigoInformado = body.codigo ? String(body.codigo).trim() : ''
   const temRetorno = body.temRetorno === true
+  const temPacote = body.temPacote === true
+
+  const prazoInformado = parseInteger(body.prazoRetornoDias)
+  const prazoRetorno =
+    temRetorno ? (prazoInformado != null && prazoInformado > 0 ? prazoInformado : PRAZO_RETORNO_PADRAO_DIAS) : null
+
   return {
     nome: String(body.nome),
     codigo: codigoInformado || (opts.autoCodigo ? generateCodigo() : null),
@@ -46,8 +51,11 @@ export function buildProcedimentoPayload(
     valor: parseNumeric(body.valor),
     duracao_min: parseInteger(body.duracaoMin),
     tem_retorno: temRetorno,
-    prazo_retorno_dias: temRetorno ? parseInteger(body.prazoRetornoDias) : null,
+    prazo_retorno_dias: prazoRetorno,
     valor_retorno: temRetorno ? parseNumeric(body.valorRetorno) : null,
+    tem_pacote: temPacote,
+    intervalo_recorrencia_dias: temPacote ? parseInteger(body.intervaloRecorrenciaDias) : null,
+    quantidade_sugerida_pacote: temPacote ? parseInteger(body.quantidadeSugeridaPacote) : null,
     ativo: body.ativo !== false,
   }
 }

@@ -61,9 +61,7 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-1 sm:gap-3">
-        {user
-          && ["gestor", "recepcao", "especialista"].includes(user.role)
-          && user.unidadeNome && (
+        {user?.unidadeNome && (
           <span
             className="hidden md:flex items-center gap-1.5 rounded-lg border border-app-border px-2 py-1 text-xs text-app-text-secondary dark:border-app-border-dark dark:text-white/60"
             title="Unidade ativa"

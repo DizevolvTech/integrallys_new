@@ -54,6 +54,7 @@ export interface PacienteInput {
   vinculoTipos?: string[]
   precisaNf?: boolean
   unidadeId?: string
+  photoUrl?: string
   addressDetails?: {
     zipCode?: string
     street?: string
@@ -63,6 +64,9 @@ export interface PacienteInput {
     city?: string
     state?: string
   }
+  specialNeeds?: Record<string, unknown>
+  responsible?: Record<string, unknown>
+  supplierData?: Record<string, unknown>
   criarAcessoPortal?: boolean
 }
 

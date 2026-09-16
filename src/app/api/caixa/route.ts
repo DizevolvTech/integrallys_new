@@ -6,7 +6,12 @@ import {
 } from "@/lib/app-api";
 import { requirePermission } from "@/lib/authz";
 import { mapCaixaItem } from "@/lib/domain-mappers";
-import { authErrorResponse, getRequestAuth } from "@/lib/request-auth";
+import {
+  authErrorResponse,
+  getRequestAuth,
+  getScopedUnitId,
+  isScopedRole,
+} from "@/lib/request-auth";
 
 function getTodayKey() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -17,23 +22,35 @@ function getTodayKey() {
   }).format(new Date());
 }
 
-async function resolveUnitId(userId: string, requestedUnitId: unknown) {
+async function resolveUnitId(
+  session: NonNullable<Awaited<ReturnType<typeof getRequestAuth>>>,
+  requestedUnitId: unknown,
+) {
+  const scoped = await getScopedUnitId(session);
+  if (scoped.error) {
+    return { unitId: null as string | null, error: scoped.error };
+  }
+
+  // Perfis escopados: nunca confiar no unitId do client.
+  if (isScopedRole(session.role)) {
+    if (scoped.unidadeId) {
+      return { unitId: scoped.unidadeId, error: null as null };
+    }
+    // Escopado sem unidade no cadastro — não escolher unidade arbitrária.
+    return { unitId: null, error: null };
+  }
+
   const supabase = getAppSupabase();
-
-  if (typeof requestedUnitId === "string" && requestedUnitId.trim() !== "") {
-    return { unitId: requestedUnitId, error: null as Error | null };
+  const requested =
+    typeof requestedUnitId === "string" && requestedUnitId.trim() !== ""
+      ? requestedUnitId.trim()
+      : null;
+  if (requested) {
+    return { unitId: requested, error: null };
   }
 
-  const userResult = await supabase
-    .from("usuarios")
-    .select("unidade_id")
-    .eq("id", userId)
-    .maybeSingle();
-  if (userResult.error) {
-    return { unitId: null, error: userResult.error };
-  }
-  if (userResult.data?.unidade_id) {
-    return { unitId: String(userResult.data.unidade_id), error: null };
+  if (session.user?.unidadeId) {
+    return { unitId: String(session.user.unidadeId), error: null };
   }
 
   const firstUnitResult = await supabase
@@ -61,7 +78,7 @@ async function getCaixaPayload(
   const todayKey = getTodayKey();
 
   const { unitId, error: unitError } = await resolveUnitId(
-    session!.userId,
+    session!,
     preferredUnitId ?? request.nextUrl.searchParams.get("unitId"),
   );
   if (unitError) {
@@ -185,7 +202,7 @@ export async function POST(request: NextRequest) {
   const supabase = getAppSupabase();
   const todayKey = getTodayKey();
   const { unitId, error: unitError } = await resolveUnitId(
-    session.userId,
+    session,
     body.unidadeId,
   );
   if (unitError) {
@@ -445,6 +462,23 @@ export async function PUT(request: NextRequest) {
     );
   }
 
+  const scoped = await getScopedUnitId(session);
+  if (scoped.error) {
+    return supabaseErrorResponse(scoped.error, "Falha ao validar unidade");
+  }
+  if (
+    isScopedRole(session.role) &&
+    scoped.unidadeId &&
+    existing?.unidade_id &&
+    String(existing.unidade_id) !== scoped.unidadeId
+  ) {
+    return serverErrorResponse(
+      "Movimentação fora do escopo da unidade",
+      "CAIXA_UNIT_FORBIDDEN",
+      403,
+    );
+  }
+
   const { error } = await supabase
     .from("caixa_movimentos")
     .update({
@@ -500,6 +534,23 @@ export async function DELETE(request: NextRequest) {
     return supabaseErrorResponse(
       existingError,
       "Falha ao carregar movimentação de caixa",
+    );
+  }
+
+  const scoped = await getScopedUnitId(session);
+  if (scoped.error) {
+    return supabaseErrorResponse(scoped.error, "Falha ao validar unidade");
+  }
+  if (
+    isScopedRole(session.role) &&
+    scoped.unidadeId &&
+    existing?.unidade_id &&
+    String(existing.unidade_id) !== scoped.unidadeId
+  ) {
+    return serverErrorResponse(
+      "Movimentação fora do escopo da unidade",
+      "CAIXA_UNIT_FORBIDDEN",
+      403,
     );
   }
 

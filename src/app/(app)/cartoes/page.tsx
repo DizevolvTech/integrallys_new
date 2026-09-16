@@ -6,10 +6,8 @@ import { getServerAuthPayload } from '@/lib/server-auth'
 export default async function Page() {
   const payload = await getServerAuthPayload()
 
-  if (payload?.user.role === 'paciente') {
-    if (!payload.sidebarItems.some((item) => item.href === '/portal/cartoes')) {
-      redirect('/')
-    }
+  // Sidebar vem do backend — porta vs staff sem checar role string.
+  if (payload?.sidebarItems.some((item) => item.href === '/portal/cartoes')) {
     return <CartoesView />
   }
 

@@ -3,12 +3,21 @@ import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorRes
 import { requirePermission } from '@/lib/authz'
 import { mapTarefaItem } from '@/lib/domain-mappers'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import {
+  nextVencimentoForRecorrencia,
+  normalizeDiasSemana,
+  normalizeTarefaRecorrencia,
+  type TarefaRecorrencia,
+} from '@/lib/tarefa-recorrencia'
+
+const TAREFA_SELECT =
+  'id,titulo,descricao,responsavel_id,status,vencimento_em,recorrencia,dias_semana,alerta,prioridade,categoria,created_at'
 
 async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
   const { data, error } = await supabase
     .from('tarefas')
-    .select('id,titulo,responsavel_id,status')
+    .select(TAREFA_SELECT)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -26,7 +35,9 @@ async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) 
   }
 
   return NextResponse.json({
-    data: (data ?? []).map((row) => mapTarefaItem({ ...row, responsavel_nome: map[String(row.responsavel_id ?? '')] ?? '' })),
+    data: (data ?? []).map((row) =>
+      mapTarefaItem({ ...row, responsavel_nome: map[String(row.responsavel_id ?? '')] ?? '' }),
+    ),
     meta: session,
   })
 }
@@ -61,6 +72,100 @@ async function resolveResponsavelId(
   return null
 }
 
+function resolveVencimentoEm(body: Record<string, unknown>) {
+  if (typeof body.vencimentoEm === 'string' && body.vencimentoEm.trim()) {
+    const d = new Date(body.vencimentoEm)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  }
+
+  const data = typeof body.data === 'string' ? body.data.trim() : ''
+  const horario = typeof body.horario === 'string' && body.horario.trim() ? body.horario.trim() : '09:00'
+  if (data) {
+    const d = new Date(`${data}T${horario}:00`)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  }
+
+  return null
+}
+
+function resolveAlerta(body: Record<string, unknown>) {
+  if (typeof body.alerta === 'boolean') return body.alerta
+  if (body.alerta === 'true' || body.alerta === 1) return true
+  if (body.alerta === 'false' || body.alerta === 0) return false
+  return false
+}
+
+function buildTarefaRow(
+  body: Record<string, unknown>,
+  responsavelId: string | null,
+  sessionUserId: string,
+  includeCreatedBy: boolean,
+) {
+  const recorrencia = normalizeTarefaRecorrencia(body.recorrencia)
+  const diasSemana =
+    recorrencia === 'dias_especificos' ? normalizeDiasSemana(body.diasSemana) : []
+
+  const row: Record<string, unknown> = {
+    titulo: String(body.titulo),
+    descricao: typeof body.descricao === 'string' && body.descricao.trim() ? body.descricao : null,
+    responsavel_id: responsavelId,
+    status: typeof body.status === 'string' && body.status.trim() ? body.status : 'Pendente',
+    vencimento_em: resolveVencimentoEm(body),
+    recorrencia,
+    dias_semana: diasSemana.length > 0 ? diasSemana : null,
+    alerta: resolveAlerta(body),
+    prioridade: typeof body.prioridade === 'string' && body.prioridade.trim() ? body.prioridade : null,
+    categoria: typeof body.categoria === 'string' && body.categoria.trim() ? body.categoria : null,
+  }
+  if (includeCreatedBy) {
+    row.created_by_id = sessionUserId
+  } else {
+    row.updated_at = new Date().toISOString()
+  }
+  return row
+}
+
+async function spawnNextOccurrence(
+  supabase: ReturnType<typeof getAppSupabase>,
+  current: {
+    titulo: string
+    descricao: string | null
+    responsavel_id: string | null
+    vencimento_em: string | null
+    recorrencia: TarefaRecorrencia
+    dias_semana: number[]
+    alerta: boolean
+    prioridade: string | null
+    categoria: string | null
+  },
+  createdById: string,
+) {
+  if (current.recorrencia === 'nenhuma') return null
+
+  const nextDate = nextVencimentoForRecorrencia(
+    current.recorrencia,
+    current.vencimento_em,
+    current.dias_semana,
+  )
+  if (!nextDate) return null
+
+  const { error } = await supabase.from('tarefas').insert({
+    titulo: current.titulo,
+    descricao: current.descricao,
+    responsavel_id: current.responsavel_id,
+    status: 'Pendente',
+    vencimento_em: nextDate.toISOString(),
+    recorrencia: current.recorrencia,
+    dias_semana: current.dias_semana.length > 0 ? current.dias_semana : null,
+    alerta: current.alerta,
+    prioridade: current.prioridade,
+    categoria: current.categoria,
+    created_by_id: createdById,
+  })
+
+  return error
+}
+
 export async function POST(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
@@ -73,21 +178,20 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Tarefa inválida', 'INVALID_TASK_INPUT', 400)
   }
 
+  const recorrencia = normalizeTarefaRecorrencia(body.recorrencia)
+  if (recorrencia === 'dias_especificos' && normalizeDiasSemana(body.diasSemana).length === 0) {
+    return serverErrorResponse(
+      'Selecione ao menos um dia da semana para recorrência específica.',
+      'INVALID_TASK_DAYS',
+      400,
+    )
+  }
+
   const supabase = getAppSupabase()
   const responsavelId = await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)
-  const vencimentoEm =
-    typeof body.vencimentoEm === 'string' && body.vencimentoEm.trim()
-      ? new Date(body.vencimentoEm).toISOString()
-      : null
-
-  const { error } = await supabase.from('tarefas').insert({
-    titulo: String(body.titulo),
-    descricao: typeof body.descricao === 'string' && body.descricao.trim() ? body.descricao : null,
-    responsavel_id: responsavelId,
-    status: typeof body.status === 'string' && body.status.trim() ? body.status : 'Pendente',
-    vencimento_em: vencimentoEm,
-    created_by_id: session.userId,
-  })
+  const { error } = await supabase
+    .from('tarefas')
+    .insert(buildTarefaRow(body, responsavelId, session.userId, true))
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao criar tarefa')
@@ -109,26 +213,98 @@ export async function PUT(request: NextRequest) {
   }
 
   const supabase = getAppSupabase()
+  const taskId = String(body.id)
+
+  const { data: before, error: beforeError } = await supabase
+    .from('tarefas')
+    .select(TAREFA_SELECT)
+    .eq('id', taskId)
+    .maybeSingle()
+
+  if (beforeError) {
+    return supabaseErrorResponse(beforeError, 'Falha ao atualizar tarefa')
+  }
+  if (!before) {
+    return serverErrorResponse('Tarefa não encontrada', 'TASK_NOT_FOUND', 404)
+  }
+
   const responsavelId = await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)
-  const vencimentoEm =
-    typeof body.vencimentoEm === 'string' && body.vencimentoEm.trim()
-      ? new Date(body.vencimentoEm).toISOString()
-      : null
+  const nextStatus =
+    typeof body.status === 'string' && body.status.trim() ? body.status : String(before.status)
+
+  const recorrencia = normalizeTarefaRecorrencia(
+    body.recorrencia !== undefined ? body.recorrencia : before.recorrencia,
+  )
+  const diasSemana =
+    body.diasSemana !== undefined
+      ? normalizeDiasSemana(body.diasSemana)
+      : normalizeDiasSemana(before.dias_semana)
+
+  if (recorrencia === 'dias_especificos' && diasSemana.length === 0) {
+    return serverErrorResponse(
+      'Selecione ao menos um dia da semana para recorrência específica.',
+      'INVALID_TASK_DAYS',
+      400,
+    )
+  }
 
   const { error } = await supabase
     .from('tarefas')
-    .update({
-      titulo: String(body.titulo),
-      descricao: typeof body.descricao === 'string' && body.descricao.trim() ? body.descricao : null,
-      responsavel_id: responsavelId,
-      status: typeof body.status === 'string' && body.status.trim() ? body.status : 'Pendente',
-      vencimento_em: vencimentoEm,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', String(body.id))
+    .update(
+      buildTarefaRow(
+        { ...body, status: nextStatus, recorrencia, diasSemana },
+        responsavelId,
+        session.userId,
+        false,
+      ),
+    )
+    .eq('id', taskId)
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao atualizar tarefa')
+  }
+
+  const wasOpen = String(before.status) !== 'Concluída'
+  const nowDone = nextStatus === 'Concluída'
+
+  if (wasOpen && nowDone && recorrencia !== 'nenhuma') {
+    const spawnError = await spawnNextOccurrence(
+      supabase,
+      {
+        titulo: String(body.titulo),
+        descricao:
+          typeof body.descricao === 'string' && body.descricao.trim()
+            ? body.descricao
+            : before.descricao
+              ? String(before.descricao)
+              : null,
+        responsavel_id: responsavelId ?? (before.responsavel_id ? String(before.responsavel_id) : null),
+        vencimento_em: resolveVencimentoEm(body) ?? (before.vencimento_em ? String(before.vencimento_em) : null),
+        recorrencia,
+        dias_semana: diasSemana,
+        alerta:
+          typeof body.alerta === 'boolean'
+            ? body.alerta
+            : Boolean(before.alerta),
+        prioridade:
+          typeof body.prioridade === 'string' && body.prioridade.trim()
+            ? body.prioridade
+            : before.prioridade
+              ? String(before.prioridade)
+              : null,
+        categoria:
+          typeof body.categoria === 'string' && body.categoria.trim()
+            ? body.categoria
+            : before.categoria
+              ? String(before.categoria)
+              : null,
+      },
+      session.userId,
+    )
+
+    if (spawnError) {
+      return supabaseErrorResponse(spawnError, 'Tarefa concluída, mas falhou ao gerar a próxima ocorrência')
+    }
   }
 
   return listTarefas(session)

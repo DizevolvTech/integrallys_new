@@ -19,6 +19,7 @@ const SIDEBAR_BY_ROLE: Record<UserRole, SidebarItem[]> = {
     { id: 'dre', label: 'DRE', icon: 'BarChart2', href: '/dre' },
     { id: 'repasse', label: 'Repasse', icon: 'History', href: '/repasse' },
     { id: 'relatorios', label: 'Relatórios', icon: 'FileText', href: '/relatorios' },
+    { id: 'tarefas', label: 'Tarefas', icon: 'CheckSquare', href: '/tarefas' },
     { id: 'auditoria', label: 'Log de Auditoria', icon: 'History', href: '/auditoria' },
     { id: 'cat-sistema', label: 'Sistema', icon: 'Settings', type: 'category' },
     { id: 'comunicacao', label: 'Comunicação', icon: 'MessageSquare', href: '/comunicacao' },
@@ -51,6 +52,7 @@ const SIDEBAR_BY_ROLE: Record<UserRole, SidebarItem[]> = {
     { id: 'permissoes', label: 'Permissões', icon: 'Shield', href: '/permissoes' },
     { id: 'procedimentos-cadastro', label: 'Procedimentos', icon: 'ClipboardList', href: '/procedimentos' },
     { id: 'relatorios', label: 'Relatórios Corporativos', icon: 'BarChart2', href: '/relatorios' },
+    { id: 'tarefas', label: 'Tarefas', icon: 'CheckSquare', href: '/tarefas' },
     { id: 'cat-sistema', label: 'Sistema', icon: 'Settings', type: 'category' },
     { id: 'comunicacao', label: 'Comunicação', icon: 'MessageSquare', href: '/comunicacao' },
     { id: 'config-clinica', label: 'Config. da Clínica', icon: 'Building', href: '/configuracoes/clinica' },
@@ -69,6 +71,7 @@ const SIDEBAR_BY_ROLE: Record<UserRole, SidebarItem[]> = {
     { id: 'caixa', label: 'Caixa', icon: 'Wallet', href: '/caixa' },
     { id: 'cat-sistema', label: 'Sistema', icon: 'Settings', type: 'category' },
     { id: 'relatorios', label: 'Relatórios', icon: 'BarChart3', href: '/relatorios' },
+    { id: 'tarefas', label: 'Tarefas', icon: 'CheckSquare', href: '/tarefas' },
     { id: 'comunicacao', label: 'Comunicação', icon: 'MessageSquare', href: '/comunicacao' },
     { id: 'settings', label: 'Configurações', icon: 'Settings', href: '/configuracoes' },
   ],
@@ -128,6 +131,7 @@ const SIDEBAR_BY_ROLE: Record<UserRole, SidebarItem[]> = {
     { id: 'dre', label: 'DRE', icon: 'BarChart2', href: '/dre' },
     { id: 'repasse', label: 'Repasse', icon: 'ArrowLeftRight', href: '/repasse' },
     { id: 'relatorios', label: 'Relatórios', icon: 'BarChart2', href: '/relatorios' },
+    { id: 'tarefas', label: 'Tarefas', icon: 'CheckSquare', href: '/tarefas' },
     { id: 'auditoria', label: 'Auditoria', icon: 'FileCheck', href: '/auditoria' },
     { id: 'comunicacao', label: 'Comunicação', icon: 'MessageSquare', href: '/comunicacao' },
     { id: 'config-clinica', label: 'Config. da Clínica', icon: 'Building', href: '/configuracoes/clinica' },
@@ -153,7 +157,7 @@ function itemToResource(role: UserRole, item: SidebarItem): string | null {
   }
 
   if (item.id === 'inicio') return 'dashboard'
-  if (item.id === 'tarefas-relatorio') return 'relatorios'
+  if (item.id === 'tarefas' || item.id === 'tarefas-relatorio') return 'tarefas'
   if (item.id === 'dre') return 'financeiro'
   // gestao-bancaria NÃO reusa 'financeiro' (recepção tem financeiro p/ Caixa e
   // veria contas bancárias completas) — cai no fallback href → recurso próprio

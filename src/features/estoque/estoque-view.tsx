@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Plus, Printer, Search, Trash2, Undo2 } from 'lucide-react'
+import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Plus, Printer, Search, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react'
 import { useEstoque, type EstoqueInput, type MovimentacaoEstoqueInput, type MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
 import { toast } from 'sonner'
 import { SegmentedControl } from '@/components/shared/segmented-control'
@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/table'
 import { PageHeader } from '@/components/shared/page-header'
 import {
+  AjusteEstoqueModal,
   EditarProdutoModal,
   EntradaEstoqueModal,
   EstornarMovimentacaoModal,
@@ -44,12 +45,16 @@ import {
   SaidaEstoqueModal,
   VisualizarEstoqueModal,
 } from './modals'
+import { CategoriasEstoqueModal } from './modals/categorias-estoque-modal'
 import { ImprimirEtiquetaModal } from './modals/imprimir-etiqueta-modal'
+import { useEstoqueCategorias } from './hooks/use-estoque-categorias'
 
 type EstoqueModal =
   | 'entrada'
   | 'novo'
   | 'saida'
+  | 'ajuste'
+  | 'categorias'
   | 'visualizar'
   | 'editar'
   | 'excluir'
@@ -92,6 +97,7 @@ interface EstoqueViewProps {
 
 function getItemTone(status: string) {
   const normalized = status.toLowerCase()
+  if (normalized.includes('indispon')) return 'bg-[var(--app-danger-text)] text-white dark:bg-red-900/60 dark:text-[var(--app-danger-text)]'
   if (normalized.includes('baixo')) return 'app-status-warning0 text-white dark:bg-amber-900/60 dark:text-[var(--app-warning-text)]'
   if (normalized.includes('crit')) return 'bg-[var(--app-danger-text)] text-white dark:bg-red-900/60 dark:text-[var(--app-danger-text)]'
   return 'bg-[var(--app-success-text)] text-white dark:bg-emerald-900/60 dark:text-[var(--app-success-text)]'
@@ -115,7 +121,14 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     movimentacoesError,
     loadMovimentacoes,
     estornarMovimentacao,
+    registrarAjuste,
   } = useEstoque()
+  const {
+    data: categorias,
+    create: createCategoria,
+    remove: removeCategoria,
+  } = useEstoqueCategorias()
+  const categoriaNomes = useMemo(() => categorias.map((item) => item.nome), [categorias])
   const [section, setSection] = useState<EstoqueSection>(initialSection)
   const [searchTerm, setSearchTerm] = useState('')
   const [activeModal, setActiveModal] = useState<EstoqueModal>(null)
@@ -263,6 +276,20 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
             >
               <Plus size={18} />
               Novo produto
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setActiveModal('categorias')}
+              className="flex-1 md:flex-none h-11 md:h-12 px-4 rounded-xl"
+            >
+              Categorias
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setActiveModal('ajuste')}
+              className="flex-1 md:flex-none h-11 md:h-12 px-4 rounded-xl"
+            >
+              Ajuste
             </Button>
             {section === 'estoque' && criticalCount > 0 && (
               <div className="bg-[var(--app-danger-text)] dark:bg-red-900/40 dark:text-[var(--app-danger-text)] text-white flex items-center gap-2 px-4 py-2.5 rounded-[12px] font-normal text-sm shadow-lg shadow-red-500/10">
@@ -625,6 +652,15 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
+                              openModal('ajuste', item.id)
+                            }}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <SlidersHorizontal size={16} />
+                            Ajuste de estoque
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
                               openModal('etiqueta', item.id)
                             }}
                             className="flex items-center gap-2 cursor-pointer"
@@ -684,6 +720,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
         onClose={(open) => {
           if (!open) setActiveModal(null)
         }}
+        categorias={categoriaNomes}
         onSave={handleCriar}
       />
 
@@ -696,7 +733,33 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
           }
         }}
         produto={selectedItem}
+        categorias={categoriaNomes}
         onSave={handleEditar}
+      />
+
+      <AjusteEstoqueModal
+        isOpen={activeModal === 'ajuste'}
+        onClose={() => {
+          setActiveModal(null)
+          setSelectedId(null)
+        }}
+        produtos={data}
+        produtoIdInicial={selectedId ?? undefined}
+        onSave={async (payload) => {
+          await registrarAjuste(payload)
+        }}
+      />
+
+      <CategoriasEstoqueModal
+        isOpen={activeModal === 'categorias'}
+        onClose={() => setActiveModal(null)}
+        categorias={categorias}
+        onCreate={async (nome) => {
+          await createCategoria(nome)
+        }}
+        onRemove={async (id) => {
+          await removeCategoria(id)
+        }}
       />
 
       <ExcluirProdutoModal

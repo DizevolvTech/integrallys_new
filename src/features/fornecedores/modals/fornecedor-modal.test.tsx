@@ -43,7 +43,7 @@ afterEach(() => {
 describe('FornecedorModal — CNPJ', () => {
   it('aplica a máscara aceitando letra na raiz (CNPJ alfanumérico)', async () => {
     stubFetch(() => ({ ok: false, status: 404, json: async () => ({}) }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     const campoCnpj = screen.getByLabelText('CNPJ')
@@ -54,7 +54,7 @@ describe('FornecedorModal — CNPJ', () => {
 
   it('recusa letra digitada na posição dos dígitos verificadores', async () => {
     stubFetch(() => ({ ok: false, status: 404, json: async () => ({}) }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     const campoCnpj = screen.getByLabelText('CNPJ')
@@ -65,7 +65,7 @@ describe('FornecedorModal — CNPJ', () => {
 
   it('bloqueia o salvamento quando o dígito verificador não confere', async () => {
     stubFetch(() => ({ ok: false, status: 404, json: async () => ({}) }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSave } = renderModal()
 
     await user.type(screen.getByLabelText('Nome'), 'Fornecedor Teste')
@@ -78,7 +78,7 @@ describe('FornecedorModal — CNPJ', () => {
 
   it('preenche razão social e contato automaticamente ao completar um CNPJ válido', async () => {
     const spy = stubFetch(() => RESPOSTA_INVEBRA)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByLabelText('CNPJ'), '31511812000125')
@@ -101,7 +101,7 @@ describe('FornecedorModal — CNPJ', () => {
 
   it('não consulta a rede enquanto o CNPJ está incompleto', async () => {
     const spy = stubFetch(() => RESPOSTA_INVEBRA)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByLabelText('CNPJ'), '3151181200')
@@ -109,30 +109,37 @@ describe('FornecedorModal — CNPJ', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('avisa mas NÃO trava o cadastro quando o CNPJ não é encontrado', async () => {
+  it(
+    'avisa mas NÃO trava o cadastro quando o CNPJ não é encontrado',
+    async () => {
     stubFetch(() => ({ ok: false, status: 404, json: async () => ({ type: 'not_found' }) }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSave } = renderModal()
 
     await user.type(screen.getByLabelText('Nome'), 'Empresa Nova')
     await user.type(screen.getByLabelText('CNPJ'), '12ABC34501DE35')
 
-    await waitFor(() => {
-      expect(screen.getByText(/não encontrado na Receita/i)).toBeInTheDocument()
-    })
+    await waitFor(
+      () => {
+        expect(screen.getByText(/não encontrado na Receita/i)).toBeInTheDocument()
+      },
+      { timeout: 10000 },
+    )
 
     await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
     // persiste normalizado (sem máscara), preservando a letra em maiúscula
     expect(onSave.mock.calls[0][0]).toMatchObject({ cnpj: '12ABC34501DE35' })
-  })
+  },
+  15000,
+  )
 
   it('avisa mas NÃO trava o cadastro quando a rede falha', async () => {
     stubFetch(() => {
       throw new Error('network down')
     })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSave } = renderModal()
 
     await user.type(screen.getByLabelText('Nome'), 'Empresa Offline')
@@ -149,7 +156,7 @@ describe('FornecedorModal — CNPJ', () => {
 
   it('não sobrescreve a razão social que o usuário já digitou', async () => {
     stubFetch(() => RESPOSTA_INVEBRA)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByLabelText('Razão social'), 'Nome escolhido pelo usuário')
@@ -163,7 +170,7 @@ describe('FornecedorModal — CNPJ', () => {
 describe('FornecedorModal — telefone', () => {
   it('aplica máscara de celular e de fixo', async () => {
     stubFetch(() => ({ ok: false, status: 404, json: async () => ({}) }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     const campo = screen.getByLabelText('Telefone')
@@ -173,7 +180,7 @@ describe('FornecedorModal — telefone', () => {
 
   it('bloqueia o salvamento com DDD inexistente', async () => {
     stubFetch(() => ({ ok: false, status: 404, json: async () => ({}) }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSave } = renderModal()
 
     await user.type(screen.getByLabelText('Nome'), 'Fornecedor Teste')

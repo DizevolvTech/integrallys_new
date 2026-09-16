@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { authErrorResponse, assertPacienteInUnitScope, getRequestAuth } from '@/lib/request-auth'
 
 export interface PacienteExameItem {
   id: string
@@ -143,6 +143,20 @@ export async function DELETE(request: NextRequest) {
   if (!body?.id) return serverErrorResponse('id obrigatório', 'INVALID_ID', 400)
 
   const supabase = getAppSupabase()
+  const { data: exame, error: exameError } = await supabase
+    .from('paciente_exames')
+    .select('id,paciente_id')
+    .eq('id', body.id)
+    .maybeSingle()
+  if (exameError) return supabaseErrorResponse(exameError, 'Falha ao excluir exame')
+  if (!exame) return serverErrorResponse('Exame não encontrado', 'NOT_FOUND', 404)
+
+  const scopeDenied = await assertPacienteInUnitScope({
+    session,
+    pacienteId: String(exame.paciente_id),
+  })
+  if (scopeDenied) return scopeDenied
+
   const { error } = await supabase.from('paciente_exames').delete().eq('id', body.id)
   if (error) return supabaseErrorResponse(error, 'Falha ao excluir exame')
 

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { agendarLembrete } from '@/app/api/whatsapp/disparar/route'
-import { getAppSupabase } from '@/lib/app-api'
+import { getAppSupabase, serverErrorResponse } from '@/lib/app-api'
 import {
   getWhatsappConfig,
   normalizeTelefone,
@@ -329,12 +329,12 @@ export async function POST(request: NextRequest) {
     console.error(
       '[chatbot] webhook_token não configurado em configuracoes — endpoint inacessível até configurar',
     )
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return serverErrorResponse('Não autorizado', 'WEBHOOK_UNAUTHORIZED', 401)
   }
 
   if (provided !== webhookToken) {
     console.warn('[chatbot] token inválido rejeitado')
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return serverErrorResponse('Não autorizado', 'WEBHOOK_UNAUTHORIZED', 401)
   }
 
   const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null

@@ -3,6 +3,7 @@ import {
   processarCampanhas,
   processarPendentes,
 } from '@/app/api/whatsapp/disparar/route'
+import { serverErrorResponse } from '@/lib/app-api'
 
 /**
  * Endpoint de cron para processar a fila de disparos de WhatsApp.
@@ -15,12 +16,12 @@ import {
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET não configurado' }, { status: 500 })
+    return serverErrorResponse('CRON_SECRET não configurado', 'CRON_SECRET_MISSING', 500)
   }
 
   const provided = request.headers.get('x-cron-secret')
   if (provided !== secret) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    return serverErrorResponse('Não autorizado', 'CRON_UNAUTHORIZED', 401)
   }
 
   const pendentes = await processarPendentes()

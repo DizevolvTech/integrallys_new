@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapPrescricaoItem } from '@/lib/domain-mappers'
+import { estoqueAplicarMovimentacao } from '@/lib/estoque-movimentacao'
 import { stripPrescricaoFinancialFields } from '@/lib/financial-sanitize'
 import { isPrescriptionImmutable } from '@/lib/prescricao-immutability'
 import { authErrorResponse, forbiddenResponse, getRequestAuth } from '@/lib/request-auth'
@@ -320,44 +321,45 @@ async function applyItemsAndEstoque(
   for (const it of items) {
     if (!it.productId) continue
 
-    const stockQuery = await supabase
-      .from('produtos_estoque')
-      .select('quantidade,unidade_id')
-      .eq('id', it.productId)
-      .maybeSingle()
-
-    if (stockQuery.error) {
-      return { error: stockQuery.error }
-    }
-
-    const current = Number(stockQuery.data?.quantidade ?? 0)
-    const nextQty = Math.max(0, current - it.quantidade)
-    const unidadeIdItem = stockQuery.data?.unidade_id ? String(stockQuery.data.unidade_id) : null
-
-    const updateStock = await supabase
-      .from('produtos_estoque')
-      .update({ quantidade: nextQty })
-      .eq('id', it.productId)
-
-    if (updateStock.error) {
-      return { error: updateStock.error }
-    }
-
-    const movError = await supabase.from('movimentacoes_estoque').insert({
-      produto_id: it.productId,
-      usuario_id: session!.userId,
+    const result = await estoqueAplicarMovimentacao(supabase, {
+      produtoId: it.productId,
+      usuarioId: session!.userId,
       tipo: 'saida',
       quantidade: it.quantidade,
+      tipoMovimentacao: 'saida',
       observacoes: `Saída por venda de prescrição ${prescricaoNumero}`,
-      unidade_id: unidadeIdItem,
     })
 
-    if (movError.error) {
-      return { error: movError.error }
+    if (!result.ok) {
+      return {
+        error: {
+          message: result.message,
+          code: result.code === 'INSUFFICIENT_STOCK' ? 'STOCK_INSUFFICIENT' : result.code,
+        } as never,
+      }
     }
   }
 
   return { error: null }
+}
+
+async function restoreStockFromItems(
+  supabase: SupabaseClient,
+  items: Array<{ productId?: string | null; quantidade: number; descricao?: string }>,
+  session: Awaited<ReturnType<typeof getRequestAuth>>,
+  prescricaoNumero: string,
+) {
+  for (const it of items) {
+    if (!it.productId) continue
+    await estoqueAplicarMovimentacao(supabase, {
+      produtoId: it.productId,
+      usuarioId: session!.userId,
+      tipo: 'entrada',
+      quantidade: it.quantidade,
+      tipoMovimentacao: 'entrada',
+      observacoes: `Estorno automático — falha no caixa da venda ${prescricaoNumero}`,
+    })
+  }
 }
 
 async function lancarCaixa(
@@ -519,10 +521,12 @@ export async function POST(request: NextRequest) {
       formaPagamento,
     })
     if (caixaResult.error) {
+      await restoreStockFromItems(supabase, items, session, numero)
+      await supabase.from('prescricao_itens').delete().eq('prescricao_id', prescricaoId)
       await supabase.from('prescricoes').delete().eq('id', prescricaoId)
       return supabaseErrorResponse(
         caixaResult.error,
-        'Falha ao lançar venda no caixa — prescrição revertida',
+        'Falha ao lançar venda no caixa — venda revertida (estoque restaurado)',
       )
     }
   }
@@ -584,6 +588,50 @@ export async function PUT(request: NextRequest) {
   const transitionToConvertida =
     previousStatus !== 'Convertida' && nextStatus === 'Convertida'
 
+  // Baixa de estoque ANTES de gravar Convertida — evita status final sem estoque.
+  if (transitionToConvertida) {
+    const itensQuery = await supabase
+      .from('prescricao_itens')
+      .select('produto_id,quantidade,descricao')
+      .eq('prescricao_id', String(body.id))
+
+    if (itensQuery.error) {
+      return supabaseErrorResponse(
+        itensQuery.error,
+        'Falha ao carregar itens para baixa de estoque',
+      )
+    }
+
+    const numero = currentQuery.data?.numero ? String(currentQuery.data.numero) : 'N/A'
+
+    for (const raw of itensQuery.data ?? []) {
+      if (!raw.produto_id) continue
+      const produtoId = String(raw.produto_id)
+      const quantidade = Number(raw.quantidade ?? 0)
+      if (quantidade <= 0) continue
+
+      const result = await estoqueAplicarMovimentacao(supabase, {
+        produtoId,
+        usuarioId: session.userId,
+        tipo: 'saida',
+        quantidade,
+        tipoMovimentacao: 'saida',
+        observacoes: `Saída por conversão de prescrição ${numero}`,
+      })
+
+      if (!result.ok) {
+        if (result.code === 'INSUFFICIENT_STOCK') {
+          return serverErrorResponse(
+            `Estoque insuficiente para ${String(raw.descricao ?? produtoId)}`,
+            'STOCK_INSUFFICIENT',
+            409,
+          )
+        }
+        return serverErrorResponse(result.message, result.code, 500)
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('prescricoes')
     .update({
@@ -603,61 +651,6 @@ export async function PUT(request: NextRequest) {
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao atualizar prescrição')
-  }
-
-  if (transitionToConvertida) {
-    const itensQuery = await supabase
-      .from('prescricao_itens')
-      .select('produto_id,quantidade')
-      .eq('prescricao_id', String(body.id))
-
-    if (itensQuery.error) {
-      return supabaseErrorResponse(
-        itensQuery.error,
-        'Falha ao carregar itens para baixa de estoque',
-      )
-    }
-
-    const numero = currentQuery.data?.numero ? String(currentQuery.data.numero) : 'N/A'
-
-    for (const raw of itensQuery.data ?? []) {
-      if (!raw.produto_id) continue
-      const produtoId = String(raw.produto_id)
-      const quantidade = Number(raw.quantidade ?? 0)
-      if (quantidade <= 0) continue
-
-      const stockQuery = await supabase
-        .from('produtos_estoque')
-        .select('quantidade,unidade_id')
-        .eq('id', produtoId)
-        .maybeSingle()
-
-      if (stockQuery.error) {
-        return supabaseErrorResponse(stockQuery.error, 'Falha ao baixar estoque')
-      }
-
-      const current = Number(stockQuery.data?.quantidade ?? 0)
-      const nextQty = Math.max(0, current - quantidade)
-      const unidadeIdConv = stockQuery.data?.unidade_id ? String(stockQuery.data.unidade_id) : null
-
-      const updateStock = await supabase
-        .from('produtos_estoque')
-        .update({ quantidade: nextQty })
-        .eq('id', produtoId)
-
-      if (updateStock.error) {
-        return supabaseErrorResponse(updateStock.error, 'Falha ao baixar estoque')
-      }
-
-      await supabase.from('movimentacoes_estoque').insert({
-        produto_id: produtoId,
-        usuario_id: session.userId,
-        tipo: 'saida',
-        quantidade,
-        observacoes: `Saída por conversão da prescrição ${numero}`,
-        unidade_id: unidadeIdConv,
-      })
-    }
   }
 
   return listPrescricoes(session)

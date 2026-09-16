@@ -6,7 +6,12 @@ import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
 async function listListaEspera(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
-  const [{ data, error }, { data: especialistasData, error: especialistasError }, { data: procedimentosData, error: procedimentosError }] = await Promise.all([
+  const [
+    { data, error },
+    { data: especialistasData, error: especialistasError },
+    { data: procedimentosData, error: procedimentosError },
+    { data: vinculosData, error: vinculosError },
+  ] = await Promise.all([
     supabase
       .from('lista_espera')
       .select('id,paciente_id,prioridade,especialista,procedimento,procedimento_id,especialista_id,preferencia_horario,entrada_em,observacoes')
@@ -22,6 +27,9 @@ async function listListaEspera(session: Awaited<ReturnType<typeof getRequestAuth
       .select('id,nome,valor')
       .eq('ativo', true)
       .order('nome', { ascending: true }),
+    // profissional_id em profissional_procedimentos referencia usuarios(id) (migration 079).
+    // Não existe tabela `profissionais`.
+    supabase.from('profissional_procedimentos').select('profissional_id,procedimento_id'),
   ])
 
   if (error) {
@@ -36,8 +44,23 @@ async function listListaEspera(session: Awaited<ReturnType<typeof getRequestAuth
     return supabaseErrorResponse(procedimentosError, 'Falha ao carregar procedimentos da lista de espera')
   }
 
+  if (vinculosError) {
+    return supabaseErrorResponse(vinculosError, 'Falha ao carregar vínculos de procedimentos')
+  }
+
   const especialistasRows = especialistasData ?? []
   const procedimentosRows = procedimentosData ?? []
+  const vinculosRows = vinculosData ?? []
+
+  const procedimentoIdsByProfissionalId = new Map<string, string[]>()
+  for (const row of vinculosRows) {
+    const profissionalId = String(row.profissional_id ?? '')
+    const procedimentoId = String(row.procedimento_id ?? '')
+    if (!profissionalId || !procedimentoId) continue
+    const current = procedimentoIdsByProfissionalId.get(profissionalId) ?? []
+    current.push(procedimentoId)
+    procedimentoIdsByProfissionalId.set(profissionalId, current)
+  }
 
   const specialists = Array.from(
     new Set(especialistasRows.map((row) => String(row.nome ?? '')).filter(Boolean)),
@@ -49,7 +72,14 @@ async function listListaEspera(session: Awaited<ReturnType<typeof getRequestAuth
 
   const especialistasOptions = especialistasRows
     .filter((row) => row.id && row.nome)
-    .map((row) => ({ id: String(row.id), nome: String(row.nome) }))
+    .map((row) => {
+      const id = String(row.id)
+      return {
+        id,
+        nome: String(row.nome),
+        procedimentoIds: procedimentoIdsByProfissionalId.get(id) ?? [],
+      }
+    })
 
   const procedimentosOptions = procedimentosRows
     .filter((row) => row.id && row.nome)

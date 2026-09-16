@@ -77,5 +77,13 @@ export function useAgendaBloqueios(params: { inicio?: string; fim?: string } = {
     [api],
   )
 
-  return { data, isLoading, error, reload: load, create }
+  const remove = useCallback(
+    async (id: string) => {
+      await api.delete<{ data: { id: string } }>(`/api/agenda/bloqueios?id=${encodeURIComponent(id)}`)
+      setData((current) => current.filter((item) => item.id !== id))
+    },
+    [api],
+  )
+
+  return { data, isLoading, error, reload: load, create, remove }
 }

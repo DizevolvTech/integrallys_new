@@ -1,11 +1,26 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NovoAgendamentoModal } from './novo-agendamento-modal'
 
 const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toasts }))
+vi.mock('@/features/procedimentos/hooks/use-procedimentos', () => ({
+  useProcedimentos: () => ({ data: [], isLoading: false, error: null }),
+}))
+vi.mock('@/features/gestao-bancaria/hooks/use-contas-bancarias', () => ({
+  useContasBancarias: () => ({ data: [], isLoading: false, error: null, accessDenied: false }),
+}))
+
+beforeAll(() => {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+})
 
 afterEach(() => {
   toasts.error.mockClear()
@@ -15,29 +30,29 @@ afterEach(() => {
 function renderModal(
   overrides: Partial<ComponentProps<typeof NovoAgendamentoModal>> = {},
 ) {
-  const onCreatePatient = vi.fn().mockResolvedValue({ id: 'novo-1', nome: 'João Inexistente' })
+  const onRequestFullCadastro = vi.fn()
   render(
     <NovoAgendamentoModal
       isOpen
       onClose={vi.fn()}
       patients={[{ id: '1', nome: 'Ana' }]}
       professionals={['Dr. Teste']}
-      onCreatePatient={onCreatePatient}
+      onRequestFullCadastro={onRequestFullCadastro}
       {...overrides}
     />,
   )
-  return { onCreatePatient }
+  return { onRequestFullCadastro }
 }
 
-describe('NovoAgendamentoModal — paciente autocomplete + cadastro rápido', () => {
-  it('mostra opção de cadastro rápido quando a busca não acha paciente', async () => {
+describe('NovoAgendamentoModal — paciente autocomplete + cadastro completo', () => {
+  it('mostra opção de cadastro completo quando a busca não acha paciente', async () => {
     const user = userEvent.setup()
     renderModal()
 
     const search = screen.getByPlaceholderText(/buscar ou digitar nome/i)
     await user.type(search, 'João Inexistente')
 
-    expect(await screen.findByText(/cadastro rápido/i)).toBeInTheDocument()
+    expect(await screen.findAllByRole('button', { name: /cadastrar paciente completo/i })).not.toHaveLength(0)
   })
 
   it('filtra pacientes cadastrados ao digitar o nome', async () => {
@@ -55,52 +70,40 @@ describe('NovoAgendamentoModal — paciente autocomplete + cadastro rápido', ()
     expect(screen.queryByRole('option', { name: /Bruno Costa/i })).not.toBeInTheDocument()
   })
 
-  it('cria paciente rápido e seleciona o novo id', async () => {
+  it('solicita cadastro completo com o nome digitado', async () => {
     const user = userEvent.setup()
-    const { onCreatePatient } = renderModal()
+    const { onRequestFullCadastro } = renderModal()
 
     await user.type(screen.getByPlaceholderText(/buscar ou digitar nome/i), 'João Inexistente')
-    await user.click(await screen.findByRole('button', { name: /cadastrar paciente rápido/i }))
-
-    await user.clear(screen.getByLabelText(/nome completo/i))
-    await user.type(screen.getByLabelText(/nome completo/i), 'João Inexistente')
-    await user.type(screen.getByLabelText(/^telefone$/i), '11987654321')
-    await user.type(screen.getByLabelText(/data de nascimento/i), '1990-05-15')
-    await user.type(screen.getByLabelText(/^cpf$/i), '52998224725')
-
-    await user.click(screen.getByRole('button', { name: /salvar paciente/i }))
+    const buttons = await screen.findAllByRole('button', { name: /cadastrar paciente completo/i })
+    await user.click(buttons[0])
 
     await waitFor(() => {
-      expect(onCreatePatient).toHaveBeenCalledWith(
-        expect.objectContaining({
-          nome: 'João Inexistente',
-          telefone: expect.stringMatching(/\d/),
-          dataNascimento: '1990-05-15',
-          cpf: expect.stringMatching(/529\.?982\.?247-?25/),
-        }),
-      )
+      expect(onRequestFullCadastro).toHaveBeenCalledWith('João Inexistente')
     })
-
-    expect(await screen.findByText(/João Inexistente/i)).toBeInTheDocument()
   })
 
-  it('Enter no cadastro rápido cria paciente sem submeter o formulário pai', async () => {
-    const user = userEvent.setup()
-    const onSave = vi.fn()
-    const { onCreatePatient } = renderModal({ onSave })
+  it('seleciona paciente criado via prop createdPatient', async () => {
+    const { rerender } = render(
+      <NovoAgendamentoModal
+        isOpen
+        onClose={vi.fn()}
+        patients={[{ id: '1', nome: 'Ana' }]}
+        professionals={['Dr. Teste']}
+        createdPatient={null}
+      />,
+    )
 
-    await user.type(screen.getByPlaceholderText(/buscar ou digitar nome/i), 'João Inexistente')
-    await user.click(await screen.findByRole('button', { name: /cadastrar paciente rápido/i }))
+    rerender(
+      <NovoAgendamentoModal
+        isOpen
+        onClose={vi.fn()}
+        patients={[{ id: '1', nome: 'Ana' }]}
+        professionals={['Dr. Teste']}
+        createdPatient={{ id: 'novo-1', nome: 'João Completo' }}
+      />,
+    )
 
-    await user.clear(screen.getByLabelText(/nome completo/i))
-    await user.type(screen.getByLabelText(/nome completo/i), 'João Inexistente')
-    await user.type(screen.getByLabelText(/^telefone$/i), '11987654321')
-    await user.type(screen.getByLabelText(/data de nascimento/i), '1990-05-15')
-    await user.type(screen.getByLabelText(/^cpf$/i), '52998224725{Enter}')
-
-    await waitFor(() => {
-      expect(onCreatePatient).toHaveBeenCalledTimes(1)
-    })
-    expect(onSave).not.toHaveBeenCalled()
+    expect(await screen.findByText(/Selecionado: João Completo/i)).toBeInTheDocument()
   })
 })

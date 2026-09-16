@@ -70,7 +70,8 @@ export function ConfiguracoesView() {
   const user = useAuth((state) => state.user)
   const refreshAuth = useAuth((state) => state.initialize)
   const { isDarkMode, toggleDarkMode } = useDarkMode()
-  const isEspecialista = user?.role === 'especialista'
+  const perfilClinico = useAuth((state) => state.capabilities.perfilClinico)
+  const isEspecialista = perfilClinico
   const {
     data: patientPortalAlert,
     setData: setPatientPortalAlert,

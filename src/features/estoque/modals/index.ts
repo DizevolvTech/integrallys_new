@@ -1,5 +1,6 @@
 export { EntradaEstoqueModal } from './entrada-estoque-modal'
 export { SaidaEstoqueModal } from './saida-estoque-modal'
+export { AjusteEstoqueModal } from './ajuste-estoque-modal'
 export { EditarProdutoModal } from './editar-produto-modal'
 export { NovoProdutoModal } from './novo-produto-modal'
 export { ExcluirProdutoModal } from './excluir-produto-modal'

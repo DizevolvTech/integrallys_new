@@ -17,7 +17,9 @@ export function NovoAgendamentoView() {
   const { createAgendamento } = useAgendamento()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const selectedDateValue = selectedDate ? selectedDate.toISOString().slice(0, 10) : undefined
+  const selectedDateValue = selectedDate
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+    : undefined
   const { data: options, isLoading, error } = useOpcoesAgendamento(selectedDateValue)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [specialist, setSpecialist] = useState<string>('')
@@ -86,7 +88,7 @@ export function NovoAgendamentoView() {
   }
 
   const canAdvanceStepOne = Boolean(selectedDate && selectedTime && specialist && procedure)
-  const canFinish = Boolean(paymentMethod)
+  const canFinish = true
 
   return (
     <div className="app-page">
@@ -282,8 +284,9 @@ export function NovoAgendamentoView() {
                   <p className="text-xl font-bold text-app-text-primary dark:text-white">R$ {procedure.split('R$')[1] || '0,00'}</p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <p className="text-sm font-medium uppercase tracking-wider text-[var(--app-success-text)] dark:text-[var(--app-success-text)]">Pagamento Antecipado (50%)</p>
+                  <p className="text-sm font-medium uppercase tracking-wider text-[var(--app-success-text)] dark:text-[var(--app-success-text)]">Sinal sugerido (50%)</p>
                   <p className="text-xl font-bold text-[var(--app-success-text)] dark:text-[var(--app-success-text)]">R$ {calculatePreviewValue()}</p>
+                  <p className="mt-1 text-xs text-app-text-secondary">Cobrança confirmada na clínica / recepção</p>
                 </div>
               </div>
             </div>
@@ -392,11 +395,11 @@ export function NovoAgendamentoView() {
                 specialistId,
                 procedureName: procedureLabel.split('-')[0].trim(),
                 procedurePrice,
-                date: selectedDate.toISOString().slice(0, 10),
+                date: `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`,
                 time: selectedTime,
               })
-              toast.success('Agendamento solicitado com sucesso.')
-              router.push('/agenda')
+              toast.success('Agendamento solicitado com sucesso. O pagamento será confirmado na clínica.')
+              router.push('/portal/agenda')
             } catch (err) {
               toast.error(err instanceof Error ? err.message : 'Não foi possível concluir o agendamento.')
             } finally {
@@ -411,7 +414,7 @@ export function NovoAgendamentoView() {
                 ? 'Continuar'
                 : step === 2
                   ? 'Ir para Pagamento'
-                  : 'Finalizar e Pagar'}
+                  : 'Solicitar agendamento'}
           </span>
           <ArrowRight className="h-4 w-4" />
         </Button>

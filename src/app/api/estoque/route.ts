@@ -2,6 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapEstoqueItem } from '@/lib/domain-mappers'
+import { buildAutoSku, resolveEstoqueStatus } from '@/lib/estoque-status'
+import {
+  estoqueAplicarMovimentacao,
+  estoqueEstornarMovimentacao,
+  estoqueRpcHttpStatus,
+} from '@/lib/estoque-movimentacao'
 import { stripEstoquePrices } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
@@ -203,67 +209,48 @@ export async function POST(request: NextRequest) {
       return serverErrorResponse('Motivo do estorno deve ter ao menos 10 caracteres', 'INVALID_ESTORNO_MOTIVO', 400)
     }
 
-    const { data: original, error: origError } = await supabase
-      .from('movimentacoes_estoque')
-      .select('id,produto_id,tipo,quantidade,estornada')
-      .eq('id', movimentacaoId)
-      .maybeSingle()
-
-    if (origError) return supabaseErrorResponse(origError, 'Falha ao localizar movimentação')
-    if (!original) return serverErrorResponse('Movimentação não encontrada', 'MOV_NOT_FOUND', 404)
-    if (original.estornada) {
-      return serverErrorResponse('Movimentação já foi estornada', 'MOV_ALREADY_REVERSED', 409)
-    }
-
-    const quantidade = Number(original.quantidade ?? 0)
-    const tipoOriginal = original.tipo === 'entrada' ? 'entrada' : 'saida'
-    const tipoCompensatorio = tipoOriginal === 'entrada' ? 'saida' : 'entrada'
-
-    const { data: produtoRow, error: produtoError } = await supabase
-      .from('produtos_estoque')
-      .select('quantidade,unidade_id')
-      .eq('id', String(original.produto_id))
-      .maybeSingle()
-    if (produtoError) return supabaseErrorResponse(produtoError, 'Falha ao carregar produto')
-    const quantidadeAtual = Number(produtoRow?.quantidade ?? 0)
-    const unidadeIdEstorno = produtoRow?.unidade_id ? String(produtoRow.unidade_id) : null
-    const novaQuantidade =
-      tipoCompensatorio === 'entrada' ? quantidadeAtual + quantidade : quantidadeAtual - quantidade
-
-    if (novaQuantidade < 0) {
-      return serverErrorResponse('Estoque insuficiente para estornar a movimentação', 'INSUFFICIENT_STOCK_FOR_REVERSAL', 400)
-    }
-
-    const nowIso = new Date().toISOString()
-
-    const { error: updOrigError } = await supabase
-      .from('movimentacoes_estoque')
-      .update({
-        estornada: true,
-        estorno_motivo: motivo,
-        estornada_em: nowIso,
-        estorno_por: session.userId,
-      })
-      .eq('id', movimentacaoId)
-    if (updOrigError) return supabaseErrorResponse(updOrigError, 'Falha ao marcar estorno')
-
-    const { error: compError } = await supabase.from('movimentacoes_estoque').insert({
-      produto_id: String(original.produto_id),
-      usuario_id: session.userId,
-      tipo: tipoCompensatorio,
-      tipo_movimentacao: tipoCompensatorio,
-      quantidade,
-      observacoes: `Estorno: ${motivo}`,
-      movimentacao_origem_id: movimentacaoId,
-      unidade_id: unidadeIdEstorno,
+    const result = await estoqueEstornarMovimentacao(supabase, {
+      movimentacaoId,
+      usuarioId: session.userId,
+      motivo,
     })
-    if (compError) return supabaseErrorResponse(compError, 'Falha ao registrar movimentação compensatória')
+    if (!result.ok) {
+      return serverErrorResponse(result.message, result.code, estoqueRpcHttpStatus(result.code))
+    }
 
-    const { error: prodUpdError } = await supabase
-      .from('produtos_estoque')
-      .update({ quantidade: novaQuantidade, updated_at: nowIso })
-      .eq('id', String(original.produto_id))
-    if (prodUpdError) return supabaseErrorResponse(prodUpdError, 'Falha ao ajustar estoque')
+    return listEstoque(request, session)
+  }
+
+  if (action === 'ajuste') {
+    if (!body?.produtoId) {
+      return serverErrorResponse('Produto inválido', 'INVALID_STOCK_ADJUSTMENT', 400)
+    }
+    const quantidadeAlvo = Number(body.quantidade)
+    if (!Number.isFinite(quantidadeAlvo) || quantidadeAlvo < 0) {
+      return serverErrorResponse('Quantidade inválida', 'INVALID_STOCK_ADJUSTMENT', 400)
+    }
+    const justificativa =
+      typeof body.justificativa === 'string' ? body.justificativa.trim() : ''
+    if (justificativa.length < 5) {
+      return serverErrorResponse(
+        'Informe a justificativa do ajuste (mín. 5 caracteres)',
+        'INVALID_STOCK_ADJUSTMENT',
+        400,
+      )
+    }
+
+    const result = await estoqueAplicarMovimentacao(supabase, {
+      produtoId: String(body.produtoId),
+      usuarioId: session.userId,
+      tipo: 'entrada',
+      quantidade: 0,
+      tipoMovimentacao: 'ajuste',
+      observacoes: justificativa,
+      quantidadeAlvo,
+    })
+    if (!result.ok) {
+      return serverErrorResponse(result.message, result.code, estoqueRpcHttpStatus(result.code))
+    }
 
     return listEstoque(request, session)
   }
@@ -276,24 +263,6 @@ export async function POST(request: NextRequest) {
     const quantidade = Number(body.quantidade)
     if (!Number.isFinite(quantidade) || quantidade <= 0) {
       return serverErrorResponse('Quantidade inválida', 'INVALID_STOCK_MOVEMENT', 400)
-    }
-
-    const { data: produtoAtual, error: produtoError } = await supabase
-      .from('produtos_estoque')
-      .select('quantidade,unidade_id')
-      .eq('id', String(body.produtoId))
-      .maybeSingle()
-
-    if (produtoError) {
-      return supabaseErrorResponse(produtoError, 'Falha ao carregar produto')
-    }
-
-    const quantidadeAtual = Number(produtoAtual?.quantidade ?? 0)
-    const unidadeIdMov = produtoAtual?.unidade_id ? String(produtoAtual.unidade_id) : null
-    const novaQuantidade = action === 'entrada' ? quantidadeAtual + quantidade : quantidadeAtual - quantidade
-
-    if (novaQuantidade < 0) {
-      return serverErrorResponse('Quantidade indisponível para saída', 'INVALID_STOCK_MOVEMENT', 400)
     }
 
     const allowedVinculoTipos = ['cliente', 'especialista', 'fornecedor'] as const
@@ -327,59 +296,22 @@ export async function POST(request: NextRequest) {
         : null
     const force = body.force === true
 
-    if (action === 'entrada' && numeroNf && cnpjEmitente && !force) {
-      const { data: existente, error: existenteError } = await supabase
-        .from('movimentacoes_estoque')
-        .select('id, created_at')
-        .eq('numero_nf', numeroNf)
-        .eq('cnpj_emitente', cnpjEmitente)
-        .maybeSingle()
-
-      if (existenteError && existenteError.code !== 'PGRST116') {
-        return supabaseErrorResponse(existenteError, 'Falha ao verificar duplicidade de NF')
-      }
-
-      if (existente) {
-        const importadaEm = existente.created_at
-          ? new Date(existente.created_at).toLocaleDateString('pt-BR')
-          : 'data desconhecida'
-        return serverErrorResponse(
-          `NF ${numeroNf} deste fornecedor já foi importada em ${importadaEm}`,
-          'NF_DUPLICADA',
-          409,
-        )
-      }
-    }
-
-    const { error: movimentoError } = await supabase.from('movimentacoes_estoque').insert({
-      produto_id: String(body.produtoId),
-      usuario_id: session.userId,
-      tipo: action === 'entrada' ? 'entrada' : 'saida',
-      tipo_movimentacao: tipoMovimentacao,
+    const result = await estoqueAplicarMovimentacao(supabase, {
+      produtoId: String(body.produtoId),
+      usuarioId: session.userId,
+      tipo: action,
       quantidade,
-      observacoes: body.observacoes ?? null,
-      vinculo_tipo: vinculoTipo,
-      vinculo_id: vinculoId,
-      vinculo_nome: vinculoNome,
-      numero_nf: numeroNf,
-      cnpj_emitente: cnpjEmitente,
-      unidade_id: unidadeIdMov,
+      tipoMovimentacao,
+      observacoes: typeof body.observacoes === 'string' ? body.observacoes : null,
+      vinculoTipo,
+      vinculoId,
+      vinculoNome,
+      numeroNf,
+      cnpjEmitente,
+      forceNf: force,
     })
-
-    if (movimentoError) {
-      return supabaseErrorResponse(movimentoError, 'Falha ao registrar movimentação de estoque')
-    }
-
-    const { error: updateError } = await supabase
-      .from('produtos_estoque')
-      .update({
-        quantidade: novaQuantidade,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', String(body.produtoId))
-
-    if (updateError) {
-      return supabaseErrorResponse(updateError, 'Falha ao atualizar estoque')
+    if (!result.ok) {
+      return serverErrorResponse(result.message, result.code, estoqueRpcHttpStatus(result.code))
     }
 
     return listEstoque(request, session)
@@ -394,22 +326,34 @@ export async function POST(request: NextRequest) {
     return supabaseErrorResponse(scopedUnitCreate.error, 'Falha ao cadastrar produto')
   }
 
-  // Item 14 — grava as colunas que já existiam no schema mas nunca eram escritas
-  // por nenhum formulário (sku/preços/lote/validade/estoque_minimo) + a nova
-  // unidade_medida. O PUT segue intocado de propósito: sem esses campos no modal de
-  // edição, gravá-los no update apagaria os valores (o mesmo bug "some na edição").
+  const quantidadeCreate = Number(body.quantidade ?? 0)
+  let sku = parseText(body.sku)
+  if (!sku) {
+    let countQuery = supabase
+      .from('produtos_estoque')
+      .select('id', { count: 'exact', head: true })
+    if (scopedUnitCreate.unidadeId) {
+      countQuery = countQuery.eq('unidade_id', scopedUnitCreate.unidadeId)
+    }
+    const { count } = await countQuery
+    sku = buildAutoSku({
+      unidadeId: scopedUnitCreate.unidadeId,
+      sequence: (count ?? 0) + 1,
+    })
+  }
+
   const { error } = await supabase.from('produtos_estoque').insert({
     nome: body.produto,
     categoria: body.categoria,
-    sku: parseText(body.sku),
-    quantidade: Number(body.quantidade ?? 0),
+    sku,
+    quantidade: quantidadeCreate,
     estoque_minimo: parseNumeric(body.estoqueMinimo) ?? 0,
     lote: parseText(body.lote),
     validade: parseText(body.validade),
     preco_custo: parseNumeric(body.precoCusto),
     preco_venda: parseNumeric(body.precoVenda),
     unidade_medida: parseText(body.unidadeMedida),
-    status: body.status ?? 'Disponível',
+    status: resolveEstoqueStatus(quantidadeCreate, parseNumeric(body.estoqueMinimo) ?? 0),
     unidade_id: scopedUnitCreate.unidadeId ?? body.unidadeId ?? null,
   })
 
@@ -439,20 +383,23 @@ export async function PUT(request: NextRequest) {
     return supabaseErrorResponse(scopedUnitUpdate.error, 'Falha ao atualizar produto')
   }
 
+  const quantidadeUpdate = Number(body.quantidade ?? 0)
+  const estoqueMinimoUpdate = parseNumeric(body.estoqueMinimo) ?? 0
+
   const { error } = await supabase
     .from('produtos_estoque')
     .update({
       nome: body.produto,
       categoria: body.categoria,
       sku: parseText(body.sku),
-      quantidade: Number(body.quantidade ?? 0),
-      estoque_minimo: parseNumeric(body.estoqueMinimo) ?? 0,
+      quantidade: quantidadeUpdate,
+      estoque_minimo: estoqueMinimoUpdate,
       lote: parseText(body.lote),
       validade: parseText(body.validade),
       preco_custo: parseNumeric(body.precoCusto),
       preco_venda: parseNumeric(body.precoVenda),
       unidade_medida: parseText(body.unidadeMedida),
-      status: body.status ?? 'Disponível',
+      status: resolveEstoqueStatus(quantidadeUpdate, estoqueMinimoUpdate),
       unidade_id: scopedUnitUpdate.unidadeId ?? body.unidadeId ?? null,
       updated_at: new Date().toISOString(),
     })

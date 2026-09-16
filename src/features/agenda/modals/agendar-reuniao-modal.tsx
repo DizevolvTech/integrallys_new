@@ -17,24 +17,42 @@ type TipoCompromisso = 'Reunião' | 'Tarefa' | 'Lembrete' | 'Evento' | 'Aprovaç
 interface AgendarReuniaoModalProps {
   isOpen: boolean
   onClose: () => void
+  professionals?: Array<{ id: string; nome: string }>
   onSave: (payload: {
     titulo: string
     tipo?: TipoCompromisso
     data: string
     hora: string
     duracao: string
+    horarioFim: string
+    profissionalId?: string
+    profissional?: string
     participantes: string
     local?: string
     observacoes?: string
   }) => Promise<void>
 }
 
-export function AgendarReuniaoModal({ isOpen, onClose, onSave }: AgendarReuniaoModalProps) {
+function addMinutesToTime(hora: string, minutes: number): string {
+  const [h, m] = hora.split(':').map(Number)
+  const total = (h || 0) * 60 + (m || 0) + minutes
+  const nh = Math.floor(total / 60) % 24
+  const nm = total % 60
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
+}
+
+export function AgendarReuniaoModal({
+  isOpen,
+  onClose,
+  professionals = [],
+  onSave,
+}: AgendarReuniaoModalProps) {
   const [titulo, setTitulo] = useState('')
   const [tipo, setTipo] = useState<TipoCompromisso | ''>('')
   const [data, setData] = useState('')
   const [hora, setHora] = useState('')
   const [duracao, setDuracao] = useState('30')
+  const [profissionalId, setProfissionalId] = useState('')
   const [local, setLocal] = useState('')
   const [participantes, setParticipantes] = useState('')
   const [observacoes, setObservacoes] = useState('')
@@ -46,6 +64,7 @@ export function AgendarReuniaoModal({ isOpen, onClose, onSave }: AgendarReuniaoM
     setData('')
     setHora('')
     setDuracao('30')
+    setProfissionalId('')
     setLocal('')
     setParticipantes('')
     setObservacoes('')
@@ -54,10 +73,14 @@ export function AgendarReuniaoModal({ isOpen, onClose, onSave }: AgendarReuniaoM
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!titulo.trim() || !tipo || !data || !hora) {
-      toast.error('Preencha título, tipo, data e horário.')
+    if (!titulo.trim() || !tipo || !data || !hora || !profissionalId) {
+      toast.error('Preencha título, tipo, especialista, data e horário.')
       return
     }
+
+    const profissional = professionals.find((item) => item.id === profissionalId)
+    const minutos = Number(duracao) || 30
+    const horarioFim = addMinutesToTime(hora, minutos)
 
     setIsSaving(true)
     try {
@@ -67,11 +90,14 @@ export function AgendarReuniaoModal({ isOpen, onClose, onSave }: AgendarReuniaoM
         data,
         hora,
         duracao,
+        horarioFim,
+        profissionalId,
+        profissional: profissional?.nome,
         participantes: participantes.trim(),
         local: local.trim() || undefined,
         observacoes: observacoes.trim() || undefined,
       })
-      toast.success('Compromisso registrado na agenda pessoal.')
+      toast.success('Compromisso registrado e agenda bloqueada no horário.')
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível registrar o compromisso.')
@@ -82,10 +108,10 @@ export function AgendarReuniaoModal({ isOpen, onClose, onSave }: AgendarReuniaoM
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-app-card dark:bg-app-card-dark">
+      <DialogContent className="bg-app-card dark:bg-app-card-dark max-h-[90vh] overflow-y-auto">
         <ModalHeader
-          title="Novo compromisso pessoal"
-          description="Crie uma reunião, tarefa, lembrete, evento ou aprovação na sua agenda pessoal"
+          title="Novo compromisso"
+          description="Registra o compromisso e bloqueia a agenda do especialista no horário marcado"
         />
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -113,6 +139,22 @@ export function AgendarReuniaoModal({ isOpen, onClose, onSave }: AgendarReuniaoM
                 <SelectItem value="Lembrete">Lembrete</SelectItem>
                 <SelectItem value="Evento">Evento</SelectItem>
                 <SelectItem value="Aprovação">Aprovação</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Especialista *</Label>
+            <Select value={profissionalId} onValueChange={setProfissionalId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o especialista" />
+              </SelectTrigger>
+              <SelectContent>
+                {professionals.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Calendar, CheckCircle, ChevronLeft, ChevronRight, Clock, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/page-header'
@@ -17,9 +18,6 @@ import {
 import { useAgendaPaciente } from './hooks/use-agenda-paciente'
 import type { PatientAgendaItem } from './hooks/use-agenda-paciente'
 
-// TODO: useAgendaPaciente nao expoe reschedule ainda.
-// Quando o backend implementar, substituir o toast placeholder pela chamada real.
-
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
@@ -31,15 +29,26 @@ const TIME_SLOTS = [
   '16:00', '16:30', '17:00', '17:30',
 ]
 
+function toIsoDate(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export function ReagendarView() {
-  const { data, isLoading } = useAgendaPaciente()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const preselectId = searchParams.get('id')
+  const { data, isLoading, rescheduleAgendamento } = useAgendaPaciente()
 
   const [selected, setSelected] = useState<PatientAgendaItem | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [preselectApplied, setPreselectApplied] = useState(false)
 
-  // -- calendar helpers --
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -61,12 +70,31 @@ export function ReagendarView() {
     selectedDate?.getMonth() === month &&
     selectedDate?.getFullYear() === year
 
-  // -- eligible appointments --
   const eligible = data.filter((a) => a.status === 'Confirmada' || a.status === 'Agendado')
 
-  const handleConfirm = () => {
-    // TODO: substituir por chamada real quando useAgendaPaciente tiver reschedule
-    toast.info('Reagendamento em implementacao. Funcionalidade sera disponibilizada em breve.')
+  useEffect(() => {
+    if (preselectApplied || isLoading || !preselectId) return
+    const match = eligible.find((item) => item.id === preselectId)
+    if (match) setSelected(match)
+    setPreselectApplied(true)
+  }, [eligible, isLoading, preselectApplied, preselectId])
+
+  const handleConfirm = async () => {
+    if (!selected || !selectedDate || !selectedTime) return
+    setIsSaving(true)
+    try {
+      await rescheduleAgendamento({
+        id: selected.id,
+        date: toIsoDate(selectedDate),
+        time: selectedTime,
+      })
+      toast.success('Consulta reagendada.')
+      router.push('/portal/agenda')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível reagendar.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -97,15 +125,13 @@ export function ReagendarView() {
         }
       />
 
-      {/* info banner */}
       <div className="flex items-start gap-3 rounded-integrallys-lg border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-card-dark p-4">
         <Info className="h-5 w-5 text-app-primary shrink-0 mt-0.5" />
         <p className="text-sm text-app-text-secondary dark:text-white/60">
-          Reagendamento em implementacao. Por enquanto, selecione a consulta e escolha a nova data desejada.
+          Escolha a consulta e um horário Disponível na grade do especialista. O horário antigo será liberado.
         </p>
       </div>
 
-      {/* select appointment */}
       {isLoading && <p className="text-app-text-secondary">Carregando agendamentos...</p>}
 
       {!isLoading && eligible.length === 0 && (
@@ -131,10 +157,8 @@ export function ReagendarView() {
         </div>
       )}
 
-      {/* calendar + time selection */}
       {selected && (
         <>
-          {/* current appointment */}
           <Card className="p-6 bg-app-card dark:bg-app-card-dark border-app-border dark:border-app-border-dark shadow-sm rounded-integrallys-lg">
             <h3 className="text-base font-semibold text-app-text-primary dark:text-white mb-4">Consulta Selecionada</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-12">
@@ -158,7 +182,6 @@ export function ReagendarView() {
           </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* calendar */}
             <Card className="p-6 bg-app-card dark:bg-app-card-dark border-app-border dark:border-app-border-dark shadow-sm rounded-integrallys-lg flex flex-col items-center">
               <div className="w-full flex items-center justify-between mb-6 px-2">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { const d = new Date(currentMonth); d.setMonth(d.getMonth() - 1); setCurrentMonth(d) }}>
@@ -203,7 +226,6 @@ export function ReagendarView() {
               </div>
             </Card>
 
-            {/* time slots */}
             <Card className="p-6 bg-app-card dark:bg-app-card-dark border-app-border dark:border-app-border-dark shadow-sm rounded-integrallys-lg">
               <h3 className="text-base font-semibold text-app-text-primary dark:text-white mb-4">Horarios Disponiveis</h3>
               <div className="grid grid-cols-3 gap-3">
@@ -230,22 +252,22 @@ export function ReagendarView() {
             </Card>
           </div>
 
-          {/* footer */}
           <div className="flex justify-between gap-3 pt-2">
             <Button
               variant="outline"
               className="h-12 px-8 rounded-integrallys"
+              disabled={isSaving}
               onClick={() => { setSelected(null); setSelectedDate(null); setSelectedTime(null) }}
             >
               Cancelar
             </Button>
             <Button
-              disabled={!selectedDate || !selectedTime}
-              onClick={handleConfirm}
+              disabled={!selectedDate || !selectedTime || isSaving}
+              onClick={() => void handleConfirm()}
               className="h-11 px-6 bg-app-primary hover:bg-app-primary-hover text-white rounded-integrallys flex items-center gap-2 whitespace-nowrap"
             >
               <CheckCircle className="h-5 w-5 shrink-0" />
-              Confirmar Reagendamento
+              {isSaving ? 'Reagendando...' : 'Confirmar Reagendamento'}
             </Button>
           </div>
         </>

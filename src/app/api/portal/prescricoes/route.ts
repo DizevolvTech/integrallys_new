@@ -43,7 +43,12 @@ export async function GET(request: NextRequest) {
       data: formatDate(String(row.data_prescricao ?? '')),
       tipo: row.tipo ? String(row.tipo) : 'Prescrição',
       validade: formatDate(String(row.validade ?? '')),
-      status: String(row.status ?? 'Pendente') === 'Pendente' ? 'Pendente' : String(row.status ?? 'Ativo') === 'Cancelado' ? 'Expirado' : 'Ativo',
+      status: (() => {
+        const s = String(row.status ?? 'Pendente')
+        if (s === 'Pendente') return 'Pendente'
+        if (/cancel|vencid|expir/i.test(s)) return 'Expirado'
+        return 'Ativo'
+      })(),
     })),
     meta: session,
   })

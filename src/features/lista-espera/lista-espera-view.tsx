@@ -73,7 +73,17 @@ function getPreferenciaHorarioBadge(preferencia: string | null | undefined) {
 
 export function ListaEsperaView() {
   const router = useRouter()
-  const { data, specialists, procedures, error, isLoading, createItem, updateItem, deleteItem } = useListaEspera()
+  const {
+    data,
+    specialists,
+    error,
+    isLoading,
+    createItem,
+    updateItem,
+    deleteItem,
+    especialistasOptions,
+    procedimentosOptions,
+  } = useListaEspera()
   const { data: pacientes } = usePacientes()
   const [searchTerm, setSearchTerm] = useState('')
   const [specialistFilter, setSpecialistFilter] = useState('todos')
@@ -85,10 +95,22 @@ export function ListaEsperaView() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [patientId, setPatientId] = useState('')
   const [priority, setPriority] = useState('Média')
-  const [especialista, setEspecialista] = useState('')
-  const [procedimento, setProcedimento] = useState('')
+  const [especialistaId, setEspecialistaId] = useState('')
+  const [procedimentoId, setProcedimentoId] = useState('')
   const [preferenciaHorario, setPreferenciaHorario] = useState('Qualquer horário')
   const [observacoes, setObservacoes] = useState('')
+
+  const selectedEspecialista = useMemo(
+    () => especialistasOptions.find((item) => item.id === especialistaId) ?? null,
+    [especialistasOptions, especialistaId],
+  )
+
+  const procedimentosFiltrados = useMemo(() => {
+    if (!especialistaId) return []
+    const allowed = new Set(selectedEspecialista?.procedimentoIds ?? [])
+    if (allowed.size === 0) return []
+    return procedimentosOptions.filter((item) => allowed.has(item.id))
+  }, [especialistaId, selectedEspecialista, procedimentosOptions])
 
   const patients = useMemo(
     () =>
@@ -101,7 +123,9 @@ export function ListaEsperaView() {
         phone: patientRecord?.telefone || '',
         email: patientRecord?.email || '',
         specialist: item.especialista || '',
+        specialistId: item.especialistaId || '',
         procedure: item.procedimento || '',
+        procedureId: item.procedimentoId || '',
         unit: patientRecord?.unidadeName || '',
         waitTime: item.entradaEm || '-',
         preferenciaHorario: item.preferenciaHorario || '',
@@ -147,8 +171,8 @@ export function ListaEsperaView() {
     setSelectedItemId(null)
     setPatientId('')
     setPriority('Média')
-    setEspecialista('')
-    setProcedimento('')
+    setEspecialistaId('')
+    setProcedimentoId('')
     setPreferenciaHorario('Qualquer horário')
     setObservacoes('')
   }
@@ -164,8 +188,8 @@ export function ListaEsperaView() {
     setSelectedItemId(item.id)
     setPatientId(item.pacienteId || '')
     setPriority(item.priority || 'Média')
-    setEspecialista(item.specialist || '')
-    setProcedimento(item.procedure || '')
+    setEspecialistaId(item.specialistId || '')
+    setProcedimentoId(item.procedureId || '')
     setPreferenciaHorario(item.preferenciaHorario || 'Qualquer horário')
     setObservacoes(item.observacoes || '')
     setIsFormOpen(true)
@@ -184,8 +208,8 @@ export function ListaEsperaView() {
         id: selectedItemId,
         pacienteId: patientId,
         prioridade: priority,
-        especialista: especialista || undefined,
-        procedimento: procedimento || undefined,
+        especialistaId: especialistaId || undefined,
+        procedimentoId: procedimentoId || undefined,
         preferenciaHorario: preferenciaHorario || undefined,
         observacoes: observacoes || undefined,
       })
@@ -194,8 +218,8 @@ export function ListaEsperaView() {
       await createItem({
         pacienteId: patientId,
         prioridade: priority,
-        especialista: especialista || undefined,
-        procedimento: procedimento || undefined,
+        especialistaId: especialistaId || undefined,
+        procedimentoId: procedimentoId || undefined,
         preferenciaHorario: preferenciaHorario || undefined,
         observacoes: observacoes || undefined,
       })
@@ -431,9 +455,24 @@ export function ListaEsperaView() {
                         <DropdownMenuContent align="end" className="w-40 p-1 rounded-xl shadow-xl border-app-border dark:border-app-border-dark dark:bg-app-bg-dark">
                           <DropdownMenuItem
                             className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-app-bg-secondary dark:hover:bg-app-hover"
-                            onClick={() => {
+                            onClick={async () => {
                               toast.success(`Abrindo agenda para atendimento de ${patient.name}.`)
-                              router.push(`/agenda?modal=novo&patientId=${patient.pacienteId}`)
+                              const params = new URLSearchParams({
+                                modal: 'novo',
+                                patientId: patient.pacienteId || '',
+                              })
+                              if (patient.specialistId) {
+                                params.set('profissionalId', patient.specialistId)
+                              } else if (patient.specialist) {
+                                params.set('profissional', patient.specialist)
+                              }
+                              if (patient.procedureId) params.set('procedimentoId', patient.procedureId)
+                              try {
+                                await deleteItem(patient.id)
+                              } catch {
+                                // segue para agenda mesmo se a remoção da fila falhar
+                              }
+                              router.push(`/agenda?${params.toString()}`)
                             }}
                           >
                             <CheckCircle size={16} className="text-[var(--app-success-text)]" />
@@ -513,15 +552,21 @@ export function ListaEsperaView() {
             </div>
             <div className="space-y-2">
               <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Especialista</span>
-              <Select value={especialista || 'sem-preferencia'} onValueChange={(value) => setEspecialista(value === 'sem-preferencia' ? '' : value)}>
+              <Select
+                value={especialistaId || 'sem-preferencia'}
+                onValueChange={(value) => {
+                  setEspecialistaId(value === 'sem-preferencia' ? '' : value)
+                  setProcedimentoId('')
+                }}
+              >
                 <SelectTrigger className="h-11 rounded-xl">
                   <SelectValue placeholder="Selecione o especialista" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sem-preferencia">Sem preferência</SelectItem>
-                  {specialists.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
+                  {especialistasOptions.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -529,19 +574,34 @@ export function ListaEsperaView() {
             </div>
             <div className="space-y-2">
               <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Procedimento</span>
-              <Select value={procedimento || 'nao-informado'} onValueChange={(value) => setProcedimento(value === 'nao-informado' ? '' : value)}>
+              <Select
+                value={procedimentoId || 'nao-informado'}
+                onValueChange={(value) => setProcedimentoId(value === 'nao-informado' ? '' : value)}
+                disabled={!especialistaId}
+              >
                 <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Selecione o procedimento" />
+                  <SelectValue
+                    placeholder={
+                      especialistaId
+                        ? 'Selecione o procedimento'
+                        : 'Selecione o especialista primeiro'
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="nao-informado">Não informado</SelectItem>
-                  {procedures.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
+                  {procedimentosFiltrados.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {especialistaId && procedimentosFiltrados.length === 0 && (
+                <p className="text-xs text-app-text-muted">
+                  Nenhum procedimento vinculado a este especialista.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Preferência de horário</span>

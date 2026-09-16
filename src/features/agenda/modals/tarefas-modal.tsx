@@ -1,20 +1,25 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { toast } from 'sonner'
 import {
+  AlertTriangle,
   BarChart3,
   Calendar,
   CheckCircle2,
   Circle,
   Clock,
   Edit2,
+  ExternalLink,
   FileText,
   Layers3,
+  Loader2,
   Plus,
-  Sparkles,
-  Tag,
+  Repeat,
   Trash2,
   Type,
+  User,
   X,
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -25,46 +30,73 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { DateInput } from '@/components/shared/date-input'
-
-interface Tarefa {
-  id: string
-  titulo: string
-  descricao: string
-  data: string
-  horario: string
-  prioridade: 'Alta' | 'Média' | 'Baixa'
-  status: 'Pendente' | 'Concluída'
-  categoria: string
-}
+import { useTarefas, type TarefaItem } from '@/hooks/use-tarefas'
+import { useUsuarios } from '@/hooks/use-usuarios'
+import {
+  formatDiasSemanaLabel,
+  TAREFA_RECORRENCIA_LABELS,
+  TAREFA_RECORRENCIA_VALUES,
+  type TarefaRecorrencia,
+} from '@/lib/tarefa-recorrencia'
+import { DiasSemanaPicker } from '@/features/tarefas/components/dias-semana-picker'
 
 interface TarefasModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
+type FormData = {
+  titulo: string
+  descricao: string
+  data: string
+  horario: string
+  prioridade: 'Alta' | 'Média' | 'Baixa'
+  categoria: string
+  responsavelId: string
+  recorrencia: TarefaRecorrencia
+  diasSemana: number[]
+  alerta: boolean
+}
+
+const emptyForm: FormData = {
+  titulo: '',
+  descricao: '',
+  data: '',
+  horario: '',
+  prioridade: 'Média',
+  categoria: '',
+  responsavelId: '',
+  recorrencia: 'nenhuma',
+  diasSemana: [],
+  alerta: false,
+}
+
+function toPayload(formData: FormData, status: string) {
+  return {
+    titulo: formData.titulo.trim(),
+    descricao: formData.descricao || undefined,
+    data: formData.data || undefined,
+    horario: formData.horario || undefined,
+    prioridade: formData.prioridade,
+    categoria: formData.categoria || undefined,
+    responsavelId: formData.responsavelId || undefined,
+    recorrencia: formData.recorrencia,
+    diasSemana: formData.recorrencia === 'dias_especificos' ? formData.diasSemana : [],
+    alerta: formData.alerta,
+    status,
+  }
+}
+
 export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
-  const [tarefas, setTarefas] = useState<Tarefa[]>([])
+  const { data: tarefas, isLoading, error, createTarefa, updateTarefa, deleteTarefa } = useTarefas()
+  const { data: usuarios } = useUsuarios()
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
-  const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null)
-  const [filtroStatus, setFiltroStatus] = useState<'Todas' | 'Pendentes' | 'Concluídas'>('Todas')
-  const [formData, setFormData] = useState({
-    titulo: '',
-    descricao: '',
-    data: '',
-    horario: '',
-    prioridade: 'Média' as 'Alta' | 'Média' | 'Baixa',
-    categoria: '',
-  })
+  const [tarefaEditando, setTarefaEditando] = useState<TarefaItem | null>(null)
+  const [formData, setFormData] = useState<FormData>(emptyForm)
+  const [isSaving, setIsSaving] = useState(false)
 
   const resetForm = () => {
-    setFormData({
-      titulo: '',
-      descricao: '',
-      data: '',
-      horario: '',
-      prioridade: 'Média',
-      categoria: '',
-    })
+    setFormData(emptyForm)
     setTarefaEditando(null)
   }
 
@@ -79,53 +111,101 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
     setMostrarFormulario(false)
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!formData.titulo.trim()) return
-
-    if (tarefaEditando) {
-      setTarefas((prev) =>
-        prev.map((item) =>
-          item.id === tarefaEditando.id ? { ...item, ...formData } : item,
-        ),
-      )
-    } else {
-      setTarefas((prev) => [
-        {
-          id: `${Date.now()}`,
-          ...formData,
-          status: 'Pendente',
-        },
-        ...prev,
-      ])
+    if (!formData.titulo.trim()) {
+      toast.error('Título é obrigatório.')
+      return
+    }
+    if (formData.recorrencia === 'dias_especificos' && formData.diasSemana.length === 0) {
+      toast.error('Selecione ao menos um dia da semana.')
+      return
     }
 
-    resetForm()
-    setMostrarFormulario(false)
+    setIsSaving(true)
+    try {
+      const payload = toPayload(formData, tarefaEditando?.status ?? 'Pendente')
+      if (tarefaEditando) {
+        await updateTarefa({ ...payload, id: tarefaEditando.id })
+        toast.success('Tarefa atualizada.')
+      } else {
+        await createTarefa(payload)
+        toast.success('Tarefa criada.')
+      }
+      resetForm()
+      setMostrarFormulario(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar tarefa.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleEdit = (tarefa: Tarefa) => {
+  const handleEdit = (tarefa: TarefaItem) => {
     setTarefaEditando(tarefa)
     setFormData({
       titulo: tarefa.titulo,
-      descricao: tarefa.descricao,
-      data: tarefa.data,
-      horario: tarefa.horario,
-      prioridade: tarefa.prioridade,
-      categoria: tarefa.categoria,
+      descricao: tarefa.descricao || '',
+      data: tarefa.data || '',
+      horario: tarefa.horario || '',
+      prioridade: (tarefa.prioridade as FormData['prioridade']) || 'Média',
+      categoria: tarefa.categoria || '',
+      responsavelId: tarefa.responsavelId || '',
+      recorrencia: (tarefa.recorrencia as TarefaRecorrencia) || 'nenhuma',
+      diasSemana: tarefa.diasSemana || [],
+      alerta: Boolean(tarefa.alerta),
     })
     setMostrarFormulario(true)
   }
 
-  const tarefasFiltradas = useMemo(() => {
-    if (filtroStatus === 'Pendentes') return tarefas.filter((item) => item.status === 'Pendente')
-    if (filtroStatus === 'Concluídas') return tarefas.filter((item) => item.status === 'Concluída')
-    return tarefas
-  }, [filtroStatus, tarefas])
+  const handleToggleConcluir = async (tarefa: TarefaItem) => {
+    try {
+      const nextStatus = tarefa.status === 'Concluída' ? 'Pendente' : 'Concluída'
+      await updateTarefa({
+        id: tarefa.id,
+        titulo: tarefa.titulo,
+        descricao: tarefa.descricao || undefined,
+        responsavelId: tarefa.responsavelId || undefined,
+        responsavelNome: tarefa.responsavel || undefined,
+        status: nextStatus,
+        vencimentoEm: tarefa.vencimentoEm || undefined,
+        data: tarefa.data || undefined,
+        horario: tarefa.horario || undefined,
+        recorrencia: tarefa.recorrencia || 'nenhuma',
+        diasSemana: tarefa.diasSemana || [],
+        alerta: Boolean(tarefa.alerta),
+        prioridade: tarefa.prioridade || undefined,
+        categoria: tarefa.categoria || undefined,
+      })
+      if (nextStatus === 'Concluída') {
+        toast.success(
+          tarefa.recorrencia && tarefa.recorrencia !== 'nenhuma'
+            ? 'Tarefa concluída. Próxima ocorrência gerada.'
+            : 'Tarefa concluída.',
+        )
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar status.')
+    }
+  }
 
-  const tarefasPendentes = tarefas.filter((item) => item.status === 'Pendente').length
-  const tarefasConcluidas = tarefas.filter((item) => item.status === 'Concluída').length
-  const percentualConclusao = tarefas.length > 0 ? Math.round((tarefasConcluidas / tarefas.length) * 100) : 0
+  const handleDelete = async (tarefa: TarefaItem) => {
+    try {
+      await deleteTarefa(tarefa.id)
+      toast.success('Tarefa excluída.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir tarefa.')
+    }
+  }
+
+  const tarefasAbertas = useMemo(
+    () => tarefas.filter((item) => item.status !== 'Concluída' && item.status !== 'Cancelada'),
+    [tarefas],
+  )
+
+  const tarefasPendentes = tarefasAbertas.filter((item) => item.status === 'Pendente').length
+  const tarefasEmAndamento = tarefasAbertas.filter((item) => item.status === 'Em andamento').length
+  const tarefasComAlerta = tarefasAbertas.filter((item) => item.alerta).length
 
   const getPrioridadeBadge = (prioridade: string) => {
     switch (prioridade) {
@@ -155,13 +235,21 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                   Tarefas
                 </DialogTitle>
                 <DialogDescription className="mt-0.5 text-sm text-app-text-secondary dark:text-white/65">
-                  Organize acompanhamentos, retornos e pendências da rotina da agenda.
+                  Concluídas somem daqui e ficam no relatório completo.
                 </DialogDescription>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline" className="rounded-[12px]">
+                <Link href="/tarefas" onClick={handleClose}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Relatório
+                </Link>
+              </Button>
               <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-app-text-secondary hover:bg-app-bg-secondary dark:text-white/75 dark:hover:bg-app-hover">
-              <X className="h-4 w-4" />
-            </Button>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -172,44 +260,24 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
               <Clock className="h-4 w-4 text-amber-500" />
             </div>
             <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasPendentes}</p>
-            <p className="mt-1 text-xs text-app-text-secondary dark:text-white/60">Itens aguardando ação</p>
           </div>
           <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Concluídas</p>
-              <Sparkles className="h-4 w-4 text-emerald-500" />
-            </div>
-            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasConcluidas}</p>
-            <p className="mt-1 text-xs text-app-text-secondary dark:text-white/60">Tarefas finalizadas</p>
-          </div>
-          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Progresso</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Em andamento</p>
               <Layers3 className="h-4 w-4 text-[var(--app-primary)]" />
             </div>
-            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{percentualConclusao}%</p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-app-bg-secondary dark:bg-app-hover">
-              <div
-                className="h-full rounded-full bg-[var(--app-primary)] transition-all"
-                style={{ width: `${percentualConclusao}%` }}
-              />
+            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasEmAndamento}</p>
+          </div>
+          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Com alerta</p>
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
             </div>
+            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasComAlerta}</p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-6 py-4">
-          <div className="flex overflow-hidden rounded-[12px] border border-app-border bg-white shadow-sm dark:border-app-border-dark dark:bg-app-bg-dark/40">
-            {(['Todas', 'Pendentes', 'Concluídas'] as const).map((status) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => setFiltroStatus(status)}
-                className={`h-10 px-4 text-sm transition-colors ${filtroStatus === status ? 'bg-app-primary text-white' : 'bg-transparent text-app-text-secondary dark:text-white/80'}`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center justify-end gap-3 px-6 py-4">
           <Button className="h-11 rounded-[12px] bg-app-primary px-4 text-white shadow-sm hover:bg-app-primary-hover" onClick={() => setMostrarFormulario(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Nova tarefa
@@ -217,45 +285,55 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
         </div>
 
         <div className="overflow-auto px-6 pb-6">
+          {error && <p className="mb-3 text-sm text-[var(--app-danger-text)]">{error}</p>}
           <div className="overflow-hidden rounded-[18px] border border-app-border/70 bg-white shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/20">
-            {tarefasFiltradas.length === 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2 px-6 py-14 text-sm text-app-text-secondary">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando tarefas...
+              </div>
+            ) : tarefasAbertas.length === 0 ? (
               <div className="px-6 py-14 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-app-bg-secondary dark:bg-app-hover">
                   <BarChart3 className="h-8 w-8 text-app-text-muted" />
                 </div>
-                <p className="mt-5 text-base text-app-text-primary dark:text-white">Nenhuma tarefa cadastrada ainda.</p>
+                <p className="mt-5 text-base text-app-text-primary dark:text-white">Nenhuma tarefa aberta.</p>
                 <p className="mt-1 text-sm text-app-text-secondary dark:text-white/60">
-                  Crie a primeira tarefa para acompanhar retornos, pendências e lembretes da agenda.
+                  Concluídas ficam apenas no relatório.
                 </p>
               </div>
             ) : (
-              tarefasFiltradas.map((tarefa) => (
+              tarefasAbertas.map((tarefa) => (
                 <div key={tarefa.id} className="border-b border-app-border/70 px-5 py-4 last:border-b-0 dark:border-app-border-dark/70">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <button
                         type="button"
-                        onClick={() =>
-                          setTarefas((prev) =>
-                            prev.map((item) =>
-                              item.id === tarefa.id
-                                ? { ...item, status: item.status === 'Pendente' ? 'Concluída' : 'Pendente' }
-                                : item,
-                            ),
-                          )
-                        }
+                        onClick={() => void handleToggleConcluir(tarefa)}
                         className="mt-0.5 rounded-full"
+                        title="Marcar como concluída"
                       >
-                        {tarefa.status === 'Concluída' ? (
-                          <CheckCircle2 className="h-5 w-5 text-[var(--app-primary)]" />
-                        ) : (
-                          <Circle className="h-5 w-5 text-app-text-muted" />
-                        )}
+                        <Circle className="h-5 w-5 text-app-text-muted" />
                       </button>
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-normal text-app-text-primary dark:text-white">{tarefa.titulo}</p>
                           {getPrioridadeBadge(tarefa.prioridade)}
+                          {tarefa.alerta && (
+                            <Badge className="app-status-warning border-transparent text-xs">
+                              <AlertTriangle className="mr-1 h-3 w-3" />
+                              Alerta
+                            </Badge>
+                          )}
+                          {tarefa.recorrencia && tarefa.recorrencia !== 'nenhuma' && (
+                            <Badge variant="outline" className="rounded-full text-xs">
+                              <Repeat className="mr-1 h-3 w-3" />
+                              {TAREFA_RECORRENCIA_LABELS[tarefa.recorrencia as TarefaRecorrencia] ?? tarefa.recorrencia}
+                              {tarefa.recorrencia === 'dias_especificos' && tarefa.diasSemana?.length
+                                ? ` (${formatDiasSemanaLabel(tarefa.diasSemana)})`
+                                : ''}
+                            </Badge>
+                          )}
                           <Badge variant="outline" className="rounded-full text-xs">
                             {tarefa.status}
                           </Badge>
@@ -266,6 +344,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                         <div className="flex flex-wrap items-center gap-3 text-xs text-app-text-muted">
                           <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{tarefa.data || '-'}</span>
                           <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{tarefa.horario || '-'}</span>
+                          <span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5" />{tarefa.responsavel || '-'}</span>
                           <span className="inline-flex items-center gap-1"><FileText className="h-3.5 w-3.5" />{tarefa.categoria || '-'}</span>
                         </div>
                       </div>
@@ -274,7 +353,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                       <Button variant="ghost" size="icon" className="rounded-full hover:bg-app-bg-secondary dark:hover:bg-app-hover" onClick={() => handleEdit(tarefa)}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="rounded-full hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => setTarefas((prev) => prev.filter((item) => item.id !== tarefa.id))}>
+                      <Button variant="ghost" size="icon" className="rounded-full hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => void handleDelete(tarefa)}>
                         <Trash2 className="h-4 w-4 text-[var(--app-danger-text)]" />
                       </Button>
                     </div>
@@ -288,7 +367,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
     </Dialog>
 
     <Dialog open={isOpen && mostrarFormulario} onOpenChange={(open) => !open && handleCloseFormulario()}>
-      <DialogContent className="rounded-[24px] border-none bg-app-card p-0 shadow-2xl dark:bg-app-card-dark">
+      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-[24px] border-none bg-app-card p-0 shadow-2xl dark:bg-app-card-dark">
         <DialogHeader className="border-b border-app-border/60 bg-[linear-gradient(180deg,rgba(22,78,187,0.08),rgba(22,78,187,0.02))] px-6 pb-5 pt-6 dark:border-app-border-dark/60 dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(59,130,246,0.02))]">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -296,16 +375,13 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                 {tarefaEditando ? 'Editar tarefa' : 'Nova tarefa'}
               </DialogTitle>
               <DialogDescription className="mt-1 text-sm text-app-text-secondary dark:text-white/60">
-                Preencha os campos abaixo para organizar um acompanhamento da agenda.
+                Responsável, data, alerta e recorrência (semanal, diária, dias específicos…).
               </DialogDescription>
             </div>
-            <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">
-              Rotina
-            </Badge>
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 p-6">
           <div className="rounded-[16px] border border-app-border/60 bg-white/70 p-4 dark:border-app-border-dark/60 dark:bg-app-bg-dark/30">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-app-text-muted">
               <Type className="h-3.5 w-3.5" />
@@ -317,7 +393,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                 <Input
                   value={formData.titulo}
                   onChange={(event) => setFormData({ ...formData, titulo: event.target.value })}
-                  placeholder="Título da tarefa"
+                  placeholder="Ex: Fazer café"
                   className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
                 />
               </div>
@@ -327,7 +403,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                   value={formData.descricao}
                   onChange={(event) => setFormData({ ...formData, descricao: event.target.value })}
                   placeholder="Descrição opcional..."
-                  className="min-h-[96px] rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
+                  className="min-h-[80px] rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
                 />
               </div>
             </div>
@@ -352,18 +428,84 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                   className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
                 />
               </div>
+              <div className="grid gap-2 md:col-span-2">
+                <Label>Recorrência</Label>
+                <Select
+                  value={formData.recorrencia}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      recorrencia: value as TarefaRecorrencia,
+                      diasSemana: value === 'dias_especificos' ? formData.diasSemana : [],
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TAREFA_RECORRENCIA_VALUES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {TAREFA_RECORRENCIA_LABELS[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {formData.recorrencia === 'dias_especificos' && (
+                <div className="grid gap-2 md:col-span-2">
+                  <Label>Dias da semana</Label>
+                  <DiasSemanaPicker
+                    value={formData.diasSemana}
+                    onChange={(diasSemana) => setFormData({ ...formData, diasSemana })}
+                  />
+                </div>
+              )}
+              <div className="flex items-center gap-2 md:col-span-2">
+                <input
+                  id="tarefa-alerta"
+                  type="checkbox"
+                  checked={formData.alerta}
+                  onChange={(event) => setFormData({ ...formData, alerta: event.target.checked })}
+                  className="h-4 w-4 rounded border-app-border"
+                />
+                <Label htmlFor="tarefa-alerta" className="font-normal">
+                  Exibir alerta / notificação na lista
+                </Label>
+              </div>
             </div>
           </div>
 
           <div className="rounded-[16px] border border-app-border/60 bg-white/70 p-4 dark:border-app-border-dark/60 dark:bg-app-bg-dark/30">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-app-text-muted">
-              <Tag className="h-3.5 w-3.5" />
+              <User className="h-3.5 w-3.5" />
               Classificação
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid gap-2 md:col-span-2">
+                <Label>Responsável</Label>
+                <Select
+                  value={formData.responsavelId || '__none__'}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, responsavelId: value === '__none__' ? '' : value })
+                  }
+                >
+                  <SelectTrigger className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60">
+                    <SelectValue placeholder="Selecione o responsável" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sem responsável</SelectItem>
+                    {usuarios.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid gap-2">
                 <Label>Prioridade</Label>
-                <Select value={formData.prioridade} onValueChange={(value) => setFormData({ ...formData, prioridade: value as 'Alta' | 'Média' | 'Baixa' })}>
+                <Select value={formData.prioridade} onValueChange={(value) => setFormData({ ...formData, prioridade: value as FormData['prioridade'] })}>
                   <SelectTrigger className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60">
                     <SelectValue />
                   </SelectTrigger>
@@ -375,28 +517,23 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Categoria</Label>
+                <Label>Categoria / tag</Label>
                 <Input
                   value={formData.categoria}
                   onChange={(event) => setFormData({ ...formData, categoria: event.target.value })}
-                  placeholder="Ex: Retorno, contato, financeiro"
+                  placeholder="Ex: Rotina, comercial"
                   className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
                 />
               </div>
             </div>
           </div>
 
-          <div className="rounded-[16px] border border-app-border/50 bg-app-bg-secondary/35 p-3 dark:border-app-border-dark/50 dark:bg-app-hover/30">
-            <p className="text-xs text-app-text-secondary dark:text-white/60">
-              Dica: use títulos curtos e uma categoria clara para facilitar o acompanhamento da equipe.
-            </p>
-          </div>
-
           <div className="flex justify-end gap-3 border-t border-app-border/50 px-0 pt-2 dark:border-app-border-dark/50">
             <Button type="button" variant="outline" className="rounded-[12px]" onClick={handleCloseFormulario}>
               Cancelar
             </Button>
-            <Button type="submit" className="rounded-[12px] bg-app-primary text-white hover:bg-app-primary-hover">
+            <Button type="submit" disabled={isSaving} className="rounded-[12px] bg-app-primary text-white hover:bg-app-primary-hover">
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {tarefaEditando ? 'Salvar alterações' : 'Criar tarefa'}
             </Button>
           </div>

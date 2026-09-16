@@ -16,7 +16,7 @@ async function listProcedimentos(
   const { data, error } = await supabase
     .from("procedimentos")
     .select(
-      "id,nome,codigo,descricao,valor,duracao_min,tem_retorno,prazo_retorno_dias,valor_retorno,ativo",
+      "id,nome,codigo,descricao,valor,duracao_min,tem_retorno,prazo_retorno_dias,valor_retorno,tem_pacote,intervalo_recorrencia_dias,quantidade_sugerida_pacote,ativo",
     )
     .order("nome", { ascending: true });
 

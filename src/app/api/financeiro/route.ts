@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapFinanceiroItem } from '@/lib/domain-mappers'
-import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+import { authErrorResponse, getRequestAuth, getScopedUnitId, isScopedRole } from '@/lib/request-auth'
 
 // Item 9b — campos novos do lançamento (catálogo/conta/beneficiário/parcelas).
 // Aditivo: não substitui `metodo` (texto livre), que segue sendo persistido.
@@ -88,10 +88,19 @@ export async function POST(request: NextRequest) {
   if (scopedUnit.error) {
     return supabaseErrorResponse(scopedUnit.error, 'Falha ao salvar lançamento financeiro')
   }
+  if (isScopedRole(session.role) && !scopedUnit.unidadeId) {
+    return serverErrorResponse(
+      'Usuário sem unidade vinculada',
+      'UNIT_REQUIRED',
+      403,
+    )
+  }
 
   const supabase = getAppSupabase()
   const { error } = await supabase.from('financeiro_lancamentos').insert({
-    unidade_id: scopedUnit.unidadeId ?? body.unidadeId ?? null,
+    unidade_id: isScopedRole(session.role)
+      ? scopedUnit.unidadeId
+      : (scopedUnit.unidadeId ?? (typeof body.unidadeId === 'string' ? body.unidadeId : null)),
     usuario_id: session.userId,
     descricao: body.descricao,
     categoria: body.categoria,

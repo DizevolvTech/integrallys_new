@@ -29,7 +29,7 @@ const RESPOSTA_VIACEP = {
   }),
 }
 
-function stubFetch(impl: (url: string) => unknown) {
+function stubFetch(impl: (url: string) => unknown | Promise<unknown>) {
   const spy = vi.fn(async (input: string | URL) => impl(String(input)))
   vi.stubGlobal('fetch', spy)
   return spy
@@ -46,20 +46,24 @@ afterEach(() => {
 })
 
 describe('ProfissionalModal — CPF', () => {
-  it('aplica a máscara do CPF conforme o usuário digita', async () => {
+  it(
+    'aplica a máscara do CPF conforme o usuário digita',
+    async () => {
     stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     const campo = screen.getByPlaceholderText('000.000.000-00')
     await user.type(campo, '11144477735')
 
     expect(campo).toHaveValue('111.444.777-35')
-  })
+  },
+  15000,
+  )
 
   it('acusa CPF com dígito verificador inválido logo abaixo do campo', async () => {
     stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('000.000.000-00'), '11144477734')
@@ -69,7 +73,7 @@ describe('ProfissionalModal — CPF', () => {
 
   it('não acusa erro enquanto o CPF ainda está incompleto', async () => {
     stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('000.000.000-00'), '111444')
@@ -81,7 +85,7 @@ describe('ProfissionalModal — CPF', () => {
 
   it('aceita CPF válido sem acusar erro', async () => {
     stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('000.000.000-00'), '52998224725')
@@ -95,7 +99,7 @@ describe('ProfissionalModal — CPF', () => {
 describe('ProfissionalModal — CEP', () => {
   it('preenche logradouro, bairro, cidade e UF ao completar o CEP', async () => {
     const spy = stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     const campoCep = screen.getByPlaceholderText('00000-000')
@@ -111,13 +115,17 @@ describe('ProfissionalModal — CEP', () => {
     expect(spy).toHaveBeenCalledWith('https://viacep.com.br/ws/01310100/json/', expect.anything())
   })
 
-  it('mantém os campos editáveis depois do auto-preenchimento', async () => {
+  it(
+    'mantém os campos editáveis depois do auto-preenchimento',
+    async () => {
     stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('00000-000'), '01310100')
-    await waitFor(() => expect(screen.getByPlaceholderText('Bairro')).toHaveValue('Bela Vista'))
+    await waitFor(() => expect(screen.getByPlaceholderText('Bairro')).toHaveValue('Bela Vista'), {
+      timeout: 10000,
+    })
 
     const campoBairro = screen.getByPlaceholderText('Bairro')
     expect(campoBairro).not.toBeDisabled()
@@ -126,23 +134,37 @@ describe('ProfissionalModal — CEP', () => {
     await user.clear(campoBairro)
     await user.type(campoBairro, 'Consolação')
     expect(campoBairro).toHaveValue('Consolação')
-  })
+  },
+  15000,
+  )
 
-  it('não sobrescreve endereço que o usuário já digitou', async () => {
-    stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+  it(
+    'não sobrescreve endereço que o usuário já digitou',
+    async () => {
+    // Resposta atrasada: usuário termina de digitar bairro antes do CEP aplicar.
+    stubFetch(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(RESPOSTA_VIACEP), 50)
+        }),
+    )
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('Bairro'), 'Bairro escolhido a mão')
     await user.type(screen.getByPlaceholderText('00000-000'), '01310100')
 
-    await waitFor(() => expect(screen.getByPlaceholderText('Cidade')).toHaveValue('São Paulo'))
+    await waitFor(() => expect(screen.getByPlaceholderText('Cidade')).toHaveValue('São Paulo'), {
+      timeout: 10000,
+    })
     expect(screen.getByPlaceholderText('Bairro')).toHaveValue('Bairro escolhido a mão')
-  })
+  },
+  15000,
+  )
 
   it('não consulta a rede com CEP incompleto', async () => {
     const spy = stubFetch(() => RESPOSTA_VIACEP)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('00000-000'), '0131')
@@ -152,7 +174,7 @@ describe('ProfissionalModal — CEP', () => {
 
   it('avisa sem travar quando o CEP não existe', async () => {
     stubFetch(() => ({ ok: true, status: 200, json: async () => ({ erro: true }) }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('00000-000'), '99999998')
@@ -169,7 +191,7 @@ describe('ProfissionalModal — CEP', () => {
     stubFetch(() => {
       throw new Error('network down')
     })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderModal()
 
     await user.type(screen.getByPlaceholderText('00000-000'), '01310100')

@@ -147,6 +147,12 @@ export async function buildAuthPayloadFromUserRecord(
     },
     sidebarItems: buildSidebarForRole(role, permissions),
     permissions,
+    capabilities: {
+      // Fluxo clínico: especialista e master. Recepção/gestor só mudam status.
+      iniciarAtendimento: role === "especialista" || role === "master",
+      agendaClinica: role === "especialista",
+      perfilClinico: role === "especialista" || role === "master",
+    },
   };
 }
 

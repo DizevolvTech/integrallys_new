@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapProntuarioItem } from '@/lib/domain-mappers'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { authErrorResponse, assertPacienteInUnitScope, getRequestAuth } from '@/lib/request-auth'
 
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
@@ -52,6 +52,12 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Prontuário inválido', 'INVALID_MEDICAL_RECORD', 400)
   }
 
+  const scopeDenied = await assertPacienteInUnitScope({
+    session,
+    pacienteId: String(pacienteId),
+  })
+  if (scopeDenied) return scopeDenied
+
   const supabase = getAppSupabase()
   const { error } = await supabase.from('prontuarios').insert({
     paciente_id: pacienteId,
@@ -86,12 +92,31 @@ export async function PUT(request: NextRequest) {
   // Snapshot da versão anterior antes de sobrescrever (auditoria).
   const current = await supabase
     .from('prontuarios')
-    .select('id,conteudo,status')
+    .select('id,conteudo,status,paciente_id')
     .eq('id', String(body.id))
     .maybeSingle()
 
   if (current.error) {
     return supabaseErrorResponse(current.error, 'Falha ao carregar prontuário para auditoria')
+  }
+  if (!current.data) {
+    return serverErrorResponse('Prontuário não encontrado', 'MEDICAL_RECORD_NOT_FOUND', 404)
+  }
+
+  const existingPacienteId = String(current.data.paciente_id ?? '')
+  const scopeExisting = await assertPacienteInUnitScope({
+    session,
+    pacienteId: existingPacienteId,
+  })
+  if (scopeExisting) return scopeExisting
+
+  const nextPacienteId = String(body.pacienteId)
+  if (nextPacienteId !== existingPacienteId) {
+    const scopeNext = await assertPacienteInUnitScope({
+      session,
+      pacienteId: nextPacienteId,
+    })
+    if (scopeNext) return scopeNext
   }
 
   if (current.data) {
@@ -115,6 +140,7 @@ export async function PUT(request: NextRequest) {
       ...(body.conteudo && typeof body.conteudo === 'object' ? { conteudo: body.conteudo } : {}),
     })
     .eq('id', String(body.id))
+    .eq('paciente_id', existingPacienteId)
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao atualizar prontuário')

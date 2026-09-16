@@ -29,7 +29,9 @@ import {
   type PrescricaoSituacaoFilter,
 } from '@/features/relatorios/hooks/use-prescricoes-relatorio'
 import {
+  useCaixaGestor,
   useComparativoUnidades,
+  useRankingProcedimentos,
   useRankingProdutos,
 } from '@/features/relatorios/hooks/use-ranking-comparativo'
 import { useUsuarios } from '@/hooks/use-usuarios'
@@ -78,7 +80,8 @@ export function RelatoriosView() {
     inicio: string
     fim: string
     busca: string
-  }>({ tipo: 'todos', inicio: '', fim: '', busca: '' })
+    categoria: string
+  }>({ tipo: 'todos', inicio: '', fim: '', busca: '', categoria: 'todas' })
   const estoqueRelatorioFilters = useMemo(
     () => ({
       tipo: 'todos' as const,
@@ -98,6 +101,8 @@ export function RelatoriosView() {
   const [curvaAbcDias, setCurvaAbcDias] = useState<number>(90)
   const curvaAbc = useCurvaAbc(curvaAbcDias)
   const ranking = useRankingProdutos(90)
+  const rankingProcedimentos = useRankingProcedimentos(90)
+  const caixaGestor = useCaixaGestor()
   const comparativo = useComparativoUnidades(30)
 
   const formatMoney = (value: number) =>
@@ -483,6 +488,260 @@ export function RelatoriosView() {
                     </CardContent>
                   </Card>
                 </div>
+              )}
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                  <CardContent className="p-5 space-y-3">
+                    <h3 className="text-base font-medium text-app-text-primary dark:text-white">
+                      Procedimentos mais realizados
+                    </h3>
+                    {rankingProcedimentos.error && (
+                      <p className="text-sm text-[var(--app-danger-text)]">{rankingProcedimentos.error}</p>
+                    )}
+                    {rankingProcedimentos.isLoading ? (
+                      <p className="text-sm text-app-text-muted">Carregando…</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Procedimento</TableHead>
+                            <TableHead className="text-right">Qtd</TableHead>
+                            {rankingProcedimentos.valoresVisiveis && (
+                              <TableHead className="text-right">Receita</TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rankingProcedimentos.realizados.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-app-text-muted">
+                                Sem procedimentos no período.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            rankingProcedimentos.realizados.map((row) => (
+                              <TableRow key={`pr-${row.procedimentoId ?? row.nome}`}>
+                                <TableCell>{row.nome}</TableCell>
+                                <TableCell className="text-right">{row.quantidade}</TableCell>
+                                {rankingProcedimentos.valoresVisiveis && (
+                                  <TableCell className="text-right">{formatMoney(row.receita)}</TableCell>
+                                )}
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                  <CardContent className="p-5 space-y-3">
+                    <h3 className="text-base font-medium text-app-text-primary dark:text-white">
+                      Procedimentos por receita
+                    </h3>
+                    {rankingProcedimentos.isLoading ? (
+                      <p className="text-sm text-app-text-muted">Carregando…</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Procedimento</TableHead>
+                            <TableHead className="text-right">Qtd</TableHead>
+                            {rankingProcedimentos.valoresVisiveis && (
+                              <TableHead className="text-right">Receita</TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rankingProcedimentos.receita.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-app-text-muted">
+                                Sem receita de procedimentos no período.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            rankingProcedimentos.receita.map((row) => (
+                              <TableRow key={`prec-${row.procedimentoId ?? row.nome}`}>
+                                <TableCell>{row.nome}</TableCell>
+                                <TableCell className="text-right">{row.quantidade}</TableCell>
+                                {rankingProcedimentos.valoresVisiveis && (
+                                  <TableCell className="text-right">{formatMoney(row.receita)}</TableCell>
+                                )}
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'Caixa Gestor' && (
+            <div className="space-y-6">
+              {caixaGestor.error && (
+                <p className="text-sm text-[var(--app-danger-text)]">{caixaGestor.error}</p>
+              )}
+              {caixaGestor.isLoading || !caixaGestor.data ? (
+                <p className="text-sm text-app-text-muted">Carregando caixa do gestor…</p>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-app-text-muted">Entradas do dia</p>
+                        <p className="text-lg font-medium">
+                          {caixaGestor.valoresVisiveis
+                            ? formatMoney(caixaGestor.data.totais.entradas)
+                            : '—'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-app-text-muted">Saídas do dia</p>
+                        <p className="text-lg font-medium">
+                          {caixaGestor.valoresVisiveis
+                            ? formatMoney(caixaGestor.data.totais.saidas)
+                            : '—'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-app-text-muted">Saldos bancos</p>
+                        <p className="text-lg font-medium">
+                          {caixaGestor.valoresVisiveis
+                            ? formatMoney(caixaGestor.data.saldoBancos)
+                            : '—'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-app-text-muted">Cofres</p>
+                        <p className="text-lg font-medium">
+                          {caixaGestor.valoresVisiveis
+                            ? formatMoney(caixaGestor.data.saldoCofres)
+                            : '—'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                      <CardContent className="p-5 space-y-3">
+                        <h3 className="text-base font-medium">Bancos</h3>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Conta</TableHead>
+                              <TableHead className="text-right">Saldo</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {caixaGestor.data.bancos.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={2} className="text-app-text-muted">
+                                  Nenhuma conta bancária.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              caixaGestor.data.bancos.map((conta) => (
+                                <TableRow key={conta.id}>
+                                  <TableCell>
+                                    {conta.nome}
+                                    {conta.banco ? ` · ${conta.banco}` : ''}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {caixaGestor.valoresVisiveis
+                                      ? formatMoney(conta.saldoAtual)
+                                      : '—'}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                      <CardContent className="p-5 space-y-3">
+                        <h3 className="text-base font-medium">Cofres / dinheiro</h3>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Conta</TableHead>
+                              <TableHead className="text-right">Saldo</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {caixaGestor.data.cofres.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={2} className="text-app-text-muted">
+                                  Nenhum cofre cadastrado.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              caixaGestor.data.cofres.map((conta) => (
+                                <TableRow key={conta.id}>
+                                  <TableCell>{conta.nome}</TableCell>
+                                  <TableCell className="text-right">
+                                    {caixaGestor.valoresVisiveis
+                                      ? formatMoney(conta.saldoAtual)
+                                      : '—'}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                    <CardContent className="p-5 space-y-3">
+                      <h3 className="text-base font-medium">
+                        Movimentos do dia ({caixaGestor.data.data})
+                      </h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Descrição</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Forma</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {caixaGestor.data.movimentos.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-app-text-muted">
+                                Sem movimentos de caixa hoje.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            caixaGestor.data.movimentos.map((mov) => (
+                              <TableRow key={mov.id}>
+                                <TableCell>{mov.descricao || '—'}</TableCell>
+                                <TableCell>{mov.tipo}</TableCell>
+                                <TableCell>{mov.forma || '—'}</TableCell>
+                                <TableCell className="text-right">
+                                  {caixaGestor.valoresVisiveis ? formatMoney(mov.valor) : '—'}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </>
               )}
             </div>
           )}
@@ -1143,11 +1402,26 @@ function formatCurrency(value: number) {
 }
 
 function CurvaAbcSection({ dias, onDiasChange, data, isLoading, error }: CurvaAbcSectionProps) {
-  const top10 = data.curvaAbc.slice(0, 10)
+  const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
+  const categorias = useMemo(
+    () =>
+      Array.from(new Set(data.curvaAbc.map((row) => row.categoria).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [data.curvaAbc],
+  )
+  const dataFiltrada = useMemo(() => {
+    if (categoriaFiltro === 'todas') return data
+    return {
+      ...data,
+      curvaAbc: data.curvaAbc.filter((row) => row.categoria === categoriaFiltro),
+    }
+  }, [categoriaFiltro, data])
+  const top10 = dataFiltrada.curvaAbc.slice(0, 10)
 
   const exportarCsv = () => {
     const header = ['Produto', 'Categoria', 'Classe', 'Qtd saídas', 'Valor consumido', '% Acumulado', 'Taxa giro', 'Estoque atual']
-    const linhas = data.curvaAbc.map((row) => [
+    const linhas = dataFiltrada.curvaAbc.map((row) => [
       `"${row.produtoNome.replace(/"/g, '""')}"`,
       `"${row.categoria.replace(/"/g, '""')}"`,
       row.classe,
@@ -1172,22 +1446,40 @@ function CurvaAbcSection({ dias, onDiasChange, data, isLoading, error }: CurvaAb
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
 
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-1.5 min-w-[160px]">
-          <label className="text-xs font-normal text-app-text-secondary dark:text-white/60">Período</label>
-          <Select value={String(dias)} onValueChange={(value) => onDiasChange(Number(value))}>
-            <SelectTrigger className="h-11 rounded-xl border-app-border bg-app-bg-secondary text-sm dark:border-app-border-dark dark:bg-app-card-dark">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30">Últimos 30 dias</SelectItem>
-              <SelectItem value="60">Últimos 60 dias</SelectItem>
-              <SelectItem value="90">Últimos 90 dias</SelectItem>
-              <SelectItem value="180">Últimos 180 dias</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-4 md:flex-row md:items-end">
+          <div className="space-y-1.5 min-w-[160px]">
+            <label className="text-xs font-normal text-app-text-secondary dark:text-white/60">Período</label>
+            <Select value={String(dias)} onValueChange={(value) => onDiasChange(Number(value))}>
+              <SelectTrigger className="h-11 rounded-xl border-app-border bg-app-bg-secondary text-sm dark:border-app-border-dark dark:bg-app-card-dark">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">Últimos 30 dias</SelectItem>
+                <SelectItem value="60">Últimos 60 dias</SelectItem>
+                <SelectItem value="90">Últimos 90 dias</SelectItem>
+                <SelectItem value="180">Últimos 180 dias</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5 min-w-[180px]">
+            <label className="text-xs font-normal text-app-text-secondary dark:text-white/60">Categoria</label>
+            <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
+              <SelectTrigger className="h-11 rounded-xl border-app-border bg-app-bg-secondary text-sm dark:border-app-border-dark dark:bg-app-card-dark">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                {categorias.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <Button variant="outline" onClick={exportarCsv} disabled={data.curvaAbc.length === 0} className="h-11 rounded-xl">
+        <Button variant="outline" onClick={exportarCsv} disabled={dataFiltrada.curvaAbc.length === 0} className="h-11 rounded-xl">
           <Download className="mr-2 h-4 w-4" />
           Exportar CSV
         </Button>
@@ -1206,11 +1498,11 @@ function CurvaAbcSection({ dias, onDiasChange, data, isLoading, error }: CurvaAb
         <Card className="rounded-[24px] border-app-border shadow-sm dark:border-app-border-dark">
           <CardContent className="p-6">
             <p className="text-sm text-app-text-secondary dark:text-white/60">Produtos classificados</p>
-            <h2 className="mt-2 text-2xl font-normal text-app-text-primary dark:text-white">{data.curvaAbc.length}</h2>
+            <h2 className="mt-2 text-2xl font-normal text-app-text-primary dark:text-white">{dataFiltrada.curvaAbc.length}</h2>
             <p className="mt-1 text-xs text-app-text-muted">
-              A: {data.curvaAbc.filter((r) => r.classe === 'A').length} ·
-              B: {data.curvaAbc.filter((r) => r.classe === 'B').length} ·
-              C: {data.curvaAbc.filter((r) => r.classe === 'C').length}
+              A: {dataFiltrada.curvaAbc.filter((r) => r.classe === 'A').length} ·
+              B: {dataFiltrada.curvaAbc.filter((r) => r.classe === 'B').length} ·
+              C: {dataFiltrada.curvaAbc.filter((r) => r.classe === 'C').length}
             </p>
           </CardContent>
         </Card>
@@ -1270,7 +1562,7 @@ function CurvaAbcSection({ dias, onDiasChange, data, isLoading, error }: CurvaAb
                 </TableCell>
               </TableRow>
             )}
-            {!isLoading && data.curvaAbc.length === 0 && (
+            {!isLoading && dataFiltrada.curvaAbc.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="py-12 text-center text-app-text-secondary dark:text-white/60">
                   Sem movimentações de saída nos últimos {data.diasAnalisados} dias.
@@ -1278,7 +1570,7 @@ function CurvaAbcSection({ dias, onDiasChange, data, isLoading, error }: CurvaAb
               </TableRow>
             )}
             {!isLoading &&
-              data.curvaAbc.map((row) => (
+              dataFiltrada.curvaAbc.map((row) => (
                 <TableRow key={row.produtoId} className="border-app-border/50 dark:border-app-border-dark">
                   <TableCell className="font-normal text-app-text-primary dark:text-white">{row.produtoNome}</TableCell>
                   <TableCell className="text-app-text-secondary dark:text-white/70">{row.categoria || '—'}</TableCell>

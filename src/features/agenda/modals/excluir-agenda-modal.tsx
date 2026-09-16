@@ -115,10 +115,10 @@ export function ExcluirAgendaModal({ isOpen, onClose, onSave }: ExcluirAgendaMod
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent
         hideCloseButton={true}
-        className="w-[95vw] sm:max-w-[620px] p-0 rounded-[24px] overflow-hidden border border-app-border dark:border-app-border-dark shadow-lg"
+        className="w-[95vw] sm:max-w-[620px] max-h-[90vh] p-0 rounded-[24px] overflow-hidden border border-app-border dark:border-app-border-dark shadow-lg flex flex-col"
       >
         <DialogTitle className="sr-only">Excluir agenda gerada</DialogTitle>
-        <div className="bg-app-card dark:bg-app-card-dark p-8 custom-scrollbar">
+        <div className="bg-app-card dark:bg-app-card-dark p-8 overflow-y-auto custom-scrollbar min-h-0">
           <div className="flex justify-between items-start mb-8">
             <div className="space-y-1">
               <h2 className="text-xl font-normal text-app-text-primary dark:text-white">

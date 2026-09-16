@@ -14,6 +14,9 @@ export interface ProcedimentoItem {
   temRetorno: boolean
   prazoRetornoDias?: number
   valorRetorno?: number
+  temPacote: boolean
+  intervaloRecorrenciaDias?: number
+  quantidadeSugeridaPacote?: number
   ativo: boolean
 }
 
@@ -27,6 +30,9 @@ export interface ProcedimentoInput {
   temRetorno?: boolean
   prazoRetornoDias?: number
   valorRetorno?: number
+  temPacote?: boolean
+  intervaloRecorrenciaDias?: number
+  quantidadeSugeridaPacote?: number
   ativo?: boolean
 }
 

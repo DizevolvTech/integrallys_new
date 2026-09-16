@@ -58,6 +58,44 @@ describe('buildProcedimentoPayload', () => {
     expect(p.valor_retorno).toBe(49.9)
   })
 
+  it('tem_retorno=true sem prazo usa padrão 35 dias', () => {
+    const p = buildProcedimentoPayload(
+      { nome: 'X', temRetorno: true, valorRetorno: '120' },
+      { autoCodigo: false },
+    )
+    expect(p.prazo_retorno_dias).toBe(35)
+  })
+
+  it('tem_pacote=true persiste intervalo e quantidade', () => {
+    const p = buildProcedimentoPayload(
+      {
+        nome: 'Psicanálise',
+        temPacote: true,
+        intervaloRecorrenciaDias: '15',
+        quantidadeSugeridaPacote: '10',
+      },
+      { autoCodigo: false },
+    )
+    expect(p.tem_pacote).toBe(true)
+    expect(p.intervalo_recorrencia_dias).toBe(15)
+    expect(p.quantidade_sugerida_pacote).toBe(10)
+  })
+
+  it('tem_pacote=false zera intervalo/quantidade', () => {
+    const p = buildProcedimentoPayload(
+      {
+        nome: 'X',
+        temPacote: false,
+        intervaloRecorrenciaDias: '15',
+        quantidadeSugeridaPacote: '10',
+      },
+      { autoCodigo: false },
+    )
+    expect(p.tem_pacote).toBe(false)
+    expect(p.intervalo_recorrencia_dias).toBeNull()
+    expect(p.quantidade_sugerida_pacote).toBeNull()
+  })
+
   it('valor e duração são parseados; ativo default true, false quando explícito', () => {
     const p = buildProcedimentoPayload(
       { nome: 'X', valor: '180', duracaoMin: '45' },

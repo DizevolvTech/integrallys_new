@@ -3,7 +3,7 @@ import { getAppSupabase, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { isMaskedValue, isSensitiveConfigKey, maskConfigValue } from '@/lib/config-secrets'
 import { mapConfiguracaoItem } from '@/lib/domain-mappers'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { authErrorResponse, forbidPatientRole, getRequestAuth } from '@/lib/request-auth'
 
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
   }
   const denied = await requirePermission(session.userId, 'configuracoes', 'read')
   if (denied) return denied
+  const patientDenied = forbidPatientRole(session)
+  if (patientDenied) return patientDenied
 
   const supabase = getAppSupabase()
   const { data, error } = await supabase
@@ -39,6 +41,8 @@ export async function PUT(request: NextRequest) {
 
   const denied = await requirePermission(session.userId, 'configuracoes', 'update')
   if (denied) return denied
+  const patientDenied = forbidPatientRole(session)
+  if (patientDenied) return patientDenied
 
   const body = (await request.json().catch(() => null)) as
     | { chave: string; valor: string; categoria: string }[]
@@ -100,6 +104,8 @@ export async function DELETE(request: NextRequest) {
 
   const denied = await requirePermission(session.userId, 'configuracoes', 'update')
   if (denied) return denied
+  const patientDenied = forbidPatientRole(session)
+  if (patientDenied) return patientDenied
 
   const body = (await request.json().catch(() => null)) as { chave?: string } | null
   if (!body?.chave) {
@@ -122,7 +128,10 @@ export async function DELETE(request: NextRequest) {
   if (listError) return supabaseErrorResponse(listError, 'Falha ao carregar configurações')
 
   return NextResponse.json({
-    data: (data ?? []).map((row) => mapConfiguracaoItem(row)),
+    data: (data ?? []).map((row) => {
+      const item = mapConfiguracaoItem(row)
+      return { ...item, valor: maskConfigValue(item.chave, item.valor) }
+    }),
     meta: session,
   })
 }

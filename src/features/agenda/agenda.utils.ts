@@ -14,6 +14,7 @@ export function mapAgendaItemToSlot(item: AgendaItem): AgendaSlot {
     status: item.status,
     data: item.data,
     tipo: item.tipo,
+    titulo: item.titulo,
     modalidade: item.modalidade,
     plataformaOnline: item.plataformaOnline,
     urlOnline: item.urlOnline,
@@ -75,6 +76,49 @@ export function normalizeAgendaStatus(status: string) {
   if (normalized.includes('bloque')) return 'Bloqueado'
   if (normalized.includes('agend')) return 'Agendado'
   return status || 'Agendado'
+}
+
+/** Status selecionáveis no dropdown da recepção/agenda. */
+export const AGENDA_STATUS_DROPDOWN = [
+  'Agendado',
+  'Confirmado',
+  'Check-in',
+  'Em Atendimento',
+  'Check-out',
+  'Em Atraso',
+  'Cancelado',
+] as const
+
+/** Status elegíveis a virarem "Em Atraso" automaticamente. */
+export const STATUS_ELEGIVEIS_ATRASO = ['Agendado', 'Confirmado', 'Check-in'] as const
+
+/**
+ * true quando data (YYYY-MM-DD) + horário (HH:MM) já passaram no relógio local.
+ * Usado para bloquear booking retroativo e marcar atraso.
+ */
+export function isHorarioPassado(
+  dataIso: string,
+  horario: string,
+  agora: Date = new Date(),
+): boolean {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataIso.trim())
+  if (!dateMatch) return false
+  const timeMatch = /^(\d{1,2}):(\d{2})/.exec(horario.trim())
+  if (!timeMatch) return false
+
+  const y = Number(dateMatch[1])
+  const m = Number(dateMatch[2])
+  const d = Number(dateMatch[3])
+  const hh = Number(timeMatch[1])
+  const mm = Number(timeMatch[2])
+  const slot = new Date(y, m - 1, d, hh, mm, 0, 0)
+  if (Number.isNaN(slot.getTime())) return false
+  return slot.getTime() < agora.getTime()
+}
+
+/** Preferir `capabilities.iniciarAtendimento` de `/api/auth/me` nas views. */
+export function canIniciarAtendimento(role: string | undefined | null): boolean {
+  return role === 'especialista' || role === 'master'
 }
 
 export type PagamentoSituacao = 'Pago' | 'Parcial' | 'Pendente' | 'Sem valor'

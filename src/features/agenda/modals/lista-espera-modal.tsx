@@ -105,9 +105,28 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
+  const selectedEspecialista = useMemo(
+    () => especialistasOptions.find((option) => option.id === especialistaId) ?? null,
+    [especialistasOptions, especialistaId],
+  )
+
+  const procedimentosFiltrados = useMemo(() => {
+    if (!especialistaId) return []
+    const allowed = new Set(selectedEspecialista?.procedimentoIds ?? [])
+    if (allowed.size === 0) return []
+    return procedimentosOptions.filter((option) => allowed.has(option.id))
+  }, [especialistaId, selectedEspecialista, procedimentosOptions])
+
+  useEffect(() => {
+    if (!procedimentoId) return
+    if (!procedimentosFiltrados.some((option) => option.id === procedimentoId)) {
+      setProcedimentoId('')
+    }
+  }, [procedimentosFiltrados, procedimentoId])
+
   const selectedProcedimento = useMemo(
-    () => procedimentosOptions.find((option) => option.id === procedimentoId) ?? null,
-    [procedimentosOptions, procedimentoId],
+    () => procedimentosFiltrados.find((option) => option.id === procedimentoId) ?? null,
+    [procedimentosFiltrados, procedimentoId],
   )
 
   const prioridadeLabel =
@@ -212,44 +231,14 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="font-normal">Procedimento</Label>
-                  <Select value={procedimentoId} onValueChange={setProcedimentoId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o procedimento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {procedimentosOptions.length === 0 && (
-                        <SelectItem value="__empty_procedimentos" disabled>
-                          Nenhum procedimento ativo
-                        </SelectItem>
-                      )}
-                      {procedimentosOptions.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedProcedimento && (
-                    <p className="text-xs text-app-text-secondary dark:text-white/60">
-                      Valor:{' '}
-                      <span className="font-medium text-app-text-primary dark:text-white">
-                        {selectedProcedimento.valor != null
-                          ? formatBRL(selectedProcedimento.valor)
-                          : 'não informado'}
-                      </span>
-                    </p>
-                  )}
-                  {submitAttempted && isMissingProcedimento && (
-                    <p className="text-xs text-[var(--app-danger-text)]">
-                      Selecione um procedimento.
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
                   <Label className="font-normal">Especialista</Label>
-                  <Select value={especialistaId} onValueChange={setEspecialistaId}>
+                  <Select
+                    value={especialistaId}
+                    onValueChange={(value) => {
+                      setEspecialistaId(value)
+                      setProcedimentoId('')
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o especialista" />
                     </SelectTrigger>
@@ -269,6 +258,54 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
                   {submitAttempted && isMissingEspecialista && (
                     <p className="text-xs text-[var(--app-danger-text)]">
                       Selecione um especialista.
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-normal">Procedimento</Label>
+                  <Select
+                    value={procedimentoId}
+                    onValueChange={setProcedimentoId}
+                    disabled={!especialistaId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          especialistaId
+                            ? 'Selecione o procedimento'
+                            : 'Selecione o especialista primeiro'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {procedimentosFiltrados.length === 0 && (
+                        <SelectItem value="__empty_procedimentos" disabled>
+                          {especialistaId
+                            ? 'Nenhum procedimento vinculado a este especialista'
+                            : 'Selecione o especialista primeiro'}
+                        </SelectItem>
+                      )}
+                      {procedimentosFiltrados.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedProcedimento && (
+                    <p className="text-xs text-app-text-secondary dark:text-white/60">
+                      Valor:{' '}
+                      <span className="font-medium text-app-text-primary dark:text-white">
+                        {selectedProcedimento.valor != null
+                          ? formatBRL(selectedProcedimento.valor)
+                          : 'não informado'}
+                      </span>
+                    </p>
+                  )}
+                  {submitAttempted && isMissingProcedimento && (
+                    <p className="text-xs text-[var(--app-danger-text)]">
+                      Selecione um procedimento.
                     </p>
                   )}
                 </div>

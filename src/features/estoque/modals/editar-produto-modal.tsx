@@ -12,9 +12,16 @@ interface EditarProdutoModalProps {
   onClose: (open: boolean) => void
   produto: EstoqueItem | null
   onSave: (payload: EstoqueInput) => Promise<void>
+  categorias?: string[]
 }
 
-export function EditarProdutoModal({ isOpen, onClose, produto, onSave }: EditarProdutoModalProps) {
+export function EditarProdutoModal({
+  isOpen,
+  onClose,
+  produto,
+  onSave,
+  categorias = [],
+}: EditarProdutoModalProps) {
   const [produtoNome, setProdutoNome] = useState('')
   const [categoria, setCategoria] = useState('')
   const [sku, setSku] = useState('')
@@ -25,7 +32,6 @@ export function EditarProdutoModal({ isOpen, onClose, produto, onSave }: EditarP
   const [precoCusto, setPrecoCusto] = useState('')
   const [precoVenda, setPrecoVenda] = useState('')
   const [unidadeMedida, setUnidadeMedida] = useState('')
-  const [status, setStatus] = useState('Disponível')
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -49,7 +55,6 @@ export function EditarProdutoModal({ isOpen, onClose, produto, onSave }: EditarP
       setPrecoCusto(produto.precoCusto != null ? String(produto.precoCusto) : '')
       setPrecoVenda(produto.precoVenda != null ? String(produto.precoVenda) : '')
       setUnidadeMedida(produto.unidadeMedida ?? '')
-      setStatus(produto.status)
     }
   }, [produto])
 
@@ -76,7 +81,6 @@ export function EditarProdutoModal({ isOpen, onClose, produto, onSave }: EditarP
         precoCusto: precoCusto.trim() === '' ? null : Number(precoCusto),
         precoVenda: precoVenda.trim() === '' ? null : Number(precoVenda),
         unidadeMedida: unidadeMedida.trim() || null,
-        status: status.trim() || 'Disponível',
       })
       onClose(false)
     } catch (err) {
@@ -120,7 +124,23 @@ export function EditarProdutoModal({ isOpen, onClose, produto, onSave }: EditarP
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-app-text-primary dark:text-white/70">Categoria</label>
-              <Input value={categoria} onChange={(event) => setCategoria(event.target.value)} placeholder="Categoria" className="w-full" required />
+              {categorias.length > 0 ? (
+                <select
+                  value={categoria}
+                  onChange={(event) => setCategoria(event.target.value)}
+                  className="w-full h-10 rounded-md border border-app-border bg-transparent px-3 text-sm"
+                  required
+                >
+                  <option value="">Selecione</option>
+                  {Array.from(new Set([...categorias, categoria].filter(Boolean))).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input value={categoria} onChange={(event) => setCategoria(event.target.value)} placeholder="Categoria" className="w-full" required />
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-app-text-primary dark:text-white/70">SKU</label>
@@ -168,7 +188,11 @@ export function EditarProdutoModal({ isOpen, onClose, produto, onSave }: EditarP
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-app-text-primary dark:text-white/70">Status</label>
-              <Input value={status} onChange={(event) => setStatus(event.target.value)} placeholder="Disponível" className="w-full" />
+              <Input
+                value={quantidade > 0 ? 'Disponível (automático)' : 'Indisponível (automático)'}
+                disabled
+                className="w-full bg-app-bg-secondary"
+              />
             </div>
           </div>
 

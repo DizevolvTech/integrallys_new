@@ -1,10 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CheckCircle2, Clock, Edit, Loader2, Plus, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Edit,
+  Loader2,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { useTarefas, type CreateTarefaPayload, type TarefaItem } from '@/hooks/use-tarefas'
 import { useUsuarios } from '@/hooks/use-usuarios'
+import {
+  formatDiasSemanaLabel,
+  TAREFA_RECORRENCIA_LABELS,
+  TAREFA_RECORRENCIA_VALUES,
+  type TarefaRecorrencia,
+} from '@/lib/tarefa-recorrencia'
+import { DiasSemanaPicker } from '@/features/tarefas/components/dias-semana-picker'
+import { DateInput } from '@/components/shared/date-input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -40,11 +56,30 @@ function statusTone(status: string) {
 interface TarefaFormData {
   titulo: string
   descricao: string
-  responsavelNome: string
+  responsavelId: string
   status: string
+  recorrencia: TarefaRecorrencia
+  diasSemana: number[]
+  alerta: boolean
+  data: string
+  horario: string
+  prioridade: string
+  categoria: string
 }
 
-const emptyForm: TarefaFormData = { titulo: '', descricao: '', responsavelNome: '', status: 'Pendente' }
+const emptyForm: TarefaFormData = {
+  titulo: '',
+  descricao: '',
+  responsavelId: '',
+  status: 'Pendente',
+  recorrencia: 'nenhuma',
+  diasSemana: [],
+  alerta: false,
+  data: '',
+  horario: '',
+  prioridade: 'Média',
+  categoria: '',
+}
 
 export function RelatorioTarefasView() {
   const { data, isLoading, error, createTarefa, updateTarefa, deleteTarefa } = useTarefas()
@@ -55,6 +90,13 @@ export function RelatorioTarefasView() {
   const [isSaving, setIsSaving] = useState(false)
   const [filterStatus, setFilterStatus] = useState('todos')
 
+  const stats = useMemo(() => {
+    const abertas = data.filter((t) => t.status !== 'Concluída' && t.status !== 'Cancelada').length
+    const concluidas = data.filter((t) => t.status === 'Concluída').length
+    const pendentes = data.filter((t) => t.status === 'Pendente').length
+    return { total: data.length, abertas, concluidas, pendentes }
+  }, [data])
+
   const openCreate = () => {
     setEditingItem(null)
     setForm(emptyForm)
@@ -63,7 +105,19 @@ export function RelatorioTarefasView() {
 
   const openEdit = (item: TarefaItem) => {
     setEditingItem(item)
-    setForm({ titulo: item.titulo, descricao: '', responsavelNome: item.responsavel, status: item.status })
+    setForm({
+      titulo: item.titulo,
+      descricao: item.descricao || '',
+      responsavelId: item.responsavelId || '',
+      status: item.status,
+      recorrencia: (item.recorrencia as TarefaRecorrencia) || 'nenhuma',
+      diasSemana: item.diasSemana || [],
+      alerta: Boolean(item.alerta),
+      data: item.data || '',
+      horario: item.horario || '',
+      prioridade: item.prioridade || 'Média',
+      categoria: item.categoria || '',
+    })
     setIsModalOpen(true)
   }
 
@@ -72,13 +126,24 @@ export function RelatorioTarefasView() {
       toast.error('Título é obrigatório.')
       return
     }
+    if (form.recorrencia === 'dias_especificos' && form.diasSemana.length === 0) {
+      toast.error('Selecione ao menos um dia da semana.')
+      return
+    }
     setIsSaving(true)
     try {
       const payload: CreateTarefaPayload = {
         titulo: form.titulo,
         descricao: form.descricao || undefined,
-        responsavelNome: form.responsavelNome || undefined,
+        responsavelId: form.responsavelId || undefined,
         status: form.status,
+        recorrencia: form.recorrencia,
+        diasSemana: form.recorrencia === 'dias_especificos' ? form.diasSemana : [],
+        alerta: form.alerta,
+        data: form.data || undefined,
+        horario: form.horario || undefined,
+        prioridade: form.prioridade || undefined,
+        categoria: form.categoria || undefined,
       }
       if (editingItem) {
         await updateTarefa({ ...payload, id: editingItem.id })
@@ -106,8 +171,25 @@ export function RelatorioTarefasView() {
 
   const handleQuickStatus = async (item: TarefaItem, newStatus: string) => {
     try {
-      await updateTarefa({ id: item.id, titulo: item.titulo, responsavelNome: item.responsavel, status: newStatus })
-      toast.success(`Status alterado para ${newStatus}.`)
+      await updateTarefa({
+        id: item.id,
+        titulo: item.titulo,
+        descricao: item.descricao || undefined,
+        responsavelNome: item.responsavel,
+        responsavelId: item.responsavelId || undefined,
+        status: newStatus,
+        recorrencia: item.recorrencia || 'nenhuma',
+        diasSemana: item.diasSemana || [],
+        alerta: Boolean(item.alerta),
+        vencimentoEm: item.vencimentoEm || undefined,
+        prioridade: item.prioridade || undefined,
+        categoria: item.categoria || undefined,
+      })
+      toast.success(
+        newStatus === 'Concluída' && item.recorrencia && item.recorrencia !== 'nenhuma'
+          ? 'Concluída. Próxima ocorrência gerada.'
+          : `Status alterado para ${newStatus}.`,
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao atualizar status.')
     }
@@ -118,8 +200,8 @@ export function RelatorioTarefasView() {
   return (
     <div className="app-page">
       <PageHeader
-        title="Tarefas"
-        description="Gerencie tarefas operacionais da equipe."
+        title="Relatório de Tarefas"
+        description="Histórico completo: abertas e concluídas. A lista da agenda oculta as concluídas."
         actions={
           <>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -141,6 +223,33 @@ export function RelatorioTarefasView() {
         }
       />
 
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <Card className="rounded-[16px] border-app-border dark:border-app-border-dark">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-app-text-muted">Total</p>
+            <p className="mt-2 text-2xl text-app-text-primary dark:text-white">{stats.total}</p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-[16px] border-app-border dark:border-app-border-dark">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-app-text-muted">Abertas</p>
+            <p className="mt-2 text-2xl text-app-text-primary dark:text-white">{stats.abertas}</p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-[16px] border-app-border dark:border-app-border-dark">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-app-text-muted">Pendentes</p>
+            <p className="mt-2 text-2xl text-app-text-primary dark:text-white">{stats.pendentes}</p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-[16px] border-app-border dark:border-app-border-dark">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-app-text-muted">Concluídas</p>
+            <p className="mt-2 text-2xl text-app-text-primary dark:text-white">{stats.concluidas}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
       {isLoading && <p className="text-app-text-secondary">Carregando tarefas...</p>}
       {!isLoading && filtered.length === 0 && <p className="text-app-text-secondary">Nenhuma tarefa encontrada.</p>}
@@ -150,25 +259,43 @@ export function RelatorioTarefasView() {
           <Card key={item.id} className="rounded-[16px] border-app-border dark:border-app-border-dark">
             <CardContent className="flex items-center justify-between gap-4 p-5">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-app-text-primary dark:text-white">{item.titulo}</p>
-                <p className="mt-1 text-xs text-app-text-secondary">{item.responsavel}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-app-text-primary dark:text-white">{item.titulo}</p>
+                  {item.alerta && (
+                    <Badge className="app-status-warning border-none text-xs">
+                      <AlertTriangle className="mr-1 h-3 w-3" />
+                      Alerta
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-app-text-secondary">
+                  {item.responsavel || 'Sem responsável'}
+                  {item.data ? ` · ${item.data}` : ''}
+                  {item.horario ? ` ${item.horario}` : ''}
+                  {item.recorrencia && item.recorrencia !== 'nenhuma'
+                    ? ` · ${TAREFA_RECORRENCIA_LABELS[item.recorrencia as TarefaRecorrencia] ?? item.recorrencia}`
+                    : ''}
+                  {item.recorrencia === 'dias_especificos' && item.diasSemana?.length
+                    ? ` (${formatDiasSemanaLabel(item.diasSemana)})`
+                    : ''}
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Badge className={`${statusTone(item.status)} border-none text-xs`}>{item.status}</Badge>
                 {item.status !== 'Concluída' && (
-                  <Button variant="ghost" size="icon" title="Marcar como concluída" onClick={() => handleQuickStatus(item, 'Concluída')}>
+                  <Button variant="ghost" size="icon" title="Marcar como concluída" onClick={() => void handleQuickStatus(item, 'Concluída')}>
                     <CheckCircle2 className="h-4 w-4 text-[var(--app-success-text)]" />
                   </Button>
                 )}
                 {item.status === 'Concluída' && (
-                  <Button variant="ghost" size="icon" title="Reabrir" onClick={() => handleQuickStatus(item, 'Pendente')}>
+                  <Button variant="ghost" size="icon" title="Reabrir" onClick={() => void handleQuickStatus(item, 'Pendente')}>
                     <Clock className="h-4 w-4 text-[var(--app-warning-text)]" />
                   </Button>
                 )}
                 <Button variant="ghost" size="icon" title="Editar" onClick={() => openEdit(item)}>
                   <Edit className="h-4 w-4 text-app-text-secondary" />
                 </Button>
-                <Button variant="ghost" size="icon" title="Excluir" onClick={() => handleDelete(item)}>
+                <Button variant="ghost" size="icon" title="Excluir" onClick={() => void handleDelete(item)}>
                   <Trash2 className="h-4 w-4 text-[var(--app-danger-text)]" />
                 </Button>
               </div>
@@ -178,7 +305,7 @@ export function RelatorioTarefasView() {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Editar tarefa' : 'Nova tarefa'}</DialogTitle>
           </DialogHeader>
@@ -191,18 +318,96 @@ export function RelatorioTarefasView() {
               <Label>Descrição</Label>
               <Textarea value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} placeholder="Opcional" rows={3} />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <DateInput value={form.data} onChange={(value) => setForm({ ...form, data: value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Horário</Label>
+                <Input type="time" value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>Responsável</Label>
-              <Select value={form.responsavelNome} onValueChange={(v) => setForm({ ...form, responsavelNome: v })}>
+              <Select
+                value={form.responsavelId || '__none__'}
+                onValueChange={(v) => setForm({ ...form, responsavelId: v === '__none__' ? '' : v })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Sem responsável</SelectItem>
                   {usuarios.map((u) => (
-                    <SelectItem key={u.id} value={u.nome}>{u.nome}</SelectItem>
+                    <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Recorrência</Label>
+              <Select
+                value={form.recorrencia}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    recorrencia: v as TarefaRecorrencia,
+                    diasSemana: v === 'dias_especificos' ? form.diasSemana : [],
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TAREFA_RECORRENCIA_VALUES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {TAREFA_RECORRENCIA_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {form.recorrencia === 'dias_especificos' && (
+              <div className="space-y-2">
+                <Label>Dias da semana</Label>
+                <DiasSemanaPicker
+                  value={form.diasSemana}
+                  onChange={(diasSemana) => setForm({ ...form, diasSemana })}
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                id="relatorio-tarefa-alerta"
+                type="checkbox"
+                checked={form.alerta}
+                onChange={(e) => setForm({ ...form, alerta: e.target.checked })}
+                className="h-4 w-4 rounded border-app-border"
+              />
+              <Label htmlFor="relatorio-tarefa-alerta" className="font-normal">
+                Exibir alerta
+              </Label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Prioridade</Label>
+                <Select value={form.prioridade} onValueChange={(v) => setForm({ ...form, prioridade: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Alta">Alta</SelectItem>
+                    <SelectItem value="Média">Média</SelectItem>
+                    <SelectItem value="Baixa">Baixa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Input value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
@@ -220,7 +425,7 @@ export function RelatorioTarefasView() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={isSaving} className="text-white">
+            <Button onClick={() => void handleSave()} disabled={isSaving} className="text-white">
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingItem ? 'Salvar' : 'Criar'}
             </Button>

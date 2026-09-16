@@ -42,6 +42,21 @@ export function DetalhesModal({ isOpen, onClose, consulta }: DetalhesModalProps)
               <span className="text-sm text-slate-600 font-bold tracking-wider">Local</span>
               <span className="text-base text-slate-700 dark:text-slate-200">{consulta.local}</span>
             </div>
+            {consulta.urlOnline && (
+              <div className="flex flex-col space-y-0.5">
+                <span className="text-sm text-slate-600 font-bold tracking-wider">
+                  {consulta.plataformaOnline || 'Atendimento online'}
+                </span>
+                <a
+                  href={consulta.urlOnline}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-base text-[var(--app-primary)] hover:underline break-all"
+                >
+                  Abrir link da consulta
+                </a>
+              </div>
+            )}
             <div className="flex flex-col space-y-0.5">
               <span className="text-sm text-slate-600 font-bold tracking-wider">Status</span>
               <Badge className="h-6 px-3 text-xs font-normal rounded-full border-none shadow-sm app-status-info text-[var(--app-primary)] dark:text-[#4ADE80]">

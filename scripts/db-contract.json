@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-22T13:51:01.641Z",
+  "generatedAt": "2026-09-14T20:11:46.290Z",
   "schema": "public",
   "tables": {
     "agenda_bloqueios": [
@@ -39,7 +39,8 @@
       "participantes",
       "tipo_encaixe",
       "fora_janela",
-      "motivo_encaixe"
+      "motivo_encaixe",
+      "procedimento_id"
     ],
     "agendamentos_pagamentos": [
       "id",
@@ -50,7 +51,10 @@
       "pago_em",
       "observacoes",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "bandeira",
+      "parcelas",
+      "conta_bancaria_id"
     ],
     "anamneses": [
       "id",
@@ -68,7 +72,8 @@
       "massa_ossea",
       "agua_corporal",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "campos_extras"
     ],
     "audit_log": [
       "id",
@@ -318,7 +323,8 @@
       "conta_bancaria_id",
       "beneficiario",
       "parcelas",
-      "parcela_atual"
+      "parcela_atual",
+      "centro_custo_id"
     ],
     "formas_pagamento": [
       "id",
@@ -507,7 +513,10 @@
       "duracao_min",
       "tem_retorno",
       "prazo_retorno_dias",
-      "valor_retorno"
+      "valor_retorno",
+      "tem_pacote",
+      "intervalo_recorrencia_dias",
+      "quantidade_sugerida_pacote"
     ],
     "produtos_estoque": [
       "id",
@@ -558,7 +567,8 @@
       "status",
       "conteudo",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "updated_by"
     ],
     "recursos": [
       "id",
@@ -608,7 +618,12 @@
       "vencimento_em",
       "created_by_id",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "recorrencia",
+      "dias_semana",
+      "alerta",
+      "prioridade",
+      "categoria"
     ],
     "unidades": [
       "id",
@@ -709,6 +724,37 @@
       "agendado_para",
       "enviado_em",
       "created_at"
+    ],
+    "estoque_categorias": [
+      "id",
+      "unidade_id",
+      "nome",
+      "ativo",
+      "created_at",
+      "updated_at"
+    ],
+    "centros_custo": [
+      "id",
+      "nome",
+      "unidade_id",
+      "ativo",
+      "created_at",
+      "updated_at"
+    ],
+    "prontuario_versoes": [
+      "id",
+      "prontuario_id",
+      "conteudo",
+      "status",
+      "edited_by",
+      "created_at"
+    ],
+    "prontuario_live_drafts": [
+      "paciente_id",
+      "texto",
+      "author_id",
+      "unidade_id",
+      "updated_at"
     ]
   },
   "enums": {
@@ -826,6 +872,16 @@
       "Ativo",
       "Inativo",
       "Bloqueado"
+    ],
+    "tarefa_recorrencia": [
+      "nenhuma",
+      "diaria",
+      "dias_uteis",
+      "semanal",
+      "quinzenal",
+      "mensal",
+      "anual",
+      "dias_especificos"
     ]
   },
   "enumColumns": {
@@ -874,7 +930,8 @@
       "status": "repasse_status"
     },
     "tarefas": {
-      "status": "tarefa_status"
+      "status": "tarefa_status",
+      "recorrencia": "tarefa_recorrencia"
     },
     "unidades": {
       "status": "unidade_status"
@@ -1166,6 +1223,30 @@
       [
         "p_usuario_id"
       ]
+    ],
+    "estoque_aplicar_movimentacao": [
+      [
+        "produto_id",
+        "usuario_id",
+        "tipo",
+        "quantidade",
+        "tipo_movimentacao",
+        "observacoes",
+        "vinculo_tipo",
+        "vinculo_id",
+        "vinculo_nome",
+        "numero_nf",
+        "cnpj_emitente",
+        "quantidade_alvo",
+        "force_nf"
+      ]
+    ],
+    "estoque_estornar_movimentacao": [
+      [
+        "movimentacao_id",
+        "usuario_id",
+        "motivo"
+      ]
     ]
   },
   "fkMultiplicity": {
@@ -1193,7 +1274,8 @@
     },
     "financeiro_lancamentos": {
       "usuarios": 1,
-      "unidades": 1
+      "unidades": 1,
+      "centros_custo": 1
     },
     "pacientes": {
       "unidades": 1,
@@ -1323,6 +1405,22 @@
     },
     "pagamentos_paciente": {
       "pacientes": 1
+    },
+    "estoque_categorias": {
+      "unidades": 1
+    },
+    "centros_custo": {
+      "unidades": 1
+    },
+    "prontuario_versoes": {
+      "prontuarios": 1,
+      "usuarios": 1
+    },
+    "prontuario_live_drafts": {
+      "pacientes": 1,
+      "usuarios": 1,
+      "unidades": 1
     }
-  }
+  },
+  "notes": " | patched for migrations 095-108 (manual merge 2026-09-14)"
 }

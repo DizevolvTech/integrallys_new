@@ -10,12 +10,22 @@ import {
 import { requirePermission } from '@/lib/authz'
 import { mapAgendaItem } from '@/lib/domain-mappers'
 import { resolveAgendamentoProcedimento } from '@/lib/agendamento-procedimento'
+import {
+  insertPagamentoAgendamento,
+  resolvePagamentoAgendamentoInput,
+} from '@/lib/agendamento-pagamento'
+import { addDaysIso } from '@/lib/procedimento-retorno'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import {
+  isHorarioPassado,
+  STATUS_ELEGIVEIS_ATRASO,
+} from '@/features/agenda/agenda.utils'
 import {
   buildInsertPayload,
   buildOccupyUpdate,
   decidirFluxoAgendamento,
   ocuparSlotDisponivel,
+  validateModalidadeOnlineUrl,
 } from './agenda-slot'
 
 type ScopedAgendaContext =
@@ -123,6 +133,31 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao carregar agenda')
+  }
+
+  // Em atraso automático: persiste status quando data+hora já passaram.
+  const agora = new Date()
+  const overdueIds: string[] = []
+  for (const row of data ?? []) {
+    if (!row.paciente_id) continue
+    if (String(row.status) === 'Disponível') continue
+    const status = String(row.status ?? '')
+    if (!(STATUS_ELEGIVEIS_ATRASO as readonly string[]).includes(status)) continue
+    const dataIso = String(row.data_agendamento ?? '').slice(0, 10)
+    const hora = String(row.horario_inicio ?? '').slice(0, 5)
+    if (isHorarioPassado(dataIso, hora, agora)) {
+      overdueIds.push(String(row.id))
+      row.status = 'Em Atraso'
+    }
+  }
+  if (overdueIds.length > 0) {
+    const { error: overdueError } = await supabase
+      .from('agendamentos')
+      .update({ status: 'Em Atraso', updated_at: new Date().toISOString() })
+      .in('id', overdueIds)
+    if (overdueError) {
+      console.error('[agenda] falha ao marcar em atraso', overdueError)
+    }
   }
 
   const agendaIds = (data ?? []).map((row) => String(row.id ?? ''))
@@ -279,6 +314,133 @@ async function resolvePatientUnitId(
   return data?.unidade_id ?? null
 }
 
+/** Registra pagamento inicial obrigatório em consulta com paciente (parcial ou total). */
+async function registrarPagamentoInicialObrigatorio(params: {
+  supabase: ReturnType<typeof getAppSupabase>
+  agendamentoId: string
+  body: Record<string, unknown>
+}): Promise<Response | null> {
+  const raw = params.body.pagamentoInicial
+  if (!raw || typeof raw !== 'object') {
+    return serverErrorResponse(
+      'Informe o pagamento inicial do agendamento (pode ser parcial).',
+      'PAGAMENTO_INICIAL_OBRIGATORIO',
+      400,
+    )
+  }
+  const pagamento = raw as Record<string, unknown>
+  const resolved = resolvePagamentoAgendamentoInput({
+    agendamentoId: params.agendamentoId,
+    valor: pagamento.valor,
+    metodo: pagamento.metodo,
+    bandeira: pagamento.bandeira,
+    parcelas: pagamento.parcelas,
+    contaBancariaId: pagamento.contaBancariaId,
+    observacoes: pagamento.observacoes,
+  })
+  if (!resolved.ok) {
+    return serverErrorResponse(resolved.message, resolved.code, 400)
+  }
+
+  const { error } = await insertPagamentoAgendamento(params.supabase, {
+    agendamentoId: params.agendamentoId,
+    ...resolved.data,
+  })
+  if (error) {
+    return supabaseErrorResponse(error, 'Falha ao registrar pagamento inicial')
+  }
+  return null
+}
+
+/** Cria as demais sessões de um pacote (2..N) após o primeiro agendamento. */
+async function criarSeriePacoteSeSolicitada(params: {
+  supabase: ReturnType<typeof getAppSupabase>
+  sessionUserId: string
+  pacienteId: string
+  profissionalId: string
+  unidadeId: string | null
+  body: Record<string, unknown>
+  intervaloFallback: number | null
+}) {
+  const tipo = typeof params.body.tipo === 'string' ? params.body.tipo.toLowerCase() : ''
+  if (tipo === 'retorno') return
+
+  const qtdRaw = Number(params.body.serieQuantidade)
+  const quantidade = Number.isFinite(qtdRaw) ? Math.trunc(qtdRaw) : 1
+  if (quantidade <= 1) return
+
+  const intervaloBody = Number(params.body.serieIntervaloDias)
+  const intervalo =
+    Number.isFinite(intervaloBody) && intervaloBody > 0
+      ? Math.trunc(intervaloBody)
+      : params.intervaloFallback
+  if (!intervalo || intervalo <= 0) return
+
+  const dataBase = String(params.body.data)
+  const horario = String(params.body.horario)
+
+  for (let i = 1; i < quantidade; i += 1) {
+    const nextDate = addDaysIso(dataBase, i * intervalo)
+    if (!nextDate) continue
+
+    const serieBody: Record<string, unknown> = {
+      ...params.body,
+      data: nextDate,
+      horario,
+      // Sessões 2..N do pacote: valor já quitado na sessão 1.
+      valorProcedimento: 0,
+      pagamentoInicial: undefined,
+    }
+    delete serieBody.pagamentoInicial
+    delete serieBody.serieQuantidade
+
+    const occupy = await ocuparSlotDisponivel(params.supabase, {
+      profissionalId: params.profissionalId,
+      data: nextDate,
+      horario,
+      update: buildOccupyUpdate(serieBody, params.pacienteId),
+    })
+
+    if (occupy.kind === 'occupied') {
+      void agendarLembrete(occupy.id).catch((err) =>
+        console.error('[whatsapp] agendar_lembrete_serie', err),
+      )
+      continue
+    }
+
+    if (occupy.kind === 'error') {
+      console.error('[agenda] serie occupy error', occupy.error)
+      continue
+    }
+
+    const { data: inserted, error } = await params.supabase
+      .from('agendamentos')
+      .insert(
+        buildInsertPayload({
+          unidadeId: params.unidadeId,
+          pacienteId: params.pacienteId,
+          profissionalId: params.profissionalId,
+          criadoPorId: params.sessionUserId,
+          body: serieBody,
+          foraJanela: true,
+          motivoEncaixe: 'Pacote recorrente',
+        }),
+      )
+      .select('id')
+      .maybeSingle()
+
+    if (error) {
+      console.error('[agenda] serie insert error', error)
+      continue
+    }
+    if (inserted?.id) {
+      void agendarLembrete(String(inserted.id)).catch((err) =>
+        console.error('[whatsapp] agendar_lembrete_serie', err),
+      )
+    }
+  }
+}
+
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) {
@@ -315,8 +477,29 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const urlCheck = validateModalidadeOnlineUrl({
+    modalidade: body.modalidade,
+    urlOnline: body.urlOnline,
+  })
+  if (!urlCheck.ok) {
+    return serverErrorResponse(urlCheck.message, urlCheck.code, 400)
+  }
+
   const supabase = getAppSupabase()
   const pacienteId = body.pacienteId ? String(body.pacienteId) : null
+
+  // Bloqueia agendamento retroativo (consulta com paciente).
+  if (pacienteId) {
+    const dataIso = String(body.data)
+    const horario = String(body.horario)
+    if (isHorarioPassado(dataIso, horario)) {
+      return serverErrorResponse(
+        'Não é possível agendar em horário já passado.',
+        'HORARIO_PASSADO',
+        400,
+      )
+    }
+  }
 
   // Item 15a — resolve preferindo o UUID enviado pelo front (body.profissionalId);
   // o nome fica só como compatibilidade. Agendamento COM paciente (consulta/encaixe)
@@ -344,6 +527,9 @@ export async function POST(request: NextRequest) {
     procedimentoId: body.procedimentoId,
     valorProcedimento: body.valorProcedimento,
     profissionalId: pacienteId ? profissionalId : null,
+    tipo: body.tipo,
+    pacienteId,
+    dataAgendamento: String(body.data),
   })
   if (!procResolved.ok) {
     return serverErrorResponse(procResolved.message, procResolved.code, 400)
@@ -390,6 +576,23 @@ export async function POST(request: NextRequest) {
       console.error('[whatsapp] agendar_lembrete', err),
     )
 
+    const pagamentoError = await registrarPagamentoInicialObrigatorio({
+      supabase,
+      agendamentoId: result.id,
+      body: enrichedBody,
+    })
+    if (pagamentoError) return pagamentoError
+
+    await criarSeriePacoteSeSolicitada({
+      supabase,
+      sessionUserId: session.userId,
+      pacienteId,
+      profissionalId,
+      unidadeId,
+      body: enrichedBody,
+      intervaloFallback: procResolved.data.intervaloRecorrenciaDias,
+    })
+
     return listAgenda(session)
   }
 
@@ -420,6 +623,25 @@ export async function POST(request: NextRequest) {
     void agendarLembrete(String(inserted.id)).catch((err) =>
       console.error('[whatsapp] agendar_lembrete', err),
     )
+
+    const pagamentoError = await registrarPagamentoInicialObrigatorio({
+      supabase,
+      agendamentoId: String(inserted.id),
+      body: enrichedBody,
+    })
+    if (pagamentoError) return pagamentoError
+  }
+
+  if (pacienteId) {
+    await criarSeriePacoteSeSolicitada({
+      supabase,
+      sessionUserId: session.userId,
+      pacienteId,
+      profissionalId,
+      unidadeId,
+      body: enrichedBody,
+      intervaloFallback: procResolved.data.intervaloRecorrenciaDias,
+    })
   }
 
   return listAgenda(session)
@@ -434,22 +656,82 @@ export async function PUT(request: NextRequest) {
   if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body?.id || !body?.data || !body?.horario) {
+  if (!body?.id) {
     return serverErrorResponse('Agendamento inválido', 'INVALID_APPOINTMENT', 400)
   }
 
   const supabase = getAppSupabase()
-  const profissionalId = await resolveProfessionalId(supabase, body.profissional)
-  const pacienteId = body.pacienteId ? String(body.pacienteId) : null
+
+  const { data: existing, error: existingError } = await supabase
+    .from('agendamentos')
+    .select(
+      'id,paciente_id,profissional_id,procedimento_id,data_agendamento,horario_inicio,horario_fim,status,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes',
+    )
+    .eq('id', String(body.id))
+    .maybeSingle()
+
+  if (existingError) {
+    return supabaseErrorResponse(existingError, 'Falha ao atualizar agendamento')
+  }
+  if (!existing) {
+    return serverErrorResponse('Agendamento não encontrado', 'APPOINTMENT_NOT_FOUND', 404)
+  }
+
+  const profissionalId =
+    (await resolveProfessionalId(supabase, body.profissionalId ?? body.profissional)) ??
+    (existing.profissional_id ? String(existing.profissional_id) : null)
+  const pacienteId = body.pacienteId
+    ? String(body.pacienteId)
+    : existing.paciente_id
+      ? String(existing.paciente_id)
+      : null
   const scopedContext = await getScopedAgendaContext(session)
   if (scopedContext.error) {
     return supabaseErrorResponse(scopedContext.error, 'Falha ao atualizar agendamento')
   }
 
+  const dataAgendamento =
+    typeof body.data === 'string' && body.data.trim()
+      ? String(body.data)
+      : String(existing.data_agendamento ?? '').slice(0, 10)
+  const horario =
+    typeof body.horario === 'string' && body.horario.trim()
+      ? String(body.horario)
+      : String(existing.horario_inicio ?? '').slice(0, 5)
+
+  const modalidadeFinal =
+    body.modalidade !== undefined
+      ? body.modalidade
+      : existing.modalidade_atendimento ?? (pacienteId ? 'Presencial' : null)
+  const urlOnlineFinal =
+    body.urlOnline !== undefined ? body.urlOnline : existing.url_online
+  const urlCheck = validateModalidadeOnlineUrl({
+    modalidade: modalidadeFinal,
+    urlOnline: urlOnlineFinal,
+  })
+  if (!urlCheck.ok) {
+    return serverErrorResponse(urlCheck.message, urlCheck.code, 400)
+  }
+
+  const procedimentoIdInput =
+    body.procedimentoId !== undefined
+      ? body.procedimentoId
+      : existing.procedimento_id
+        ? String(existing.procedimento_id)
+        : null
+  const valorInput =
+    body.valorProcedimento !== undefined
+      ? body.valorProcedimento
+      : existing.valor_procedimento
+  const tipoInput = body.tipo !== undefined ? body.tipo : existing.tipo
+
   const procResolved = await resolveAgendamentoProcedimento(supabase, {
-    procedimentoId: body.procedimentoId,
-    valorProcedimento: body.valorProcedimento,
+    procedimentoId: procedimentoIdInput,
+    valorProcedimento: valorInput,
     profissionalId,
+    tipo: tipoInput,
+    pacienteId,
+    dataAgendamento,
   })
   if (!procResolved.ok) {
     return serverErrorResponse(procResolved.message, procResolved.code, 400)
@@ -464,20 +746,29 @@ export async function PUT(request: NextRequest) {
       unidade_id: unidadeId,
       paciente_id: pacienteId,
       profissional_id: profissionalId,
-      data_agendamento: body.data,
-      horario_inicio: body.horario,
-      horario_fim: body.horarioFim ?? null,
-      status: body.status ?? 'Agendado',
-      tipo: body.tipo ?? null,
-      titulo: body.titulo ?? null,
-      local: body.local ?? null,
-      participantes: body.participantes ?? null,
-      modalidade_atendimento: body.modalidade ?? (pacienteId ? 'Presencial' : null),
-      plataforma_online: body.plataformaOnline ?? null,
-      url_online: body.urlOnline ?? null,
-      valor_procedimento: procResolved.data.valorProcedimento ?? body.valorProcedimento ?? null,
-      procedimento_id: procResolved.data.procedimentoId ?? body.procedimentoId ?? null,
-      observacoes: body.observacoes ?? null,
+      data_agendamento: dataAgendamento,
+      horario_inicio: horario,
+      horario_fim:
+        body.horarioFim !== undefined
+          ? body.horarioFim
+          : existing.horario_fim,
+      status: typeof body.status === 'string' && body.status.trim() ? body.status : existing.status,
+      tipo: tipoInput ?? null,
+      titulo: body.titulo !== undefined ? body.titulo : existing.titulo,
+      local: body.local !== undefined ? body.local : existing.local,
+      participantes:
+        body.participantes !== undefined ? body.participantes : existing.participantes,
+      modalidade_atendimento: modalidadeFinal,
+      plataforma_online:
+        body.plataformaOnline !== undefined
+          ? body.plataformaOnline
+          : existing.plataforma_online,
+      url_online: urlOnlineFinal,
+      // Resolved já herda do registro atual quando o body omite os campos;
+      // não usar `?? existing` aqui — senão limpar procedimento/valor não persiste.
+      valor_procedimento: procResolved.data.valorProcedimento,
+      procedimento_id: procResolved.data.procedimentoId,
+      observacoes: body.observacoes !== undefined ? body.observacoes : existing.observacoes,
       updated_at: new Date().toISOString(),
     })
     .eq('id', String(body.id))
@@ -522,8 +813,24 @@ export async function DELETE(request: NextRequest) {
   let query = supabase
     .from('agendamentos')
     .update({
-      status: 'Cancelado',
-      observacoes: body.reason ? String(body.reason) : null,
+      // Libera o horário na grade (modelo ocupar-slot). Motivo fica em observacoes.
+      status: 'Disponível',
+      paciente_id: null,
+      tipo: null,
+      titulo: null,
+      local: null,
+      participantes: null,
+      valor_procedimento: null,
+      procedimento_id: null,
+      modalidade_atendimento: 'Presencial',
+      plataforma_online: null,
+      url_online: null,
+      tipo_encaixe: null,
+      fora_janela: false,
+      motivo_encaixe: null,
+      observacoes: body.reason
+        ? `Cancelado: ${String(body.reason)}`
+        : 'Cancelado — horário liberado',
       updated_at: new Date().toISOString(),
     })
     .eq('id', String(body.id))

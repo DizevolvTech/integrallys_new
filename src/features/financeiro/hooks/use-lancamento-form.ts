@@ -80,12 +80,16 @@ export function useLancamentoForm({ onCreate, onUpdate, onDelete }: UseLancament
 
   const handleOpenLancamentoEdit = (item: FinanceiroItem) => {
     setSelectedLancamento(item)
+    const rawData = item.data ?? ''
+    const br = rawData.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    const isoFromBr = br ? `${br[3]}-${br[2]}-${br[1]}` : ''
+    const isoDirect = /^\d{4}-\d{2}-\d{2}/.test(rawData) ? rawData.slice(0, 10) : ''
     setEditLancamentoForm({
       descricao: item.descricao,
       categoria: item.categoria,
       valor: item.valor.toString().replace('.', ','),
       tipo: item.tipo,
-      data: item.data ? item.data.split(' ')[0].split('/').reverse().join('-') : '',
+      data: isoFromBr || isoDirect || '',
       observacoes: item.observacoes ?? '',
       beneficiario: item.beneficiario ?? '',
       formaPagamentoId: item.formaPagamentoId ?? '',

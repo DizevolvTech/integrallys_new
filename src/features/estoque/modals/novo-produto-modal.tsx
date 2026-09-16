@@ -8,17 +8,19 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { EstoqueInput } from '../hooks/use-estoque'
 
 interface NovoProdutoModalProps {
   isOpen: boolean
   onClose: (open: boolean) => void
   onSave: (payload: EstoqueInput) => Promise<void>
+  categorias?: string[]
 }
 
 const labelClass = 'text-sm font-semibold text-[var(--app-text-primary)] dark:text-white'
 
-export function NovoProdutoModal({ isOpen, onClose, onSave }: NovoProdutoModalProps) {
+export function NovoProdutoModal({ isOpen, onClose, onSave, categorias = [] }: NovoProdutoModalProps) {
   const [produto, setProduto] = useState('')
   const [categoria, setCategoria] = useState('')
   const [sku, setSku] = useState('')
@@ -29,7 +31,6 @@ export function NovoProdutoModal({ isOpen, onClose, onSave }: NovoProdutoModalPr
   const [precoVenda, setPrecoVenda] = useState('')
   const [lote, setLote] = useState('')
   const [validade, setValidade] = useState('')
-  const [status, setStatus] = useState('Disponível')
   const [isSaving, setIsSaving] = useState(false)
 
   // Margem calculada em tela (não persistida) — mesmo cálculo do estoque-view.
@@ -55,7 +56,6 @@ export function NovoProdutoModal({ isOpen, onClose, onSave }: NovoProdutoModalPr
     setPrecoVenda('')
     setLote('')
     setValidade('')
-    setStatus('Disponível')
   }
 
   const handleClose = () => {
@@ -81,7 +81,6 @@ export function NovoProdutoModal({ isOpen, onClose, onSave }: NovoProdutoModalPr
         precoCusto: precoCusto.trim() === '' ? null : Number(precoCusto),
         precoVenda: precoVenda.trim() === '' ? null : Number(precoVenda),
         unidadeMedida: unidadeMedida.trim() || null,
-        status: status.trim() || 'Disponível',
       })
       resetForm()
       onClose(false)
@@ -114,16 +113,31 @@ export function NovoProdutoModal({ isOpen, onClose, onSave }: NovoProdutoModalPr
             </div>
             <div className="space-y-1.5">
               <Label className={labelClass}>Categoria</Label>
-              <Input
-                placeholder="Ex.: Medicamento, Insumo"
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-              />
+              {categorias.length > 0 ? (
+                <Select value={categoria} onValueChange={setCategoria}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categorias.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  placeholder="Ex.: Medicamento, Insumo"
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className={labelClass}>SKU / Código</Label>
               <Input
-                placeholder="Código interno (opcional)"
+                placeholder="Deixe vazio para gerar automaticamente"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
               />
@@ -139,9 +153,9 @@ export function NovoProdutoModal({ isOpen, onClose, onSave }: NovoProdutoModalPr
             <div className="space-y-1.5">
               <Label className={labelClass}>Status</Label>
               <Input
-                placeholder="Disponível"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                value={Number(quantidade) > 0 ? 'Disponível (automático)' : 'Indisponível (automático)'}
+                disabled
+                className="bg-app-bg-secondary"
               />
             </div>
             <div className="space-y-1.5">

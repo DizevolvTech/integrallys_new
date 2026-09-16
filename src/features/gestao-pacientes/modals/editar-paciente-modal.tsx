@@ -32,6 +32,7 @@ import { toast } from 'sonner'
 import { PhotoSourceModal } from '@/features/media/components/photo-source-modal'
 import { CameraCaptureModal } from '@/features/media/components/camera-capture-modal'
 import type { MediaSelectionResult } from '@/features/media/types'
+import { isTransientPhotoUrl, uploadPacienteFoto } from '@/lib/paciente-foto'
 
 const MANUAL_SERVICOS_TEXTO_PADRAO = 'Sem descricao de servicos registrada.'
 
@@ -205,10 +206,10 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
     }, [paciente, unitOptions]);
 
     const handleDateChange = (date: string) => {
-        setFormData({ ...formData, dataNascimento: date });
+        setFormData((prev) => ({ ...prev, dataNascimento: date }));
 
         if (date) {
-            const birthDate = new Date(date);
+            const birthDate = new Date(`${date}T12:00:00`);
             const today = new Date();
             let age = today.getFullYear() - birthDate.getFullYear();
             const m = today.getMonth() - birthDate.getMonth();
@@ -415,7 +416,22 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
             }
 
             try {
-                await onSave?.(updatedPatient)
+                let photoUrl = formData.photoUrl || undefined
+                if (formData.photoFile) {
+                    photoUrl = await uploadPacienteFoto(
+                        formData.photoFile,
+                        paciente.id ? String(paciente.id) : undefined,
+                    )
+                } else if (isTransientPhotoUrl(photoUrl)) {
+                    photoUrl = paciente.photoUrl && !isTransientPhotoUrl(paciente.photoUrl)
+                        ? paciente.photoUrl
+                        : undefined
+                }
+
+                await onSave?.({
+                    ...updatedPatient,
+                    photoUrl,
+                })
                 toast.success('Cadastro atualizado com sucesso.')
                 setIsSaved(true)
             } catch (error) {
@@ -439,7 +455,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
     return (
         <>
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent size="xl" className="bg-app-card dark:bg-app-card-dark p-0 border-none rounded-[28px] print:hidden flex flex-col">
+            <DialogContent size="xl" className="bg-app-card dark:bg-app-card-dark p-0 border-none rounded-[28px] print:hidden flex flex-col max-h-[90vh] overflow-hidden gap-0">
                 <DialogHeader className="p-6 md:p-8 pb-4 border-b border-app-border dark:border-app-border-dark shrink-0">
                     <div className="flex justify-between items-start">
                         <div>
@@ -450,7 +466,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                     </div>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 py-6 bg-app-bg-secondary dark:bg-transparent">
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 py-6 bg-app-bg-secondary dark:bg-transparent">
                     {!isSaved ? (
                         <form id="editar-paciente-form" onSubmit={handleSubmit} className="space-y-12">
 
@@ -786,7 +802,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                     )}
                 </div>
 
-                <DialogFooter className="p-6 md:p-8 pt-6 border-t border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-card-dark/50 flex justify-between items-center shrink-0">
+                <DialogFooter className="sticky bottom-0 z-20 p-6 md:p-8 pt-6 border-t border-app-border dark:border-app-border-dark bg-app-card dark:bg-app-card-dark flex justify-between items-center shrink-0">
                     {!isSaved ? (
                         <div className="flex flex-col-reverse sm:flex-row gap-3 w-full">
                             <Button type="button" variant="outline" onClick={onClose} className="sm:w-32 h-12 rounded-xl font-bold text-[var(--app-text-secondary)] dark:text-white/70 border-app-border dark:border-app-border-dark hover:bg-app-hover dark:hover:bg-app-hover transition-all text-xs uppercase tracking-widest">

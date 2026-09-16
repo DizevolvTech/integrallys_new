@@ -1,0 +1,139 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+export type PagamentoAgendamentoInput = {
+  agendamentoId: string
+  valor: unknown
+  metodo: unknown
+  bandeira?: unknown
+  parcelas?: unknown
+  contaBancariaId?: unknown
+  observacoes?: unknown
+}
+
+export type PagamentoAgendamentoResolved = {
+  valor: number
+  metodo: string
+  bandeira: string | null
+  parcelas: number | null
+  contaBancariaId: string | null
+  observacoes: string | null
+}
+
+function isCartao(metodo: string) {
+  const m = metodo.toLowerCase()
+  return m.includes('cartão') || m.includes('cartao') || m.includes('crédito') || m.includes('credito') || m.includes('débito') || m.includes('debito')
+}
+
+function isCredito(metodo: string) {
+  const m = metodo.toLowerCase()
+  return m.includes('crédito') || m.includes('credito')
+}
+
+function isPix(metodo: string) {
+  return metodo.toLowerCase().includes('pix')
+}
+
+/**
+ * Valida payload de pagamento de agendamento (checkout / entrada no novo agendamento).
+ */
+export function resolvePagamentoAgendamentoInput(
+  input: PagamentoAgendamentoInput,
+):
+  | { ok: true; data: PagamentoAgendamentoResolved }
+  | { ok: false; code: string; message: string } {
+  const valor = Number(input.valor)
+  if (!Number.isFinite(valor) || valor <= 0) {
+    return { ok: false, code: 'INVALID_VALOR', message: 'Informe um valor de pagamento maior que zero.' }
+  }
+
+  const metodo =
+    typeof input.metodo === 'string' && input.metodo.trim() ? input.metodo.trim() : ''
+  if (!metodo) {
+    return { ok: false, code: 'INVALID_METODO', message: 'Selecione o método de pagamento.' }
+  }
+
+  const bandeira =
+    typeof input.bandeira === 'string' && input.bandeira.trim() ? input.bandeira.trim() : null
+  const contaBancariaId =
+    typeof input.contaBancariaId === 'string' && input.contaBancariaId.trim()
+      ? input.contaBancariaId.trim()
+      : null
+  const observacoes =
+    typeof input.observacoes === 'string' && input.observacoes.trim()
+      ? input.observacoes.trim()
+      : null
+
+  let parcelas: number | null = null
+  if (input.parcelas != null && input.parcelas !== '') {
+    const n = Number(input.parcelas)
+    if (!Number.isFinite(n) || n < 1 || n > 24) {
+      return { ok: false, code: 'INVALID_PARCELAS', message: 'Parcelas inválidas (1 a 24).' }
+    }
+    parcelas = Math.trunc(n)
+  }
+
+  if (isCartao(metodo) && !bandeira) {
+    return {
+      ok: false,
+      code: 'BANDEIRA_OBRIGATORIA',
+      message: 'Informe a bandeira do cartão.',
+    }
+  }
+
+  if (isCredito(metodo) && !parcelas) {
+    parcelas = 1
+  }
+
+  if (!isCredito(metodo)) {
+    parcelas = null
+  }
+
+  if (isPix(metodo) && !contaBancariaId) {
+    return {
+      ok: false,
+      code: 'CONTA_PIX_OBRIGATORIA',
+      message: 'Selecione a conta bancária do PIX.',
+    }
+  }
+
+  if (!input.agendamentoId.trim()) {
+    return { ok: false, code: 'INVALID_AGENDAMENTO', message: 'agendamentoId obrigatório' }
+  }
+
+  return {
+    ok: true,
+    data: {
+      valor: Number(valor.toFixed(2)),
+      metodo,
+      bandeira: isCartao(metodo) ? bandeira : null,
+      parcelas,
+      contaBancariaId: isPix(metodo) ? contaBancariaId : contaBancariaId,
+      observacoes,
+    },
+  }
+}
+
+export async function insertPagamentoAgendamento(
+  supabase: SupabaseClient,
+  resolved: PagamentoAgendamentoResolved & { agendamentoId: string },
+) {
+  const now = new Date().toISOString()
+  return supabase.from('agendamentos_pagamentos').insert({
+    agendamento_id: resolved.agendamentoId,
+    valor: resolved.valor,
+    metodo: resolved.metodo,
+    bandeira: resolved.bandeira,
+    parcelas: resolved.parcelas,
+    conta_bancaria_id: resolved.contaBancariaId,
+    status: 'Pago',
+    pago_em: now,
+    observacoes: resolved.observacoes,
+  })
+}
+
+export function buildMetodoLabel(resolved: PagamentoAgendamentoResolved) {
+  const parts = [resolved.metodo]
+  if (resolved.bandeira) parts.push(resolved.bandeira)
+  if (resolved.parcelas && resolved.parcelas > 1) parts.push(`${resolved.parcelas}x`)
+  return parts.join(' · ')
+}

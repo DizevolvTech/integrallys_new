@@ -128,3 +128,20 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ data: mapRow(data as BloqueioRow), meta: session }, { status: 201 })
 }
+
+export async function DELETE(request: NextRequest) {
+  const session = await getRequestAuth(request)
+  if (!session) return authErrorResponse()
+  const denied = await requirePermission(session.userId, 'agenda', 'delete')
+  if (denied) return denied
+
+  const url = new URL(request.url)
+  const id = url.searchParams.get('id')
+  if (!id) return serverErrorResponse('ID do bloqueio é obrigatório', 'MISSING_ID', 400)
+
+  const supabase = getAppSupabase()
+  const { error } = await supabase.from('agenda_bloqueios').delete().eq('id', id)
+  if (error) return supabaseErrorResponse(error, 'Falha ao remover bloqueio')
+
+  return NextResponse.json({ data: { id }, meta: session })
+}

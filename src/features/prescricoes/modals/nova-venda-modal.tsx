@@ -283,8 +283,10 @@ export function NovaVendaModal({
   const filteredPatients = patients.filter((p) =>
     p.nome.toLowerCase().includes(patientSearch.toLowerCase()),
   )
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase()),
+  const filteredProducts = products.filter(
+    (p) =>
+      Number(p.stock ?? 0) > 0 &&
+      p.name.toLowerCase().includes(productSearch.toLowerCase()),
   )
 
   return (

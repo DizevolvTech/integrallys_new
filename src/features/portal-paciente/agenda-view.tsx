@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Calendar, Clock, MapPin, Eye, Edit2, X } from 'lucide-react'
+import { Plus, Calendar, Clock, MapPin, Eye, Edit2, X, ExternalLink } from 'lucide-react'
 import { DetalhesModal } from './modals/detalhes-modal'
 import { CancelarModal } from './modals/cancelar-modal'
 import { useAgendaPaciente, type PatientAgendaItem } from './hooks/use-agenda-paciente'
@@ -65,7 +65,7 @@ export function AgendaView() {
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
       {isLoading && <p className="text-app-text-secondary">Carregando agenda...</p>}
 
-      {!isLoading && (
+      {!isLoading && !error && (
         <div className="grid gap-4">
           {visibleAppointments.map((item) => (
             <div
@@ -110,6 +110,18 @@ export function AgendaView() {
                       <MapPin className="h-3.5 w-3.5 text-red-400" />
                       {item.local}
                     </span>
+                    {item.urlOnline && (
+                      <a
+                        href={item.urlOnline}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-[var(--app-primary)] hover:underline"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        {item.plataformaOnline || 'Link online'}
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>
@@ -128,7 +140,7 @@ export function AgendaView() {
                   <span className="hidden sm:inline text-xs font-bold">Detalhes</span>
                 </Button>
 
-                {item.status === 'Agendado' && (
+                {(item.status === 'Agendado' || item.status === 'Confirmada') && (
                   <>
                     <Button
                       asChild
@@ -136,7 +148,7 @@ export function AgendaView() {
                       className="flex-1 sm:flex-none h-10 sm:h-9 px-2 sm:px-3 flex flex-row items-center justify-center gap-2"
                       title="Reagendar"
                     >
-              <Link href="/portal/novo-agendamento">
+                      <Link href={`/portal/reagendar?id=${encodeURIComponent(item.id)}`}>
                         <Edit2 className="h-4 w-4 shrink-0" />
                         <span className="hidden sm:inline text-xs font-bold">Reagendar</span>
                       </Link>

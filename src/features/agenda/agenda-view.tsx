@@ -65,7 +65,6 @@ import {
   ChamarEspecialistaModal,
   EmitirCobrancaModal,
   ExcluirAgendaModal,
-  FichaPacienteModal,
   GerarAgendaModal,
   ListaEsperaModal,
   NovoAgendamentoModal,
@@ -73,11 +72,16 @@ import {
   TarefasModal,
   VisualizarConsultaModal,
 } from './modals'
+import { calcIdade, toBirthDateOnly } from './modals/aniversariantes-modal'
+import { NovoPacienteModal, EditarPacienteModal } from '@/features/gestao-pacientes/modals'
+import type { Patient } from '@/types/patient'
 
 export function AgendaView() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const user = useAuth((state) => state.user)
+  const podeIniciarAtendimento = useAuth((state) => state.capabilities.iniciarAtendimento)
+  const agendaClinica = useAuth((state) => state.capabilities.agendaClinica)
   const {
     data,
     patients: agendaPatients,
@@ -90,14 +94,14 @@ export function AgendaView() {
     load: reloadAgenda,
   } = useAgenda()
   const api = useApi()
-  const { data: bloqueios, create: createBloqueio } = useAgendaBloqueios()
+  const { data: bloqueios, create: createBloqueio, remove: removeBloqueio } = useAgendaBloqueios()
   const { createLancamento } = useFinanceiro()
-  const { data: pacientes, createPaciente } = usePacientes()
+  const { data: pacientes, createPaciente, updatePaciente, units: pacienteUnits } = usePacientes()
   const { data: waitlistItems, createItem: createWaitlistItem } = useListaEspera()
   const { createTarefa } = useTarefas()
   const { data: usuarios } = useUsuarios()
   const { data: profissionaisCatalogo } = useProfissionais()
-  const isEspecialista = user?.role === 'especialista'
+  const isEspecialista = agendaClinica
   const [activeTab, setActiveTab] = useState<'global' | 'pessoal'>('global')
   const [selectedProfessional, setSelectedProfessional] = useState('todos')
   const [searchTerm, setSearchTerm] = useState('')
@@ -114,13 +118,45 @@ export function AgendaView() {
   const [isCancelarCompromissoOpen, setIsCancelarCompromissoOpen] = useState(false)
   const [isGerarAgendaOpen, setIsGerarAgendaOpen] = useState(false)
   const [isExcluirAgendaOpen, setIsExcluirAgendaOpen] = useState(false)
+  const [isNovoPacienteOpen, setIsNovoPacienteOpen] = useState(false)
+  const [novoPacienteNomeHint, setNovoPacienteNomeHint] = useState('')
+  const [createdPatientForAgenda, setCreatedPatientForAgenda] = useState<{
+    id: string
+    nome: string
+  } | null>(null)
   const [novoAgendamentoPreset, setNovoAgendamentoPreset] = useState<{
     data?: string
     horario?: string
     profissional?: string
   }>({})
   const preselectedPatientId = searchParams?.get('patientId') ?? ''
+  const preselectedProfissionalId = searchParams?.get('profissionalId') ?? ''
+  const preselectedProfissional =
+    searchParams?.get('profissional') ??
+    (preselectedProfissionalId
+      ? agendaProfessionals.find((item) => item.id === preselectedProfissionalId)?.nome ?? ''
+      : '')
+  const preselectedProcedimentoId = searchParams?.get('procedimentoId') ?? ''
   const shouldOpenNewFromQuery = searchParams?.get('modal') === 'novo'
+
+  const aniversariantes = useMemo(
+    () =>
+      pacientes
+        .map((item) => {
+          const dataNascimento = toBirthDateOnly(item.birthDate || '')
+          if (!dataNascimento) return null
+          return {
+            id: item.id,
+            nome: item.nome,
+            dataNascimento,
+            idade: calcIdade(dataNascimento),
+            telefone: item.telefone || '',
+            mensagemEnviada: false,
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null),
+    [pacientes],
+  )
 
   const receitaFutura = useMemo(
     () => waitlistItems.reduce((sum, item) => sum + (item.procedimentoValor ?? 0), 0),
@@ -151,15 +187,27 @@ export function AgendaView() {
       .sort()
   }, [agendaProfessionals, data, usuarios])
 
-  const professionalDetailsForAgendamento = useMemo(
-    () =>
-      profissionaisCatalogo.map((item) => ({
+  // IDs da agenda vêm de `usuarios`; vínculos de procedimento ficam em `profissionais`.
+  // Junta por nome para filtrar a pasta sem enviar UUID errado no PUT/POST.
+  const professionalDetailsForAgendamento = useMemo(() => {
+    const byNome = new Map(
+      profissionaisCatalogo.map((item) => [item.nome.trim().toLowerCase(), item] as const),
+    )
+    const fromAgenda = agendaProfessionals.map((item) => {
+      const catalog = byNome.get(item.nome.trim().toLowerCase())
+      return {
         id: item.id,
         nome: item.nome,
-        procedimentoIds: item.procedimentoIds ?? [],
-      })),
-    [profissionaisCatalogo],
-  )
+        procedimentoIds: catalog?.procedimentoIds ?? [],
+      }
+    })
+    if (fromAgenda.length > 0) return fromAgenda
+    return profissionaisCatalogo.map((item) => ({
+      id: item.id,
+      nome: item.nome,
+      procedimentoIds: item.procedimentoIds ?? [],
+    }))
+  }, [agendaProfessionals, profissionaisCatalogo])
 
   // Slots 'Disponível' (gerados na 2A) por profissional + data (ISO) para o modal
   // de novo agendamento — item.data vem como DD/MM/AAAA (formatDate), reconverto.
@@ -228,7 +276,7 @@ export function AgendaView() {
     return pacientes.map((item) => ({ id: item.id, nome: item.nome }))
   }, [agendaPatients, pacientes])
   const findPacienteId = (slot: AgendaSlot) =>
-    pacientes.find((item) => item.nome === slot.paciente)?.id
+    slot.pacienteId || pacientes.find((item) => item.nome === slot.paciente)?.id
   const calendar = useAgendaCalendar(activeAgendaSlots)
   const showDaySlots =
     calendar.selectedFilter === 'todos' || calendar.selectedFilter === 'agendamentos'
@@ -276,6 +324,45 @@ export function AgendaView() {
     }
   }, [actions.selectedSlot, data])
 
+  const pacienteParaEdicao = useMemo(() => {
+    const id =
+      actions.selectedSlot?.pacienteId ||
+      (actions.selectedSlot?.paciente
+        ? pacientes.find((item) => item.nome === actions.selectedSlot?.paciente)?.id
+        : undefined)
+    if (!id) return null
+    const item = pacientes.find((p) => p.id === id)
+    if (!item) return null
+    return {
+      id: item.id,
+      nome: item.nome,
+      name: item.nome,
+      telefone: item.telefone,
+      phone: item.telefone,
+      email: item.email,
+      cpf: item.cpf,
+      rg: item.rg,
+      inscricaoEstadual: item.inscricaoEstadual,
+      birthDate: item.birthDate,
+      dataNascimento: item.birthDate,
+      gender: item.gender,
+      sexo: item.gender,
+      source: item.source,
+      indicacao: item.source,
+      origemDetalhe: item.origemDetalhe,
+      vinculoTipos: item.vinculoTipos,
+      precisaNf: item.precisaNf,
+      photoUrl: item.photoUrl,
+      unidadeId: item.unidadeId,
+      status: item.status,
+      activeStatus: item.status,
+      addressDetails: item.addressDetails,
+      specialNeeds: item.specialNeeds,
+      responsible: item.responsible,
+      supplierData: item.supplierData,
+    } as Patient
+  }, [actions.selectedSlot, pacientes])
+
   useEffect(() => {
     if (activeTab === 'pessoal' && calendar.selectedFilter !== 'todos') {
       calendar.setSelectedFilter('todos')
@@ -305,14 +392,22 @@ export function AgendaView() {
     observacoes: string
     modalidade?: string
     plataformaOnline?: string
+    urlOnline?: string
     foraJanela?: boolean
     motivoEncaixe?: string
     procedimentoId?: string
     valorProcedimento?: number
+    serieQuantidade?: number
+    serieIntervaloDias?: number
+    pagamentoInicial: {
+      valor: number
+      metodo: string
+      bandeira?: string
+      parcelas?: number
+      contaBancariaId?: string
+    }
   }) => {
     try {
-      // Item 15a — envia o UUID do profissional (resolvido do nome escolhido no
-      // dropdown) para o backend não depender de casar por nome nem cair no criador.
       const profissionalId = agendaProfessionals.find(
         (p) => p.nome === payload.profissional,
       )?.id
@@ -327,16 +422,22 @@ export function AgendaView() {
         observacoes: payload.observacoes,
         modalidade: payload.modalidade,
         plataformaOnline: payload.plataformaOnline,
+        urlOnline: payload.urlOnline,
         foraJanela: payload.foraJanela,
         motivoEncaixe: payload.motivoEncaixe,
         procedimentoId: payload.procedimentoId,
         valorProcedimento: payload.valorProcedimento,
+        serieQuantidade: payload.serieQuantidade,
+        serieIntervaloDias: payload.serieIntervaloDias,
+        pagamentoInicial: payload.pagamentoInicial,
       })
       toast.success(
-        payload.foraJanela ? 'Encaixe registrado com sucesso.' : 'Agendamento criado com sucesso.',
+        payload.serieQuantidade && payload.serieQuantidade > 1
+          ? `Pacote criado: ${payload.serieQuantidade} sessões.`
+          : payload.foraJanela
+            ? 'Encaixe registrado com sucesso.'
+            : 'Agendamento criado com sucesso.',
       )
-      // Navega o calendário para a data marcada — sem isso um agendamento em data
-      // futura salva mas fica invisível na visão do dia atual ("marquei e não salvou").
       const [ano, mes, dia] = payload.data.split('-').map(Number)
       if (ano && mes && dia) calendar.setCurrentDate(new Date(ano, mes - 1, dia))
       actions.setActiveModal(null)
@@ -352,15 +453,21 @@ export function AgendaView() {
     data: string
     hora: string
     duracao: string
+    horarioFim: string
+    profissionalId?: string
+    profissional?: string
     participantes: string
     local?: string
     observacoes?: string
   }) => {
-    // Compromisso pessoal: sem paciente_id. Vai direto para a aba "Agenda pessoal".
-    await createAgendamento({
-      profissional: user?.name ?? '',
+    const profissionalNome = payload.profissional || user?.name || ''
+    const idsAntes = new Set(data.map((item) => item.id))
+    const lista = await createAgendamento({
+      profissional: profissionalNome,
+      profissionalId: payload.profissionalId,
       data: payload.data,
       horario: payload.hora,
+      horarioFim: payload.horarioFim,
       status: 'Agendado',
       tipo: payload.tipo,
       titulo: payload.titulo,
@@ -371,6 +478,23 @@ export function AgendaView() {
           .filter(Boolean)
           .join(' • ') || undefined,
     })
+
+    const criado = lista.find((item) => !idsAntes.has(item.id) && !item.pacienteId)
+
+    if (payload.profissionalId) {
+      await createBloqueio({
+        profissionalId: payload.profissionalId,
+        dataInicio: payload.data,
+        dataFim: payload.data,
+        horarioInicio: payload.hora,
+        horarioFim: payload.horarioFim,
+        diaInteiro: false,
+        tipo: 'Compromisso',
+        justificativa: criado
+          ? `Compromisso:${criado.id}|${payload.titulo}`
+          : `Compromisso: ${payload.titulo}`,
+      })
+    }
   }
 
   const handleAdiarCompromisso = async (payload: {
@@ -391,8 +515,33 @@ export function AgendaView() {
       data: payload.novaData,
       horario: payload.novaHora,
       status: selectedPersonalSlot.status,
-      observacoes: payload.motivo,
+      titulo: selectedPersonalSlot.titulo,
+      observacoes: payload.motivo
+        ? `${selectedPersonalSlot.observacoes ?? ''}${selectedPersonalSlot.observacoes ? ' • ' : ''}Adiado: ${payload.motivo}`.trim()
+        : selectedPersonalSlot.observacoes,
     })
+
+    const linked = bloqueios.find((b) =>
+      (b.justificativa ?? '').startsWith(`Compromisso:${payload.id}`),
+    )
+    if (linked) {
+      try {
+        await removeBloqueio(linked.id)
+        await createBloqueio({
+          profissionalId: linked.profissionalId ?? undefined,
+          unidadeId: linked.unidadeId ?? undefined,
+          dataInicio: payload.novaData,
+          dataFim: payload.novaData,
+          horarioInicio: payload.novaHora,
+          horarioFim: linked.horarioFim,
+          diaInteiro: linked.diaInteiro,
+          tipo: linked.tipo || 'Compromisso',
+          justificativa: linked.justificativa,
+        })
+      } catch {
+        // bloqueio pode já ter sido removido
+      }
+    }
     closePersonalModals()
   }
 
@@ -417,20 +566,47 @@ export function AgendaView() {
       data: payload.data,
       horario: payload.hora,
       status: selectedPersonalSlot.status,
-      observacoes: [
-        payload.titulo,
-        payload.duracao ? `Duração: ${payload.duracao}` : '',
-        payload.local ? `Local: ${payload.local}` : '',
-        payload.observacoes ?? '',
-      ]
-        .filter(Boolean)
-        .join(' • '),
+      titulo: payload.titulo,
+      local: payload.local,
+      observacoes: payload.observacoes,
     })
+
+    const linked = bloqueios.find((b) =>
+      (b.justificativa ?? '').startsWith(`Compromisso:${payload.id}`),
+    )
+    if (linked) {
+      try {
+        await removeBloqueio(linked.id)
+        await createBloqueio({
+          profissionalId: linked.profissionalId ?? undefined,
+          unidadeId: linked.unidadeId ?? undefined,
+          dataInicio: payload.data,
+          dataFim: payload.data,
+          horarioInicio: payload.hora,
+          horarioFim: linked.horarioFim,
+          diaInteiro: linked.diaInteiro,
+          tipo: linked.tipo || 'Compromisso',
+          justificativa: `Compromisso:${payload.id}|${payload.titulo}`,
+        })
+      } catch {
+        // bloqueio pode já ter sido removido
+      }
+    }
     closePersonalModals()
   }
 
   const handleCancelarCompromisso = async () => {
     if (!selectedPersonalSlot) return
+    const linked = bloqueios.find((b) =>
+      (b.justificativa ?? '').startsWith(`Compromisso:${selectedPersonalSlot.id}`),
+    )
+    if (linked) {
+      try {
+        await removeBloqueio(linked.id)
+      } catch {
+        // segue cancelando o compromisso mesmo se o bloqueio já tiver sido removido
+      }
+    }
     await deleteAgendamento(
       selectedPersonalSlot.id,
       'Cancelado pela agenda pessoal do especialista.',
@@ -877,13 +1053,35 @@ export function AgendaView() {
                 bloqueiosProfissionais={agendaProfessionals}
                 currentDate={calendar.currentDate}
                 selectedProfessional={
-                  isEspecialista ? (user?.name ?? 'todos') : selectedProfessional
+                  agendaClinica
+                    ? (agendaProfessionals.find((p) => p.id === user?.id)?.nome ??
+                        user?.name ??
+                        'todos')
+                    : selectedProfessional
                 }
                 showDaySlots={showDaySlots}
                 onOpenSlotModal={actions.openSlotModal}
                 onOpenCharge={actions.handleOpenCharge}
                 onCallSpecialist={(slot) => actions.openSlotModal('chamar-especialista', slot)}
                 onStatusChange={actions.handleStatusChange}
+                onRemoveBloqueio={async (bloqueio) => {
+                  try {
+                    const match = (bloqueio.justificativa ?? '').match(/^Compromisso:([^|]+)/)
+                    const compromissoId = match?.[1]?.trim()
+                    await removeBloqueio(bloqueio.id)
+                    if (compromissoId) {
+                      try {
+                        await deleteAgendamento(compromissoId, 'Bloqueio desfeito — compromisso removido.')
+                      } catch {
+                        // compromisso pode já ter sido cancelado
+                      }
+                    }
+                    toast.success('Bloqueio removido.')
+                    await reloadAgenda()
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Falha ao remover bloqueio')
+                  }
+                }}
                 onOpenAvailableSlot={(slot) => {
                   setNovoAgendamentoPreset({
                     data: actions.parseAgendaDate(slot.data),
@@ -892,15 +1090,21 @@ export function AgendaView() {
                   })
                   actions.setActiveModal('novo')
                 }}
-                onStartAtendimento={async (slot) => {
-                  await actions.handleStatusChange(slot, 'Em Atendimento')
-                  setActiveAtendimento({
-                    patientName: slot.paciente || 'Paciente',
-                    id: slot.id,
-                    appointmentTime: slot.hora,
-                    slot,
-                  })
-                }}
+                onStartAtendimento={
+                  podeIniciarAtendimento
+                    ? async (slot) => {
+                        await actions.handleStatusChange(slot, 'Em Atendimento', {
+                          openClinicalFlow: true,
+                        })
+                        setActiveAtendimento({
+                          patientName: slot.paciente || 'Paciente',
+                          id: slot.id,
+                          appointmentTime: slot.hora,
+                          slot,
+                        })
+                      }
+                    : undefined
+                }
               />
             )}
             {activeTab === 'global' && !isLoading && calendar.viewMode === 'semana' && (
@@ -950,7 +1154,7 @@ export function AgendaView() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-lg text-app-text-primary dark:text-white">
-                            {item.paciente || 'Compromisso'}
+                            {item.titulo || item.paciente || 'Compromisso'}
                           </p>
                           <p className="text-sm text-app-text-secondary dark:text-white/60">
                             {item.data} às {item.hora}
@@ -963,14 +1167,17 @@ export function AgendaView() {
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-3">
-                        {item.paciente &&
+                        {podeIniciarAtendimento &&
+                          item.paciente &&
                           !['Em Atendimento', 'Check-out', 'Cancelado'].includes(
                             normalizeAgendaStatus(item.status),
                           ) && (
                             <Button
                               className="rounded-xl bg-app-primary text-white hover:bg-app-primary-hover"
                               onClick={async () => {
-                                await actions.handleStatusChange(item, 'Em Atendimento')
+                                await actions.handleStatusChange(item, 'Em Atendimento', {
+                                  openClinicalFlow: true,
+                                })
                                 setActiveAtendimento({
                                   patientName: item.paciente || 'Paciente',
                                   id: item.id,
@@ -1060,7 +1267,7 @@ export function AgendaView() {
                             className={`${getStatusCardTone(item.status)} w-full rounded-[8px] px-3 py-2 text-left`}
                           >
                             <p className="text-xs text-app-text-primary dark:text-white">
-                              {item.hora} • {item.paciente || 'Compromisso'}
+                              {item.hora} • {item.titulo || item.paciente || 'Compromisso'}
                             </p>
                             <div className="mt-2 flex items-center justify-between gap-2">
                               <span
@@ -1126,6 +1333,7 @@ export function AgendaView() {
       <AniversariantesModal
         isOpen={actions.activeModal === 'aniversariantes'}
         onClose={() => actions.setActiveModal(null)}
+        aniversariantes={aniversariantes}
       />
       <TarefasModal
         isOpen={actions.activeModal === 'tarefas'}
@@ -1161,6 +1369,7 @@ export function AgendaView() {
         onClose={() => {
           actions.setActiveModal(null)
           setNovoAgendamentoPreset({})
+          setCreatedPatientForAgenda(null)
           if (shouldOpenNewFromQuery) router.replace('/agenda')
         }}
         currentDate={calendar.currentDate}
@@ -1168,31 +1377,66 @@ export function AgendaView() {
         professionalDetails={professionalDetailsForAgendamento}
         patients={patientOptions}
         availableSlots={availableSlots}
-        initialPatientId={preselectedPatientId}
+        initialPatientId={preselectedPatientId || createdPatientForAgenda?.id}
         initialDate={novoAgendamentoPreset.data}
         initialTime={novoAgendamentoPreset.horario}
-        initialProfissional={novoAgendamentoPreset.profissional}
-        onCreatePatient={async (payload) => {
+        initialProfissional={novoAgendamentoPreset.profissional || preselectedProfissional || undefined}
+        initialProcedimentoId={preselectedProcedimentoId || undefined}
+        createdPatient={createdPatientForAgenda}
+        onRequestFullCadastro={(nomeHint) => {
+          setNovoPacienteNomeHint(nomeHint)
+          setIsNovoPacienteOpen(true)
+        }}
+        onSave={handleCreateAppointment}
+      />
+      <NovoPacienteModal
+        isOpen={isNovoPacienteOpen}
+        onClose={() => setIsNovoPacienteOpen(false)}
+        unitOptions={pacienteUnits}
+        initialNome={novoPacienteNomeHint}
+        onSave={async (patient: Patient) => {
           const response = await createPaciente({
-            nome: payload.nome,
-            telefone: payload.telefone,
-            dataNascimento: payload.dataNascimento,
-            cpf: payload.cpf,
-            status: 'Ativo',
+            nome: patient.name || patient.nome || '',
+            telefone: patient.phone || patient.telefone || '',
+            email: patient.email || '',
+            cpf: patient.cpf || '',
+            rg: patient.rg || '',
+            inscricaoEstadual: patient.inscricaoEstadual || '',
+            dataNascimento: patient.birthDate || patient.dataNascimento || '',
+            sexo: patient.gender || patient.sexo || '',
+            status: patient.activeStatus || 'Ativo',
+            indicacao: patient.source || patient.indicacao || '',
+            origemDetalhe: patient.origemDetalhe || '',
+            vinculoTipos:
+              patient.vinculoTipos && patient.vinculoTipos.length > 0
+                ? patient.vinculoTipos
+                : ['cliente'],
+            precisaNf: patient.precisaNf === true,
+            unidadeId: patient.unidadeId ? String(patient.unidadeId) : '',
+            photoUrl: patient.photoUrl || undefined,
+            addressDetails: patient.addressDetails,
+            specialNeeds: patient.specialNeeds as Record<string, unknown> | undefined,
+            responsible: patient.responsible as Record<string, unknown> | undefined,
+            supplierData: patient.supplierData as Record<string, unknown> | undefined,
+            criarAcessoPortal: patient.criarAcessoPortal === true,
           })
           const createdId =
             response.createdId ??
             response.data.find(
               (item) =>
-                item.nome === payload.nome &&
-                (item.cpf ?? '').replace(/\D/g, '') === payload.cpf.replace(/\D/g, ''),
+                item.nome === (patient.name || patient.nome) &&
+                (item.cpf ?? '').replace(/\D/g, '') === (patient.cpf ?? '').replace(/\D/g, ''),
             )?.id
           if (!createdId) {
             throw new Error('Paciente criado, mas o id não retornou da API')
           }
-          return { id: createdId, nome: payload.nome }
+          setCreatedPatientForAgenda({
+            id: createdId,
+            nome: patient.name || patient.nome || '',
+          })
+          setIsNovoPacienteOpen(false)
+          return { portalAccess: response.portalAccess ?? null }
         }}
-        onSave={handleCreateAppointment}
       />
       <ListaEsperaModal
         isOpen={actions.activeModal === 'lista-espera'}
@@ -1236,20 +1480,37 @@ export function AgendaView() {
       />
       <DadosAgendamentoModal
         isOpen={actions.activeModal === 'detalhes'}
-        onClose={() => actions.setActiveModal(null)}
+        onClose={() => {
+          actions.setActiveModal(null)
+          actions.setSelectedSlot(null)
+        }}
+        professionals={professionalDetailsForAgendamento}
         agenda={
           selectedAgendaItem
             ? {
+                id: selectedAgendaItem.id,
+                pacienteId:
+                  selectedAgendaItem.pacienteId ||
+                  pacientes.find((item) => item.nome === selectedAgendaItem.paciente)?.id ||
+                  '',
                 paciente: selectedAgendaItem.paciente,
-                especialista: selectedAgendaItem.profissional,
+                profissional: selectedAgendaItem.profissional,
+                profissionalId: selectedAgendaItem.profissionalId,
                 data: selectedAgendaItem.data ?? '',
                 horario: selectedAgendaItem.horario,
-                tipo: selectedAgendaItem.procedimento ?? selectedAgendaItem.tipo ?? 'Consulta',
+                tipo: selectedAgendaItem.tipo ?? 'consulta',
                 status: selectedAgendaItem.status,
-                pagamento: selectedAgendaItem.pagamento ?? 'Pendente',
+                procedimentoId: selectedAgendaItem.procedimentoId,
+                procedimento: selectedAgendaItem.procedimento,
+                valorProcedimento: selectedAgendaItem.valorProcedimento,
+                observacoes: selectedAgendaItem.observacoes,
+                modalidade: selectedAgendaItem.modalidade,
+                plataformaOnline: selectedAgendaItem.plataformaOnline,
+                urlOnline: selectedAgendaItem.urlOnline,
               }
             : null
         }
+        onSave={actions.handleEditAppointment}
       />
       <EmitirCobrancaModal
         isOpen={actions.activeModal === 'cobranca'}
@@ -1283,6 +1544,7 @@ export function AgendaView() {
       <AgendarReuniaoModal
         isOpen={isAgendarReuniaoOpen}
         onClose={() => setIsAgendarReuniaoOpen(false)}
+        professionals={agendaProfessionals}
         onSave={handleAgendarReuniao}
       />
       <EditarCompromissoModal
@@ -1292,7 +1554,7 @@ export function AgendaView() {
           selectedPersonalSlot
             ? {
                 id: selectedPersonalSlot.id,
-                titulo: selectedPersonalSlot.paciente || 'Compromisso',
+                titulo: selectedPersonalSlot.titulo || selectedPersonalSlot.paciente || 'Compromisso',
                 data: actions.parseAgendaDate(selectedPersonalSlot.data),
                 hora: selectedPersonalSlot.hora,
               }
@@ -1323,12 +1585,46 @@ export function AgendaView() {
         }}
         item={selectedAgendaItem}
       />
-      <FichaPacienteModal
-        open={actions.activeModal === 'ficha-paciente'}
-        onOpenChange={(v) => {
-          if (!v) actions.setActiveModal(null)
+      <EditarPacienteModal
+        isOpen={actions.activeModal === 'ficha-paciente'}
+        onClose={() => {
+          actions.setActiveModal(null)
+          actions.setSelectedSlot(null)
         }}
-        pacienteId={actions.selectedSlot?.pacienteId ?? null}
+        paciente={pacienteParaEdicao}
+        unitOptions={pacienteUnits}
+        onSave={async (patient: Patient) => {
+          if (!patient.id) return
+          await updatePaciente({
+            id: String(patient.id),
+            nome: patient.name || patient.nome || '',
+            telefone: patient.phone || patient.telefone || '',
+            email: patient.email || '',
+            cpf: patient.cpf || '',
+            rg: patient.rg || '',
+            inscricaoEstadual: patient.inscricaoEstadual || '',
+            dataNascimento: patient.birthDate || patient.dataNascimento || '',
+            sexo: patient.gender || patient.sexo || '',
+            status: patient.activeStatus || 'Ativo',
+            indicacao: patient.source || patient.indicacao || '',
+            origemDetalhe: patient.origemDetalhe || '',
+            vinculoTipos:
+              patient.vinculoTipos && patient.vinculoTipos.length > 0
+                ? patient.vinculoTipos
+                : ['cliente'],
+            precisaNf: patient.precisaNf === true,
+            unidadeId: patient.unidadeId ? String(patient.unidadeId) : '',
+            photoUrl: patient.photoUrl || undefined,
+            addressDetails: patient.addressDetails,
+            specialNeeds: patient.specialNeeds as Record<string, unknown> | undefined,
+            responsible: patient.responsible as Record<string, unknown> | undefined,
+            supplierData: patient.supplierData as Record<string, unknown> | undefined,
+            criarAcessoPortal: patient.criarAcessoPortal === true,
+          })
+          toast.success('Paciente atualizado.')
+          actions.setActiveModal(null)
+          actions.setSelectedSlot(null)
+        }}
       />
       <ChamarEspecialistaModal
         open={actions.activeModal === 'chamar-especialista'}

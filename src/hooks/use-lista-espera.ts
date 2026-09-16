@@ -34,6 +34,7 @@ export interface ListaEsperaInput {
 export interface EspecialistaOption {
   id: string
   nome: string
+  procedimentoIds: string[]
 }
 
 export interface ProcedimentoOption {
@@ -58,7 +59,10 @@ function parseEspecialistasOptions(value: unknown): EspecialistaOption[] {
       const id = record.id ? String(record.id) : ''
       const nome = record.nome ? String(record.nome) : ''
       if (!id || !nome) return null
-      return { id, nome }
+      const procedimentoIds = Array.isArray(record.procedimentoIds)
+        ? record.procedimentoIds.map(String).filter(Boolean)
+        : []
+      return { id, nome, procedimentoIds }
     })
     .filter((item): item is EspecialistaOption => item !== null)
 }

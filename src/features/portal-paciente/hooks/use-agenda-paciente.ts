@@ -11,6 +11,9 @@ export interface PatientAgendaItem {
   data: string
   local: string
   status: 'Confirmada' | 'Agendado' | 'Concluído' | 'Cancelado'
+  modalidade?: string | null
+  plataformaOnline?: string | null
+  urlOnline?: string | null
 }
 
 export function useAgendaPaciente() {
@@ -60,5 +63,18 @@ export function useAgendaPaciente() {
     await load()
   }
 
-  return { data, isLoading, error, cancelAgendamento, reload: load }
+  const rescheduleAgendamento = async (params: {
+    id: string
+    date: string
+    time: string
+  }) => {
+    await api.put<ApiListResponse<{ id: string }>>('/api/portal/agendamentos', {
+      id: params.id,
+      date: params.date,
+      time: params.time,
+    })
+    await load()
+  }
+
+  return { data, isLoading, error, cancelAgendamento, rescheduleAgendamento, reload: load }
 }

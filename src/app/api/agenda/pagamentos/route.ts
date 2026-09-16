@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
+import {
+  insertPagamentoAgendamento,
+  resolvePagamentoAgendamentoInput,
+} from '@/lib/agendamento-pagamento'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
@@ -15,23 +19,19 @@ export async function POST(request: NextRequest) {
   const agendamentoId =
     typeof body?.agendamentoId === 'string' && body.agendamentoId.trim().length > 0
       ? body.agendamentoId.trim()
-      : null
-  const valor = Number(body?.valor)
-  const metodo =
-    typeof body?.metodo === 'string' && body.metodo.trim().length > 0 ? body.metodo.trim() : null
-  const observacoes =
-    typeof body?.observacoes === 'string' && body.observacoes.trim().length > 0
-      ? body.observacoes.trim()
-      : null
+      : ''
 
-  if (!agendamentoId) {
-    return serverErrorResponse('agendamentoId obrigatório', 'INVALID_AGENDAMENTO', 400)
-  }
-  if (!Number.isFinite(valor) || valor <= 0) {
-    return serverErrorResponse('Valor inválido', 'INVALID_VALOR', 400)
-  }
-  if (!metodo) {
-    return serverErrorResponse('Método de pagamento obrigatório', 'INVALID_METODO', 400)
+  const resolved = resolvePagamentoAgendamentoInput({
+    agendamentoId,
+    valor: body?.valor,
+    metodo: body?.metodo,
+    bandeira: body?.bandeira,
+    parcelas: body?.parcelas,
+    contaBancariaId: body?.contaBancariaId,
+    observacoes: body?.observacoes,
+  })
+  if (!resolved.ok) {
+    return serverErrorResponse(resolved.message, resolved.code, 400)
   }
 
   const supabase = getAppSupabase()
@@ -48,19 +48,24 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Agendamento não encontrado', 'AGENDAMENTO_NOT_FOUND', 404)
   }
 
-  const now = new Date().toISOString()
-  const { error } = await supabase.from('agendamentos_pagamentos').insert({
-    agendamento_id: agendamentoId,
-    valor,
-    metodo,
-    status: 'Pago',
-    pago_em: now,
-    observacoes,
+  const { error } = await insertPagamentoAgendamento(supabase, {
+    agendamentoId,
+    ...resolved.data,
   })
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao registrar pagamento')
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    data: {
+      agendamentoId,
+      valor: resolved.data.valor,
+      metodo: resolved.data.metodo,
+      bandeira: resolved.data.bandeira,
+      parcelas: resolved.data.parcelas,
+      contaBancariaId: resolved.data.contaBancariaId,
+    },
+  })
 }

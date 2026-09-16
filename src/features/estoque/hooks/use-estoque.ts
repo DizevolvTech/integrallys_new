@@ -162,6 +162,19 @@ export function useEstoque() {
     return response.data
   }
 
+  const registrarAjuste = async (payload: {
+    produtoId: string
+    quantidade: number
+    justificativa: string
+  }) => {
+    const response = await api.post<ApiListResponse<EstoqueItem>>('/api/estoque', {
+      action: 'ajuste',
+      ...payload,
+    })
+    setData(response.data)
+    return response.data
+  }
+
   const loadMovimentacoes = useCallback(
     async (filtros?: MovimentacaoFiltros) => {
       setIsLoadingMovimentacoes(true)
@@ -205,5 +218,6 @@ export function useEstoque() {
     movimentacoesError,
     loadMovimentacoes,
     estornarMovimentacao,
+    registrarAjuste,
   }
 }

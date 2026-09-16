@@ -8,6 +8,7 @@ interface AuthState {
   user: AuthUser | null
   sidebarItems: SidebarItem[]
   permissions: Permission[]
+  capabilities: MeResponse['capabilities']
   isLoading: boolean
   isInitialized: boolean
   isAuthenticated: boolean
@@ -15,11 +16,17 @@ interface AuthState {
   logout: () => Promise<void>
 }
 
+const emptyCapabilities: MeResponse['capabilities'] = {
+  iniciarAtendimento: false,
+  agendaClinica: false,
+  perfilClinico: false,
+}
 
 export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   sidebarItems: [],
   permissions: [],
+  capabilities: emptyCapabilities,
   // Default true — evita race onde o layout redireciona pra /login antes do
   // initialize() terminar de validar o JWT via /api/auth/me. Sem isso, todo
   // refresh desloga o usuário mesmo com cookie válido.
@@ -38,6 +45,7 @@ export const useAuth = create<AuthState>((set, get) => ({
         user: response.user,
         sidebarItems: response.sidebarItems,
         permissions: response.permissions,
+        capabilities: response.capabilities ?? emptyCapabilities,
         isInitialized: true,
         isAuthenticated: true,
       })
@@ -47,6 +55,7 @@ export const useAuth = create<AuthState>((set, get) => ({
         user: null,
         sidebarItems: [],
         permissions: [],
+        capabilities: emptyCapabilities,
         isInitialized: false,
         isAuthenticated: false,
       })
@@ -61,6 +70,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       user: null,
       sidebarItems: [],
       permissions: [],
+      capabilities: emptyCapabilities,
       isLoading: false,
       isInitialized: false,
       isAuthenticated: false,

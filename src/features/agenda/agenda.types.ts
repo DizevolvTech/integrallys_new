@@ -27,6 +27,7 @@ export interface AgendaSlot {
   status: string
   data?: string
   tipo?: string
+  titulo?: string
   modalidade?: string
   plataformaOnline?: string
   urlOnline?: string

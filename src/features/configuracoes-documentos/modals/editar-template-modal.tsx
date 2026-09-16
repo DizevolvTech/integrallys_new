@@ -124,8 +124,8 @@ export function EditarTemplateModal({
   const isCreate = mode === 'create'
   const user = useAuth((s) => s.user)
   const { data: unidades } = useUnidades()
-  // master/admin não têm unidade no JWT — precisam escolher no formulário de criação.
-  const precisaEscolherUnidade = isCreate && (user?.role === 'master' || user?.role === 'admin')
+  // Sem unidade no JWT → precisa escolher no formulário (independente do role string).
+  const precisaEscolherUnidade = isCreate && !user?.unidadeId
 
   const [nome, setNome] = useState('')
   const [slug, setSlug] = useState('')

@@ -40,4 +40,12 @@ export interface MeResponse {
   user: AuthUser
   sidebarItems: SidebarItem[]
   permissions: Permission[]
+  /** Capabilities derivadas no servidor (evitar `role ===` nas views). */
+  capabilities: {
+    iniciarAtendimento: boolean
+    /** Layout de agenda clínica (aba pessoal, filtro pelo próprio profissional). */
+    agendaClinica: boolean
+    /** Campos CRM / assinatura / método de atendimento em Configurações. */
+    perfilClinico: boolean
+  }
 }

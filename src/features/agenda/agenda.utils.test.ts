@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   getPagamentoIconTone,
+  isHorarioPassado,
+  canIniciarAtendimento,
   normalizeAgendaStatus,
   resolvePagamentoSituacao,
 } from './agenda.utils'
@@ -44,6 +46,22 @@ describe('normalizeAgendaStatus', () => {
   it('Agendado permanece distinto de Confirmado', () => {
     expect(normalizeAgendaStatus('Agendado')).toBe('Agendado')
     expect(normalizeAgendaStatus('Confirmado')).toBe('Confirmado')
+  })
+})
+
+describe('isHorarioPassado / canIniciarAtendimento', () => {
+  it('detecta horário passado no mesmo dia', () => {
+    const agora = new Date(2026, 8, 9, 14, 30, 0)
+    expect(isHorarioPassado('2026-09-09', '08:00', agora)).toBe(true)
+    expect(isHorarioPassado('2026-09-09', '15:00', agora)).toBe(false)
+    expect(isHorarioPassado('2026-09-10', '08:00', agora)).toBe(false)
+  })
+
+  it('iniciar atendimento só especialista/master', () => {
+    expect(canIniciarAtendimento('especialista')).toBe(true)
+    expect(canIniciarAtendimento('master')).toBe(true)
+    expect(canIniciarAtendimento('recepcao')).toBe(false)
+    expect(canIniciarAtendimento('gestor')).toBe(false)
   })
 })
 

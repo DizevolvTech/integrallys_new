@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { authErrorResponse, forbidPatientRole, getRequestAuth } from '@/lib/request-auth'
 
 const ALERT_TITLE_KEY = 'clinic_patient_alert_title'
 const ALERT_MESSAGE_KEY = 'clinic_patient_alert_message'
@@ -40,6 +40,8 @@ export async function PUT(request: NextRequest) {
   if (!session) return authErrorResponse()
   const denied = await requirePermission(session.userId, 'configuracoes', 'update')
   if (denied) return denied
+  const patientDenied = forbidPatientRole(session)
+  if (patientDenied) return patientDenied
 
   const body = (await request.json().catch(() => null)) as { title?: string; message?: string } | null
   if (!body || typeof body.title !== 'string' || typeof body.message !== 'string') {

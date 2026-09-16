@@ -34,6 +34,7 @@ import { toast } from 'sonner'
 import { PhotoSourceModal } from '@/features/media/components/photo-source-modal'
 import { CameraCaptureModal } from '@/features/media/components/camera-capture-modal'
 import type { MediaSelectionResult } from '@/features/media/types'
+import { isTransientPhotoUrl, uploadPacienteFoto } from '@/lib/paciente-foto'
 
 const MANUAL_SERVICOS_TEXTO_PADRAO = 'Sem descricao de servicos registrada.'
 
@@ -51,12 +52,13 @@ interface NovoPacienteModalProps {
     onClose: () => void
     unitOptions: Array<{ id: string; nome: string }>
     lockUnitSelection?: boolean
+    initialNome?: string
     onSave?: (
         patient: Patient,
     ) => Promise<{ portalAccess?: { email: string; temporaryPassword: string; firstAccessRequired: boolean } | null } | void> | { portalAccess?: { email: string; temporaryPassword: string; firstAccessRequired: boolean } | null } | void
 }
 
-export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelection = false, onSave }: NovoPacienteModalProps) {
+export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelection = false, initialNome = '', onSave }: NovoPacienteModalProps) {
     const { data: clinicaConfig } = useClinicaConfig()
     const nomeClinica = clinicaConfig?.nome ?? 'Clínica'
     const [formData, setFormData] = useState({
@@ -114,6 +116,12 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
             setFormData((prev) => ({ ...prev, unidadeId: unitOptions[0].id }))
         }
     }, [formData.unidadeId, isOpen, unitOptions])
+
+    useEffect(() => {
+        if (!isOpen) return
+        if (!initialNome.trim()) return
+        setFormData((prev) => (prev.nome.trim() ? prev : { ...prev, nome: initialNome.trim() }))
+    }, [initialNome, isOpen])
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -370,7 +378,17 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
         }
 
         try {
-            const result = await onSave?.(nextPatient)
+            let photoUrl = formData.photoUrl || undefined
+            if (formData.photoFile) {
+                photoUrl = await uploadPacienteFoto(formData.photoFile)
+            } else if (isTransientPhotoUrl(photoUrl)) {
+                photoUrl = undefined
+            }
+
+            const result = await onSave?.({
+                ...nextPatient,
+                photoUrl,
+            })
             setCreatedPortalAccess(result?.portalAccess ?? null)
             toast.success('Paciente cadastrado com sucesso.')
             setIsSaved(true)
@@ -394,14 +412,14 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
     return (
         <>
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent size="xl" className="bg-app-card dark:bg-app-card-dark p-0 border-none rounded-[28px] print:hidden flex flex-col">
+            <DialogContent size="xl" className="bg-app-card dark:bg-app-card-dark p-0 border-none rounded-[28px] print:hidden flex flex-col max-h-[90vh] overflow-hidden gap-0">
                 <ModalHeader
                     className="p-6 md:p-8 pb-4 border-b border-app-border dark:border-app-border-dark shrink-0"
                     title="Novo paciente"
                     description="Preencha as informações para realizar o cadastro do cliente."
                 />
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 py-6 bg-app-bg-secondary dark:bg-transparent">
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 py-6 bg-app-bg-secondary dark:bg-transparent">
                     {!isSaved ? (
                         <form id="novo-paciente-form" onSubmit={handleSubmit} className="space-y-12">
 
@@ -767,7 +785,7 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
                     )}
                 </div>
 
-                <DialogFooter className="p-6 md:p-8 pt-6 border-t border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-card-dark/50 flex justify-between items-center shrink-0">
+                <DialogFooter className="sticky bottom-0 z-20 p-6 md:p-8 pt-6 border-t border-app-border dark:border-app-border-dark bg-app-card dark:bg-app-card-dark flex justify-between items-center shrink-0">
                     {!isSaved ? (
                         <div className="flex flex-col-reverse sm:flex-row gap-3 w-full">
                             <Button type="button" variant="outline" onClick={onClose} className="sm:w-32 h-12 rounded-xl font-bold text-[var(--app-text-secondary)] dark:text-white/70 border-app-border dark:border-app-border-dark hover:bg-app-hover dark:hover:bg-app-hover transition-all text-xs uppercase tracking-widest">

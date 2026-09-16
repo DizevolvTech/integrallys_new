@@ -28,16 +28,20 @@ async function marcarPago(
   row: GatewayRow,
   pagoEm: string,
 ) {
-  await supabase
+  const onlineUpdate = await supabase
     .from('pagamentos_online')
     .update({ status: 'capturado', pago_em: pagoEm, updated_at: new Date().toISOString() })
     .eq('id', row.id)
+  if (onlineUpdate.error) return onlineUpdate.error
+
   if (row.lancamento_id) {
-    await supabase
+    const finUpdate = await supabase
       .from('financeiro_lancamentos')
       .update({ status: 'Pago', updated_at: new Date().toISOString() })
       .eq('id', row.lancamento_id)
+    if (finUpdate.error) return finUpdate.error
   }
+  return null
 }
 
 export async function GET(request: NextRequest) {
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     if (gateway === 'cielo') {
       const config = await getCieloConfig()
-      if (!config) return NextResponse.json({ error: 'Cielo não configurado' }, { status: 400 })
+      if (!config) return serverErrorResponse('Cielo não configurado', 'GATEWAY_NOT_CONFIGURED', 400)
       const result = await criarCobrancaCielo(config, {
         valor,
         descricao,
@@ -125,7 +129,7 @@ export async function POST(request: NextRequest) {
         parcelas: body.parcelas ? Number(body.parcelas) : 1,
       })
       if (!result)
-        return NextResponse.json({ error: 'Falha ao gerar cobrança Cielo' }, { status: 502 })
+        return serverErrorResponse('Falha ao gerar cobrança Cielo', 'GATEWAY_CHARGE_FAILED', 502)
 
       const { data, error } = await supabase
         .from('pagamentos_online')
@@ -153,10 +157,10 @@ export async function POST(request: NextRequest) {
 
     if (gateway === 'sicredi') {
       const config = await getSicrediConfig()
-      if (!config) return NextResponse.json({ error: 'Sicredi não configurado' }, { status: 400 })
+      if (!config) return serverErrorResponse('Sicredi não configurado', 'GATEWAY_NOT_CONFIGURED', 400)
       const result = await criarCobrancaPix(config, { valor, descricao })
       if (!result)
-        return NextResponse.json({ error: 'Falha ao gerar cobrança Pix' }, { status: 502 })
+        return serverErrorResponse('Falha ao gerar cobrança Pix', 'GATEWAY_CHARGE_FAILED', 502)
 
       const { data, error } = await supabase
         .from('pagamentos_online')
@@ -200,7 +204,7 @@ export async function POST(request: NextRequest) {
       .eq('id', pagamentoOnlineId)
       .maybeSingle()
     if (error) return supabaseErrorResponse(error, 'Falha ao consultar pagamento')
-    if (!row) return NextResponse.json({ error: 'Pagamento não encontrado' }, { status: 404 })
+    if (!row) return serverErrorResponse('Pagamento não encontrado', 'PAYMENT_NOT_FOUND', 404)
 
     const typedRow = row as GatewayRow
     if (!typedRow.gateway_id) return NextResponse.json({ status: typedRow.status })
@@ -211,7 +215,8 @@ export async function POST(request: NextRequest) {
       const consulta = config ? await consultarPedidoLinkCielo(config, typedRow.gateway_id) : null
       if (consulta) {
         if (consulta.pago) {
-          await marcarPago(supabase, typedRow, new Date().toISOString())
+          const markError = await marcarPago(supabase, typedRow, new Date().toISOString())
+          if (markError) return supabaseErrorResponse(markError, 'Falha ao marcar pagamento')
           return NextResponse.json({ status: 'capturado' })
         }
         await supabase
@@ -227,7 +232,12 @@ export async function POST(request: NextRequest) {
       const consulta = config ? await consultarPix(config, typedRow.gateway_id) : null
       if (consulta) {
         if (consulta.pago) {
-          await marcarPago(supabase, typedRow, consulta.pago_em ?? new Date().toISOString())
+          const markError = await marcarPago(
+            supabase,
+            typedRow,
+            consulta.pago_em ?? new Date().toISOString(),
+          )
+          if (markError) return supabaseErrorResponse(markError, 'Falha ao marcar pagamento')
           return NextResponse.json({ status: 'capturado' })
         }
         return NextResponse.json({ status: typedRow.status })

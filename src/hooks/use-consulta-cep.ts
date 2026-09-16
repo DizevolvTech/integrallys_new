@@ -47,6 +47,9 @@ export function useConsultaCep(aoEncontrar: (endereco: EnderecoCep) => void) {
     setStatus('buscando')
     const resultado = await buscarCep(cep)
 
+    // Resposta stale: usuário já digitou outro CEP enquanto a request estava em voo.
+    if (ultimoConsultado.current !== cep) return
+
     if (resultado.status === 'encontrado') {
       aoEncontrarRef.current(resultado.endereco)
       setStatus('encontrado')

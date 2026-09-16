@@ -2,7 +2,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { getAuthUser } from '@/lib/auth'
 
-const PUBLIC = ['/login', '/api/auth/login']
+const PUBLIC = [
+  '/login',
+  '/api/auth/login',
+  // Webhooks/cron: autenticação própria na rota (token/HMAC/lookup gateway).
+  '/api/pagamentos/webhook',
+  '/api/whatsapp/webhook',
+  '/api/whatsapp/cron',
+]
 
 // Rotas de API liberadas quando o usuário está com `mustDefinePassword=true`.
 // O fluxo de troca de senha precisa destas: `/me` para hidratar a sessão,

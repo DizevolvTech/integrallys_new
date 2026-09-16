@@ -56,6 +56,25 @@ export interface AgendaInput {
   observacoes?: string
   foraJanela?: boolean
   motivoEncaixe?: string
+  serieQuantidade?: number
+  serieIntervaloDias?: number
+  pagamentoInicial?: {
+    valor: number
+    metodo: string
+    bandeira?: string
+    parcelas?: number
+    contaBancariaId?: string
+    observacoes?: string
+  }
+}
+
+export interface AgendaPagamentoInicial {
+  valor: number
+  metodo: string
+  bandeira?: string
+  parcelas?: number
+  contaBancariaId?: string
+  observacoes?: string
 }
 
 interface AgendaListResponse extends ApiListResponse<AgendaItem> {

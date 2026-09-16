@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Cake, CheckSquare, Square } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Cake, CheckSquare, Search, Square } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/shared/date-input'
+import { Input } from '@/components/ui/input'
 
-interface Aniversariante {
+export interface Aniversariante {
   id: string
   nome: string
   dataNascimento: string
@@ -21,8 +22,35 @@ interface AniversariantesModalProps {
   aniversariantes?: Aniversariante[]
 }
 
+/** Normaliza nascimento para YYYY-MM-DD em calendário local (evita UTC shift). */
+export function toBirthDateOnly(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10)
+  const br = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const y = parsed.getFullYear()
+  const m = String(parsed.getMonth() + 1).padStart(2, '0')
+  const d = String(parsed.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export function calcIdade(isoDate: string): number {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  if (!y || !m || !d) return 0
+  const hoje = new Date()
+  let idade = hoje.getFullYear() - y
+  if (hoje.getMonth() + 1 < m || (hoje.getMonth() + 1 === m && hoje.getDate() < d)) {
+    idade -= 1
+  }
+  return Math.max(0, idade)
+}
+
 const formatDateBR = (isoDate: string) => {
   const [year, month, day] = isoDate.split('-')
+  if (!year || !month || !day) return isoDate
   return `${day}/${month}/${year}`
 }
 
@@ -32,18 +60,35 @@ export function AniversariantesModal({
   aniversariantes = [],
 }: AniversariantesModalProps) {
   const hoje = new Date()
+  const hojeLocal = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
   const [modo, setModo] = useState<'dia' | 'mes'>('dia')
-  const [dataFiltro, setDataFiltro] = useState(hoje.toISOString().split('T')[0])
+  const [dataFiltro, setDataFiltro] = useState(hojeLocal)
+  const [buscaNome, setBuscaNome] = useState('')
   const [items, setItems] = useState<Aniversariante[]>(aniversariantes)
+
+  useEffect(() => {
+    if (!isOpen) return
+    setItems(aniversariantes)
+    setBuscaNome('')
+    const agora = new Date()
+    setDataFiltro(
+      `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`,
+    )
+    setModo('dia')
+  }, [isOpen, aniversariantes])
 
   const filtrados = useMemo(() => {
     const [, mes, dia] = dataFiltro.split('-').map(Number)
+    const query = buscaNome.trim().toLowerCase()
     return items.filter((item) => {
-      const [, bm, bd] = item.dataNascimento.split('-').map(Number)
-      if (modo === 'dia') return bm === mes && bd === dia
-      return bm === mes
+      const nasc = toBirthDateOnly(item.dataNascimento)
+      const [, bm, bd] = nasc.split('-').map(Number)
+      const matchData = modo === 'dia' ? bm === mes && bd === dia : bm === mes
+      if (!matchData) return false
+      if (!query) return true
+      return item.nome.toLowerCase().includes(query)
     })
-  }, [items, dataFiltro, modo])
+  }, [items, dataFiltro, modo, buscaNome])
 
   const toggleMensagem = (id: string) => {
     setItems((prev) =>
@@ -55,7 +100,7 @@ export function AniversariantesModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent size="lg" className="bg-app-card dark:bg-app-card-dark rounded-integrallys-lg flex flex-col">
+      <DialogContent size="lg" className="bg-app-card dark:bg-app-card-dark rounded-integrallys-lg flex flex-col max-h-[90vh]">
         <DialogHeader className="shrink-0 p-6 pb-3">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl app-status-info flex items-center justify-center border border-[var(--app-primary)]/20">
@@ -72,7 +117,7 @@ export function AniversariantesModal({
           </div>
         </DialogHeader>
 
-        <div className="px-6 pb-4 flex gap-3">
+        <div className="px-6 pb-4 flex flex-wrap gap-3">
           <div className="flex rounded-integrallys border border-app-border dark:border-app-border-dark overflow-hidden">
             <button
               type="button"
@@ -90,9 +135,18 @@ export function AniversariantesModal({
             </button>
           </div>
           <DateInput value={dataFiltro} onChange={setDataFiltro} className="h-10 max-w-[220px]" />
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-app-text-muted" />
+            <Input
+              value={buscaNome}
+              onChange={(event) => setBuscaNome(event.target.value)}
+              placeholder="Buscar por nome..."
+              className="h-10 pl-9 rounded-integrallys"
+            />
+          </div>
         </div>
 
-        <div className="px-6 pb-6 overflow-auto">
+        <div className="px-6 pb-6 overflow-auto min-h-0">
           <div className="rounded-[12px] border border-app-border dark:border-app-border-dark overflow-hidden">
             <div className="grid grid-cols-12 bg-app-bg-secondary/60 dark:bg-app-bg-dark/60 border-b border-app-border dark:border-app-border-dark text-xs uppercase tracking-wider text-app-text-muted">
               <div className="col-span-4 px-4 py-3">Cliente</div>
@@ -117,10 +171,10 @@ export function AniversariantesModal({
                   {item.nome}
                 </div>
                 <div className="col-span-2 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
-                  {formatDateBR(item.dataNascimento)}
+                  {formatDateBR(toBirthDateOnly(item.dataNascimento))}
                 </div>
                 <div className="col-span-1 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
-                  {item.idade}
+                  {item.idade || calcIdade(toBirthDateOnly(item.dataNascimento))}
                 </div>
                 <div className="col-span-3 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
                   {item.telefone}
@@ -144,7 +198,7 @@ export function AniversariantesModal({
           </div>
         </div>
 
-        <div className="px-6 pb-6 flex justify-end">
+        <div className="px-6 pb-6 flex justify-end shrink-0">
           <Button variant="outline" onClick={onClose} className="h-10 px-5 rounded-integrallys">
             Fechar
           </Button>

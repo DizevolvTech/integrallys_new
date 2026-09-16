@@ -14,6 +14,7 @@ const REPORT_TABS = [
   'Performance',
   'Tarefas',
   'Ranking',
+  'Caixa Gestor',
   'Comparativo',
 ] as const
 
@@ -243,7 +244,13 @@ export async function GET(request: NextRequest) {
       buildRelatorio(
         'relatorio-ranking',
         'Ranking',
-        'Produtos mais vendidos e mais lucrativos (prescrições convertidas)',
+        'Produtos e procedimentos mais realizados/lucrativos',
+        updatedAt,
+      ),
+      buildRelatorio(
+        'relatorio-caixa-gestor',
+        'Caixa Gestor',
+        'Movimentos do dia + saldos de bancos e cofre',
         updatedAt,
       ),
       buildRelatorio(

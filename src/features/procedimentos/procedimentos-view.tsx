@@ -47,6 +47,9 @@ type FormState = {
   temRetorno: boolean
   prazoRetornoDias: string
   valorRetorno: string
+  temPacote: boolean
+  intervaloRecorrenciaDias: string
+  quantidadeSugeridaPacote: string
   ativo: boolean
 }
 
@@ -57,8 +60,11 @@ const initialFormState: FormState = {
   valor: '',
   duracaoMin: '',
   temRetorno: false,
-  prazoRetornoDias: '',
+  prazoRetornoDias: '35',
   valorRetorno: '',
+  temPacote: false,
+  intervaloRecorrenciaDias: '',
+  quantidadeSugeridaPacote: '',
   ativo: true,
 }
 
@@ -102,8 +108,13 @@ export function ProcedimentosView() {
         valor: item.valor != null ? String(item.valor) : '',
         duracaoMin: item.duracaoMin != null ? String(item.duracaoMin) : '',
         temRetorno: item.temRetorno,
-        prazoRetornoDias: item.prazoRetornoDias != null ? String(item.prazoRetornoDias) : '',
+        prazoRetornoDias: item.prazoRetornoDias != null ? String(item.prazoRetornoDias) : '35',
         valorRetorno: item.valorRetorno != null ? String(item.valorRetorno) : '',
+        temPacote: Boolean(item.temPacote),
+        intervaloRecorrenciaDias:
+          item.intervaloRecorrenciaDias != null ? String(item.intervaloRecorrenciaDias) : '',
+        quantidadeSugeridaPacote:
+          item.quantidadeSugeridaPacote != null ? String(item.quantidadeSugeridaPacote) : '',
         ativo: item.ativo,
       })
       return
@@ -124,35 +135,37 @@ export function ProcedimentosView() {
       toast.error('Informe o nome do procedimento.')
       return
     }
+    if (formData.temPacote && !toNumber(formData.intervaloRecorrenciaDias)) {
+      toast.error('Informe o intervalo em dias do pacote (ex.: 15).')
+      return
+    }
 
     setIsSubmitting(true)
     try {
+      const payload = {
+        nome: formData.nome.trim(),
+        codigo: formData.codigo.trim() || undefined,
+        descricao: formData.descricao.trim() || undefined,
+        valor: toNumber(formData.valor),
+        duracaoMin: toNumber(formData.duracaoMin),
+        temRetorno: formData.temRetorno,
+        prazoRetornoDias: formData.temRetorno ? toNumber(formData.prazoRetornoDias) ?? 35 : undefined,
+        valorRetorno: formData.temRetorno ? toNumber(formData.valorRetorno) : undefined,
+        temPacote: formData.temPacote,
+        intervaloRecorrenciaDias: formData.temPacote
+          ? toNumber(formData.intervaloRecorrenciaDias)
+          : undefined,
+        quantidadeSugeridaPacote: formData.temPacote
+          ? toNumber(formData.quantidadeSugeridaPacote)
+          : undefined,
+        ativo: formData.ativo,
+      }
+
       if (modalType === 'edit' && selectedProcedimento) {
-        await updateProcedimento({
-          id: selectedProcedimento.id,
-          nome: formData.nome.trim(),
-          codigo: formData.codigo.trim() || undefined,
-          descricao: formData.descricao.trim() || undefined,
-          valor: toNumber(formData.valor),
-          duracaoMin: toNumber(formData.duracaoMin),
-          temRetorno: formData.temRetorno,
-          prazoRetornoDias: formData.temRetorno ? toNumber(formData.prazoRetornoDias) : undefined,
-          valorRetorno: formData.temRetorno ? toNumber(formData.valorRetorno) : undefined,
-          ativo: formData.ativo,
-        })
+        await updateProcedimento({ id: selectedProcedimento.id, ...payload })
         toast.success('Procedimento atualizado com sucesso.')
       } else {
-        await createProcedimento({
-          nome: formData.nome.trim(),
-          codigo: formData.codigo.trim() || undefined,
-          descricao: formData.descricao.trim() || undefined,
-          valor: toNumber(formData.valor),
-          duracaoMin: toNumber(formData.duracaoMin),
-          temRetorno: formData.temRetorno,
-          prazoRetornoDias: formData.temRetorno ? toNumber(formData.prazoRetornoDias) : undefined,
-          valorRetorno: formData.temRetorno ? toNumber(formData.valorRetorno) : undefined,
-          ativo: formData.ativo,
-        })
+        await createProcedimento(payload)
         toast.success('Procedimento criado com sucesso.')
       }
 
@@ -385,7 +398,15 @@ export function ProcedimentosView() {
                 </div>
                 <Switch
                   checked={formData.temRetorno}
-                  onCheckedChange={(value) => setFormData((current) => ({ ...current, temRetorno: value }))}
+                  onCheckedChange={(value) =>
+                    setFormData((current) => ({
+                      ...current,
+                      temRetorno: value,
+                      prazoRetornoDias: value
+                        ? current.prazoRetornoDias || '35'
+                        : current.prazoRetornoDias,
+                    }))
+                  }
                   disabled={modalType === 'view'}
                 />
               </div>
@@ -402,9 +423,10 @@ export function ProcedimentosView() {
                       value={formData.prazoRetornoDias}
                       onChange={(event) => setFormData((current) => ({ ...current, prazoRetornoDias: event.target.value }))}
                       disabled={modalType === 'view'}
-                      placeholder="Ex: 30"
+                      placeholder="35"
                       className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
                     />
+                    <p className="text-xs text-app-text-muted">Padrão da clínica: 35 dias corridos.</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="font-normal text-app-text-primary dark:text-white/80">Valor do retorno (R$)</Label>
@@ -417,6 +439,67 @@ export function ProcedimentosView() {
                       onChange={(event) => setFormData((current) => ({ ...current, valorRetorno: event.target.value }))}
                       disabled={modalType === 'view'}
                       placeholder="0,00"
+                      className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-between rounded-2xl border border-app-border px-4 py-3 dark:border-app-border-dark">
+                <div>
+                  <p className="font-normal text-app-text-primary dark:text-white">Pacote / recorrência?</p>
+                  <p className="text-sm text-app-text-secondary dark:text-white/60 font-normal">
+                    Ex.: psicanálise a cada 15 dias — gera série na agenda.
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.temPacote}
+                  onCheckedChange={(value) => setFormData((current) => ({ ...current, temPacote: value }))}
+                  disabled={modalType === 'view'}
+                />
+              </div>
+
+              {formData.temPacote ? (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="font-normal text-app-text-primary dark:text-white/80">
+                      Intervalo entre sessões (dias)
+                    </Label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      step="1"
+                      min="1"
+                      value={formData.intervaloRecorrenciaDias}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          intervaloRecorrenciaDias: event.target.value,
+                        }))
+                      }
+                      disabled={modalType === 'view'}
+                      placeholder="Ex: 15"
+                      className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-normal text-app-text-primary dark:text-white/80">
+                      Qtd. sugerida no pacote
+                    </Label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      step="1"
+                      min="1"
+                      value={formData.quantidadeSugeridaPacote}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          quantidadeSugeridaPacote: event.target.value,
+                        }))
+                      }
+                      disabled={modalType === 'view'}
+                      placeholder="Ex: 10"
                       className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
                     />
                   </div>

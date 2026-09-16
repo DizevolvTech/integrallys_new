@@ -6,6 +6,42 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 
 export type FluxoAgendamento = 'ocupar' | 'inserir'
 
+/** Online/Híbrido exigem URL http(s) válida. Presencial limpa plataforma/url no occupy. */
+export function validateModalidadeOnlineUrl(params: {
+  modalidade: unknown
+  urlOnline: unknown
+}): { ok: true } | { ok: false; message: string; code: string } {
+  const modalidade = typeof params.modalidade === 'string' ? params.modalidade.trim() : ''
+  const needsUrl = modalidade === 'Online' || modalidade === 'Hibrido'
+  if (!needsUrl) return { ok: true }
+
+  const url = typeof params.urlOnline === 'string' ? params.urlOnline.trim() : ''
+  if (!url) {
+    return {
+      ok: false,
+      message: 'Informe a URL do atendimento online/híbrido.',
+      code: 'URL_ONLINE_REQUIRED',
+    }
+  }
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return {
+        ok: false,
+        message: 'A URL online deve começar com http:// ou https://.',
+        code: 'URL_ONLINE_INVALID',
+      }
+    }
+  } catch {
+    return {
+      ok: false,
+      message: 'URL online inválida.',
+      code: 'URL_ONLINE_INVALID',
+    }
+  }
+  return { ok: true }
+}
+
 export function decidirFluxoAgendamento(params: {
   pacienteId: string | null
   foraJanela: boolean

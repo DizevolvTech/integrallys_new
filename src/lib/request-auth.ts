@@ -1,6 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getAppSupabase } from '@/lib/app-api'
+import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { getAuthUser } from '@/lib/auth'
 import { buildAuthPayloadFromUserId } from '@/lib/auth-payload'
 import type { AuthUser } from '@/types/auth'
@@ -69,6 +69,46 @@ export function requirePatientRole(session: RequestAuth) {
 export function forbidPatientRole(session: RequestAuth) {
   if (session.role === 'paciente') {
     return forbiddenResponse()
+  }
+  return null
+}
+
+/**
+ * Garante que o paciente pertence à unidade da sessão (perfis escopados).
+ * master/admin passam sem filtro. Retorna Response de erro ou null se ok.
+ */
+export async function assertPacienteInUnitScope(params: {
+  session: RequestAuth
+  pacienteId: string
+  notFoundMessage?: string
+}): Promise<Response | null> {
+  const scoped = await getScopedUnitId(params.session)
+  if (scoped.error) {
+    return supabaseErrorResponse(scoped.error, 'Falha ao validar unidade')
+  }
+  if (!scoped.unidadeId) return null
+
+  const supabase = getAppSupabase()
+  const { data, error } = await supabase
+    .from('pacientes')
+    .select('unidade_id')
+    .eq('id', params.pacienteId)
+    .maybeSingle()
+
+  if (error) return supabaseErrorResponse(error, 'Falha ao validar paciente')
+  if (!data) {
+    return serverErrorResponse(
+      params.notFoundMessage ?? 'Paciente não encontrado',
+      'PACIENTE_NOT_FOUND',
+      404,
+    )
+  }
+  if (data.unidade_id && String(data.unidade_id) !== scoped.unidadeId) {
+    return serverErrorResponse(
+      'Paciente fora do escopo da unidade',
+      'PACIENTE_UNIT_FORBIDDEN',
+      403,
+    )
   }
   return null
 }

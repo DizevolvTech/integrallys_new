@@ -277,15 +277,21 @@ export async function GET(request: NextRequest) {
   const birthdays = (birthdaysResult.data ?? [])
     .filter((row) => {
       if (!row.data_nascimento) return false
-      const date = new Date(row.data_nascimento)
-      return date.getUTCDate() === today.getUTCDate() && date.getUTCMonth() === today.getUTCMonth()
+      // date-only (YYYY-MM-DD): compare em meio-dia local para evitar deslocamento UTC→BRT
+      const raw = String(row.data_nascimento).slice(0, 10)
+      const date = new Date(`${raw}T12:00:00`)
+      return date.getDate() === today.getDate() && date.getMonth() === today.getMonth()
     })
     .slice(0, 5)
-    .map((row) => ({
-      id: String(row.id),
-      name: String(row.nome ?? 'Paciente'),
-      date: new Date(String(row.data_nascimento)).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-    }))
+    .map((row) => {
+      const raw = String(row.data_nascimento).slice(0, 10)
+      const date = new Date(`${raw}T12:00:00`)
+      return {
+        id: String(row.id),
+        name: String(row.nome ?? 'Paciente'),
+        date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      }
+    })
 
   const retornosRows = retornosResult.data ?? []
   const parseDaysFromRetorno = (text: string): number => {
@@ -469,14 +475,35 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    saldoBancos = (contasBancariasResult.data ?? []).map((row) => ({
-      id: String(row.id),
-      unidade: unidadeNome(row.unidade_id ? String(row.unidade_id) : null),
-      nome: String(row.nome ?? 'Conta'),
-      banco: String(row.banco ?? ''),
-      tipo: String(row.tipo ?? 'corrente'),
-      saldo: Number(row.saldo_inicial ?? 0),
-    }))
+    const contasRows = contasBancariasResult.data ?? []
+    const contaIds = contasRows.map((row) => String(row.id))
+    const movTotal = new Map<string, number>()
+    if (contaIds.length > 0) {
+      const { data: ofx } = await supabase
+        .from('conciliacao_ofx')
+        .select('conta_id,tipo,valor')
+        .in('conta_id', contaIds)
+      for (const row of ofx ?? []) {
+        const contaId = String(row.conta_id ?? '')
+        if (!contaId) continue
+        const valor = Math.abs(Number(row.valor ?? 0))
+        const delta = String(row.tipo ?? '').toUpperCase() === 'DEBIT' ? -valor : valor
+        movTotal.set(contaId, (movTotal.get(contaId) ?? 0) + delta)
+      }
+    }
+
+    saldoBancos = contasRows.map((row) => {
+      const id = String(row.id)
+      const saldoInicial = Number(row.saldo_inicial ?? 0)
+      return {
+        id,
+        unidade: unidadeNome(row.unidade_id ? String(row.unidade_id) : null),
+        nome: String(row.nome ?? 'Conta'),
+        banco: String(row.banco ?? ''),
+        tipo: String(row.tipo ?? 'corrente'),
+        saldo: Number((saldoInicial + (movTotal.get(id) ?? 0)).toFixed(2)),
+      }
+    })
 
     // Faturamento e saídas por unidade — usa todos os lançamentos do mês
     const grupoUnidades = new Map<string, { entradas: number; saidas: number }>()
@@ -624,11 +651,12 @@ export async function GET(request: NextRequest) {
     aniversariantesSemana = (birthdaysResult.data ?? [])
       .map((row) => {
         if (!row.data_nascimento) return null
-        const date = new Date(String(row.data_nascimento))
+        const raw = String(row.data_nascimento).slice(0, 10)
+        const date = new Date(`${raw}T12:00:00`)
         if (Number.isNaN(date.getTime())) return null
-        const monthDay = date.getUTCMonth() * 100 + date.getUTCDate()
-        const todayMd = today.getUTCMonth() * 100 + today.getUTCDate()
-        const proxMd = proxima7.getUTCMonth() * 100 + proxima7.getUTCDate()
+        const monthDay = date.getMonth() * 100 + date.getDate()
+        const todayMd = today.getMonth() * 100 + today.getDate()
+        const proxMd = proxima7.getMonth() * 100 + proxima7.getDate()
         const inRange = todayMd <= proxMd
           ? monthDay >= todayMd && monthDay <= proxMd
           : monthDay >= todayMd || monthDay <= proxMd

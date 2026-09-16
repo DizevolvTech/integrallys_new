@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell, Calendar, ChevronDown, Clock, DollarSign, Lock, MoreVertical, Play, Plus } from 'lucide-react'
+import { Bell, Calendar, ChevronDown, Clock, DollarSign, ExternalLink, Lock, MoreVertical, Play, Plus, Undo2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,8 @@ import {
   getStatusBadgeTone,
   getStatusButtonTone,
   getStatusCardTone,
+  AGENDA_STATUS_DROPDOWN,
+  isHorarioPassado,
   normalizeAgendaStatus,
   resolvePagamentoSituacao,
 } from '../agenda.utils'
@@ -37,6 +39,7 @@ interface AgendaDayViewProps {
   onStatusChange: (slot: AgendaSlot, status: string) => void
   onOpenAvailableSlot?: (slot: AgendaSlot) => void
   onStartAtendimento?: (slot: AgendaSlot) => void
+  onRemoveBloqueio?: (bloqueio: AgendaBloqueio) => void
 }
 
 function isoDateLocal(d: Date) {
@@ -59,6 +62,7 @@ export function AgendaDayView({
   onStatusChange,
   onOpenAvailableSlot,
   onStartAtendimento,
+  onRemoveBloqueio,
 }: AgendaDayViewProps) {
   const router = useRouter()
 
@@ -126,6 +130,17 @@ export function AgendaDayView({
                     </p>
                   )}
                 </div>
+                {onRemoveBloqueio && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveBloqueio(b)}
+                    className="h-9 px-3 inline-flex items-center gap-1.5 rounded-integrallys border border-red-300 bg-white text-sm text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100 dark:hover:bg-red-900/40"
+                    title="Desfazer bloqueio"
+                  >
+                    <Undo2 className="h-3.5 w-3.5" />
+                    Desfazer
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -187,6 +202,19 @@ export function AgendaDayView({
                               Encaixe
                             </span>
                           )}
+                          {item.urlOnline && (
+                            <a
+                              href={item.urlOnline}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-200 whitespace-nowrap"
+                              title={item.urlOnline}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Online
+                            </a>
+                          )}
                         </div>
                         <p className="text-sm font-normal text-app-text-secondary dark:text-app-text-muted leading-[21px] truncate">
                           {item.profissional}
@@ -222,7 +250,7 @@ export function AgendaDayView({
                             align="end"
                             className="bg-app-card dark:bg-app-bg-dark border-app-border dark:border-app-border-dark text-app-text-primary dark:text-white z-[9999] shadow-lg"
                           >
-                            {['Confirmado', 'Check-in', 'Em Atendimento', 'Check-out', 'Em Atraso', 'Cancelado'].map((status) => (
+                            {AGENDA_STATUS_DROPDOWN.map((status) => (
                               <DropdownMenuItem
                                 key={status}
                                 onClick={() => onStatusChange(item, status)}
@@ -277,7 +305,42 @@ export function AgendaDayView({
                 )
               })}
 
-              {availableItemsInSlot.map((item) => (
+              {availableItemsInSlot.map((item) => {
+                const dataIso = item.data?.includes('/')
+                  ? (() => {
+                      const [dd, mm, yyyy] = item.data!.split('/')
+                      return `${yyyy}-${mm}-${dd}`
+                    })()
+                  : (item.data ?? todayIso)
+                const passado = Boolean(dataIso && isHorarioPassado(dataIso, item.hora))
+
+                if (passado) {
+                  return (
+                    <div
+                      key={`disponivel-passado-${item.id}`}
+                      className="w-full rounded-integrallys border border-slate-200 bg-slate-100/80 p-4 flex items-center gap-4 opacity-60 dark:border-slate-700 dark:bg-slate-900/40"
+                      title="Horário já passou — não é possível agendar retroativamente"
+                    >
+                      <div className="flex-shrink-0 w-[60px] text-left">
+                        <p className="text-xl font-normal text-slate-500 leading-[30px]">{item.hora}</p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Clock className="h-3 w-3 text-slate-500" />
+                          <span className="text-xs font-normal text-slate-500">Passado</span>
+                        </div>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                          Indisponível
+                        </span>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Horário passado — agende um horário futuro
+                        </p>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
                 <button
                   key={`disponivel-${item.id}`}
                   type="button"
@@ -311,7 +374,8 @@ export function AgendaDayView({
                   </div>
                   <Plus className="h-4 w-4 text-emerald-700 dark:text-emerald-300 shrink-0" />
                 </button>
-              ))}
+                )
+              })}
             </div>
           )
         })}

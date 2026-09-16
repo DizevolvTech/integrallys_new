@@ -3,12 +3,23 @@
 import { useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
 import type { ApiListResponse } from '@/types/api'
+import type { TarefaRecorrencia } from '@/lib/tarefa-recorrencia'
 
 export interface TarefaItem {
   id: string
   titulo: string
+  descricao: string
   responsavel: string
+  responsavelId: string
   status: string
+  recorrencia: TarefaRecorrencia | string
+  diasSemana: number[]
+  alerta: boolean
+  prioridade: string
+  categoria: string
+  vencimentoEm: string
+  data: string
+  horario: string
 }
 
 export interface CreateTarefaPayload {
@@ -18,6 +29,13 @@ export interface CreateTarefaPayload {
   responsavelNome?: string
   status?: string
   vencimentoEm?: string
+  data?: string
+  horario?: string
+  recorrencia?: TarefaRecorrencia | string
+  diasSemana?: number[]
+  alerta?: boolean
+  prioridade?: string
+  categoria?: string
 }
 
 export function useTarefas() {
@@ -41,7 +59,7 @@ export function useTarefas() {
 
   useEffect(() => {
     let mounted = true
-    const load = async () => {
+    const run = async () => {
       setIsLoading(true)
       setError(null)
       try {
@@ -56,7 +74,7 @@ export function useTarefas() {
       }
     }
 
-    void load()
+    void run()
     return () => {
       mounted = false
     }

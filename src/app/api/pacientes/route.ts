@@ -46,20 +46,7 @@ function buildPacientePayload(body: Record<string, unknown>) {
     ? (body.addressDetails as Record<string, unknown>)
     : {}
 
-  const specialNeeds = body.specialNeeds && typeof body.specialNeeds === 'object'
-    ? (body.specialNeeds as Record<string, unknown>)
-    : null
-  const responsible = body.responsible && typeof body.responsible === 'object'
-    ? (body.responsible as Record<string, unknown>)
-    : null
-  const financial = body.financial && typeof body.financial === 'object'
-    ? (body.financial as Record<string, unknown>)
-    : null
-  const supplierData = body.supplierData && typeof body.supplierData === 'object'
-    ? (body.supplierData as Record<string, unknown>)
-    : null
-
-  return {
+  const payload: Record<string, unknown> = {
     sexo: pickString(body.sexo) || null,
     rg: pickString(body.rg) || null,
     inscricao_estadual: pickString(body.inscricaoEstadual) || null,
@@ -67,7 +54,11 @@ function buildPacientePayload(body: Record<string, unknown>) {
     origem_detalhe: pickString(body.origemDetalhe) || null,
     vinculo_tipos: normalizeVinculoTipos(body),
     precisa_nf: body.precisaNf === true,
-    photo_url: pickString(body.photoUrl) || null,
+    photo_url: (() => {
+      const url = pickString(body.photoUrl)
+      if (!url || url.startsWith('blob:') || url.startsWith('data:')) return null
+      return url
+    })(),
     cep: pickString(addressDetails.zipCode) || null,
     logradouro: pickString(addressDetails.street) || null,
     numero: pickString(addressDetails.number) || null,
@@ -75,11 +66,35 @@ function buildPacientePayload(body: Record<string, unknown>) {
     bairro: pickString(addressDetails.neighborhood) || null,
     cidade: pickString(addressDetails.city) || null,
     estado: pickString(addressDetails.state) || null,
-    necessidades_especiais: specialNeeds,
-    responsavel: responsible,
-    financeiro: financial,
-    fornecedor_dados: supplierData,
   }
+
+  // Só sobrescreve JSONB quando o client envia o campo — evita wipe silencioso.
+  if (body.specialNeeds !== undefined) {
+    payload.necessidades_especiais =
+      body.specialNeeds && typeof body.specialNeeds === 'object'
+        ? (body.specialNeeds as Record<string, unknown>)
+        : null
+  }
+  if (body.responsible !== undefined) {
+    payload.responsavel =
+      body.responsible && typeof body.responsible === 'object'
+        ? (body.responsible as Record<string, unknown>)
+        : null
+  }
+  if (body.financial !== undefined) {
+    payload.financeiro =
+      body.financial && typeof body.financial === 'object'
+        ? (body.financial as Record<string, unknown>)
+        : null
+  }
+  if (body.supplierData !== undefined) {
+    payload.fornecedor_dados =
+      body.supplierData && typeof body.supplierData === 'object'
+        ? (body.supplierData as Record<string, unknown>)
+        : null
+  }
+
+  return payload
 }
 
 async function fetchPatientContext(unidadeId: string | null) {

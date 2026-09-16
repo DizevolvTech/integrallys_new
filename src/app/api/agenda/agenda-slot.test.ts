@@ -5,6 +5,7 @@ import {
   buildOccupyUpdate,
   decidirFluxoAgendamento,
   ocuparSlotDisponivel,
+  validateModalidadeOnlineUrl,
 } from './agenda-slot'
 
 describe('decidirFluxoAgendamento', () => {
@@ -19,6 +20,36 @@ describe('decidirFluxoAgendamento', () => {
   it('compromisso pessoal/reunião (sem paciente) → inserir', () => {
     expect(decidirFluxoAgendamento({ pacienteId: null, foraJanela: false })).toBe('inserir')
     expect(decidirFluxoAgendamento({ pacienteId: null, foraJanela: true })).toBe('inserir')
+  })
+})
+
+describe('validateModalidadeOnlineUrl', () => {
+  it('Presencial não exige URL', () => {
+    expect(validateModalidadeOnlineUrl({ modalidade: 'Presencial', urlOnline: '' })).toEqual({
+      ok: true,
+    })
+  })
+
+  it('Online sem URL → erro', () => {
+    expect(validateModalidadeOnlineUrl({ modalidade: 'Online', urlOnline: '  ' })).toMatchObject({
+      ok: false,
+      code: 'URL_ONLINE_REQUIRED',
+    })
+  })
+
+  it('Hibrido com https válido → ok', () => {
+    expect(
+      validateModalidadeOnlineUrl({
+        modalidade: 'Hibrido',
+        urlOnline: 'https://meet.google.com/abc-defg-hij',
+      }),
+    ).toEqual({ ok: true })
+  })
+
+  it('Online com protocolo inválido → erro', () => {
+    expect(
+      validateModalidadeOnlineUrl({ modalidade: 'Online', urlOnline: 'ftp://example.com' }),
+    ).toMatchObject({ ok: false, code: 'URL_ONLINE_INVALID' })
   })
 })
 

@@ -338,11 +338,39 @@ export function mapRegraRepasseItem(row: Record<string, unknown>) {
 }
 
 export function mapTarefaItem(row: Record<string, unknown>) {
+  const vencimentoIso = row.vencimento_em ? String(row.vencimento_em) : ''
+  let data = ''
+  let horario = ''
+  if (vencimentoIso) {
+    const d = new Date(vencimentoIso)
+    if (!Number.isNaN(d.getTime())) {
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      data = `${yyyy}-${mm}-${dd}`
+      horario = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    }
+  }
+
+  const diasSemana = Array.isArray(row.dias_semana)
+    ? row.dias_semana.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+    : []
+
   return {
     id: String(row.id ?? ''),
     titulo: String(row.titulo ?? ''),
+    descricao: row.descricao ? String(row.descricao) : '',
     responsavel: String(row.responsavel_nome ?? ''),
+    responsavelId: row.responsavel_id ? String(row.responsavel_id) : '',
     status: String(row.status ?? ''),
+    recorrencia: String(row.recorrencia ?? 'nenhuma'),
+    diasSemana,
+    alerta: Boolean(row.alerta),
+    prioridade: row.prioridade ? String(row.prioridade) : '',
+    categoria: row.categoria ? String(row.categoria) : '',
+    vencimentoEm: vencimentoIso,
+    data,
+    horario,
   }
 }
 
@@ -422,6 +450,11 @@ export function mapProcedimentoItem(row: Record<string, unknown>) {
     temRetorno: Boolean(row.tem_retorno),
     prazoRetornoDias: row.prazo_retorno_dias != null ? Number(row.prazo_retorno_dias) : undefined,
     valorRetorno: row.valor_retorno != null ? Number(row.valor_retorno) : undefined,
+    temPacote: Boolean(row.tem_pacote),
+    intervaloRecorrenciaDias:
+      row.intervalo_recorrencia_dias != null ? Number(row.intervalo_recorrencia_dias) : undefined,
+    quantidadeSugeridaPacote:
+      row.quantidade_sugerida_pacote != null ? Number(row.quantidade_sugerida_pacote) : undefined,
     ativo: Boolean(row.ativo),
   }
 }

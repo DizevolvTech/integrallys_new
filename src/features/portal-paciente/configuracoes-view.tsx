@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePerfilPaciente, type PatientPerfilData } from './hooks/use-perfil-paciente'
 import { AlterarFotoModal } from './modals/alterar-foto-modal'
+import { useAuth } from '@/hooks/use-auth'
 
 const EMPTY_PROFILE: PatientPerfilData = {
   nome: '',
@@ -43,6 +44,8 @@ function isValidAppEmail(value: string) {
 
 export function ConfiguracoesView() {
   const { data, isLoading, error, savePerfil, changePassword } = usePerfilPaciente()
+  const user = useAuth((s) => s.user)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null)
   const [formData, setFormData] = useState<PatientPerfilData>(EMPTY_PROFILE)
   const [profileErrors, setProfileErrors] = useState<Partial<Record<keyof PatientPerfilData, string>>>({})
   const [isLoadingCep, setIsLoadingCep] = useState(false)
@@ -58,6 +61,10 @@ export function ConfiguracoesView() {
   useEffect(() => {
     if (data) setFormData(data)
   }, [data])
+
+  useEffect(() => {
+    if (user?.avatarUrl) setAvatarUrl(user.avatarUrl)
+  }, [user?.avatarUrl])
 
   const resetProfileForm = () => {
     setFormData(data ?? EMPTY_PROFILE)
@@ -197,9 +204,18 @@ export function ConfiguracoesView() {
                 </div>
 
                 <div className="flex items-center gap-6">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-app-primary text-2xl font-bold text-white">
-                    {initials}
-                  </div>
+                  {avatarUrl || user?.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatarUrl || user?.avatarUrl || ''}
+                      alt="Foto do perfil"
+                      className="h-20 w-20 rounded-full object-cover border border-app-border dark:border-app-border-dark"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-app-primary text-2xl font-bold text-white">
+                      {initials}
+                    </div>
+                  )}
                   <div>
                     <Button
                       variant="outline"
@@ -209,7 +225,7 @@ export function ConfiguracoesView() {
                       <Upload className="mr-2 h-4 w-4" />
                       Alterar Foto
                     </Button>
-                    <p className="mt-2 text-xs text-app-text-muted">JPG, PNG ou GIF. Máx. 2MB</p>
+                    <p className="mt-2 text-xs text-app-text-muted">JPG, PNG ou WEBP. Máx. 2MB</p>
                   </div>
                 </div>
               </div>
@@ -438,7 +454,11 @@ export function ConfiguracoesView() {
         </Tabs>
       )}
 
-      <AlterarFotoModal isOpen={isAlterarFotoModalOpen} onClose={() => setIsAlterarFotoModalOpen(false)} />
+      <AlterarFotoModal
+        isOpen={isAlterarFotoModalOpen}
+        onClose={() => setIsAlterarFotoModalOpen(false)}
+        onUploaded={(url) => setAvatarUrl(url)}
+      />
     </div>
   )
 }

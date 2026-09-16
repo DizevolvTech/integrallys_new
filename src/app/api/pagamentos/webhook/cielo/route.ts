@@ -7,12 +7,11 @@ import {
 } from '@/lib/gateways/cielo.service'
 
 /**
- * Webhook (postback) do Link de Pagamento Cielo (TAREFA-FIN-01). Sem autenticação
- * de sessão. O status do payload NÃO é confiável — resolvemos o status final
- * consultando a Cielo (venda 3.0 ou pedidos do Link). Responde SEMPRE HTTP 200
+ * Webhook (postback) do Link de Pagamento Cielo (TAREFA-FIN-01).
+ * Se `CIELO_WEBHOOK_TOKEN` estiver definido, exige header `x-webhook-token`
+ * ou query `?token=` igual ao valor. O status do payload NÃO é confiável —
+ * resolvemos consultando a Cielo. Responde SEMPRE HTTP 200 quando autenticado
  * (a Cielo reenfileira em qualquer não-2xx).
- *
- * ⚠️ VERIFICAR os nomes dos campos do postback conforme a conta/versão.
  */
 
 // PaymentIds de venda 3.0 (e ids de agendamento/lançamento) são UUID. Validar
@@ -90,6 +89,20 @@ async function localizarPagamento(
 }
 
 export async function POST(request: NextRequest) {
+  const expectedToken = process.env.CIELO_WEBHOOK_TOKEN?.trim()
+  if (expectedToken) {
+    const provided =
+      request.headers.get('x-webhook-token') ??
+      request.nextUrl.searchParams.get('token') ??
+      ''
+    if (provided !== expectedToken) {
+      return NextResponse.json(
+        { error: 'Token inválido', code: 'WEBHOOK_UNAUTHORIZED' },
+        { status: 401 },
+      )
+    }
+  }
+
   const payload = await parseBody(request)
   if (!payload) return NextResponse.json({ ok: true })
 
@@ -139,15 +152,21 @@ export async function POST(request: NextRequest) {
 
   if (resolved.pago) {
     const agora = new Date().toISOString()
-    await supabase
+    const onlineUp = await supabase
       .from('pagamentos_online')
       .update({ status: 'capturado', pago_em: agora, updated_at: agora })
       .eq('id', row.id)
+    if (onlineUp.error) {
+      return NextResponse.json({ error: 'Falha ao atualizar pagamento', code: 'WEBHOOK_UPDATE_FAILED' }, { status: 500 })
+    }
     if (row.lancamento_id) {
-      await supabase
+      const finUp = await supabase
         .from('financeiro_lancamentos')
         .update({ status: 'Pago', updated_at: agora })
         .eq('id', row.lancamento_id)
+      if (finUp.error) {
+        return NextResponse.json({ error: 'Falha ao atualizar lançamento', code: 'WEBHOOK_UPDATE_FAILED' }, { status: 500 })
+      }
     }
   } else {
     await supabase

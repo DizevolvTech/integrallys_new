@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/app-api'
+import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { isMaskedValue } from '@/lib/config-secrets'
 import { mapDisparoItem } from '@/lib/domain-mappers'
@@ -397,7 +397,7 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body?.action) {
-    return NextResponse.json({ error: 'action obrigatória' }, { status: 400 })
+    return serverErrorResponse('action obrigatória', 'INVALID_PAYLOAD', 400)
   }
 
   const action = String(body.action)
@@ -408,13 +408,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'agendar_lembrete') {
-    if (!body.agendamentoId) return NextResponse.json({ error: 'agendamentoId obrigatório' }, { status: 400 })
+    if (!body.agendamentoId) {
+      return serverErrorResponse('agendamentoId obrigatório', 'INVALID_PAYLOAD', 400)
+    }
     await agendarLembrete(String(body.agendamentoId))
     return NextResponse.json({ ok: true })
   }
 
   if (action === 'agendar_pos_consulta') {
-    if (!body.agendamentoId) return NextResponse.json({ error: 'agendamentoId obrigatório' }, { status: 400 })
+    if (!body.agendamentoId) {
+      return serverErrorResponse('agendamentoId obrigatório', 'INVALID_PAYLOAD', 400)
+    }
     await agendarPosConsulta(String(body.agendamentoId))
     return NextResponse.json({ ok: true })
   }
@@ -428,7 +432,7 @@ export async function POST(request: NextRequest) {
     const pacienteIds = Array.isArray(body.pacienteIds) ? (body.pacienteIds as string[]) : []
     const mensagem = typeof body.mensagem === 'string' ? body.mensagem : ''
     if (!pacienteIds.length || !mensagem) {
-      return NextResponse.json({ error: 'pacienteIds e mensagem obrigatórios' }, { status: 400 })
+      return serverErrorResponse('pacienteIds e mensagem obrigatórios', 'INVALID_PAYLOAD', 400)
     }
     const result = await dispararCampanha(pacienteIds, mensagem)
     return NextResponse.json(result)
@@ -439,7 +443,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
   }
 
-  return NextResponse.json({ error: 'action inválida' }, { status: 400 })
+  return serverErrorResponse('action inválida', 'INVALID_PAYLOAD', 400)
 }
 
 export { processarPendentes, agendarLembrete, processarCampanhas }

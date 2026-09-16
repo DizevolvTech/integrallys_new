@@ -146,6 +146,7 @@ export function PacientesView() {
       status: string
       pacienteId: string | null
       pacienteNome: string
+      situacao?: 'vencido' | 'a_vencer' | 'pendente'
       linkFinanceiro: string
     }>
   >([])
@@ -167,6 +168,7 @@ export function PacientesView() {
           status: string
           pacienteId: string | null
           pacienteNome: string
+          situacao?: 'vencido' | 'a_vencer' | 'pendente'
           linkFinanceiro: string
         }>
       }>('/api/crm/inadimplencia')
@@ -259,7 +261,11 @@ export function PacientesView() {
       vinculoTipos: patient.vinculoTipos && patient.vinculoTipos.length > 0 ? patient.vinculoTipos : ['cliente'],
       precisaNf: patient.precisaNf === true,
       unidadeId: patient.unidadeId ? String(patient.unidadeId) : '',
+      photoUrl: patient.photoUrl || undefined,
       addressDetails: patient.addressDetails,
+      specialNeeds: patient.specialNeeds as Record<string, unknown> | undefined,
+      responsible: patient.responsible as Record<string, unknown> | undefined,
+      supplierData: patient.supplierData as Record<string, unknown> | undefined,
       criarAcessoPortal: patient.criarAcessoPortal === true,
     })
   }
@@ -282,7 +288,11 @@ export function PacientesView() {
       vinculoTipos: patient.vinculoTipos && patient.vinculoTipos.length > 0 ? patient.vinculoTipos : ['cliente'],
       precisaNf: patient.precisaNf === true,
       unidadeId: patient.unidadeId ? String(patient.unidadeId) : '',
+      photoUrl: patient.photoUrl || undefined,
       addressDetails: patient.addressDetails,
+      specialNeeds: patient.specialNeeds as Record<string, unknown> | undefined,
+      responsible: patient.responsible as Record<string, unknown> | undefined,
+      supplierData: patient.supplierData as Record<string, unknown> | undefined,
       criarAcessoPortal: patient.criarAcessoPortal === true,
     })
     setSelectedPaciente(patient)
@@ -618,7 +628,7 @@ export function PacientesView() {
                 <div>
                   <h3 className="text-lg font-medium text-app-text-primary dark:text-white">Inadimplência</h3>
                   <p className="text-sm text-app-text-muted">
-                    Receitas pendentes com vencimento anterior a hoje (visão CRM).
+                    Receitas em aberto: vencidas e a vencer (visão CRM).
                   </p>
                 </div>
                 <Button
@@ -643,6 +653,7 @@ export function PacientesView() {
                       <TableHead>Paciente / beneficiário</TableHead>
                       <TableHead>Descrição</TableHead>
                       <TableHead>Vencimento</TableHead>
+                      <TableHead>Situação</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
                     </TableRow>
@@ -650,8 +661,8 @@ export function PacientesView() {
                   <TableBody>
                     {inadimplencia.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-app-text-muted">
-                          Nenhum lançamento vencido encontrado.
+                        <TableCell colSpan={6} className="text-app-text-muted">
+                          Nenhum lançamento pendente ou vencido encontrado.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -663,6 +674,13 @@ export function PacientesView() {
                             {row.vencimento
                               ? new Date(`${row.vencimento}T00:00:00`).toLocaleDateString('pt-BR')
                               : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {row.situacao === 'vencido'
+                              ? 'Vencido'
+                              : row.situacao === 'a_vencer'
+                                ? 'A vencer'
+                                : 'Pendente'}
                           </TableCell>
                           <TableCell>{row.status}</TableCell>
                           <TableCell className="text-right">

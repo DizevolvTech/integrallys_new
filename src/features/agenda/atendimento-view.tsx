@@ -795,14 +795,20 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
 
   const stockItems = useMemo(
     () =>
-      estoqueItems.map((item) => ({
-        id: item.id,
-        nome: item.produto,
-        categoria: item.categoria,
-        aguaBoa: item.quantidade,
-        querencia: 0,
-        total: item.quantidade,
-      })),
+      estoqueItems
+        .filter(
+          (item) =>
+            Number(item.quantidade ?? 0) > 0 &&
+            !String(item.status ?? '').toLowerCase().includes('indispon'),
+        )
+        .map((item) => ({
+          id: item.id,
+          nome: item.produto,
+          categoria: item.categoria,
+          aguaBoa: item.quantidade,
+          querencia: 0,
+          total: item.quantidade,
+        })),
     [estoqueItems],
   )
 

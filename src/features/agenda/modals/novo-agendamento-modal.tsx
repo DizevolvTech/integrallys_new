@@ -13,10 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
-import {
-  CadastroRapidoPaciente,
-  type CadastroRapidoPacientePayload,
-} from './cadastro-rapido-paciente'
+import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
 import { resolveModalidade, type TipoAtendimento } from './novo-agendamento.utils'
 
 interface PacienteOption {
@@ -59,7 +56,11 @@ interface NovoAgendamentoModalProps {
   initialDate?: string
   initialTime?: string
   initialProfissional?: string
-  onCreatePatient?: (payload: CadastroRapidoPacientePayload) => Promise<PacienteOption>
+  initialProcedimentoId?: string
+  /** Paciente recém-criado no cadastro completo (seleciona no formulário). */
+  createdPatient?: PacienteOption | null
+  /** Abre o cadastro completo (modal Novo Paciente) em vez do formulário rápido. */
+  onRequestFullCadastro?: (nomeHint: string) => void
   onSave?: (payload: {
     pacienteId: string
     profissional: string
@@ -69,10 +70,20 @@ interface NovoAgendamentoModalProps {
     observacoes: string
     modalidade?: string
     plataformaOnline?: string
+    urlOnline?: string
     foraJanela?: boolean
     motivoEncaixe?: string
     procedimentoId?: string
     valorProcedimento?: number
+    serieQuantidade?: number
+    serieIntervaloDias?: number
+    pagamentoInicial: {
+      valor: number
+      metodo: string
+      bandeira?: string
+      parcelas?: number
+      contaBancariaId?: string
+    }
   }) => Promise<void> | void
 }
 
@@ -88,15 +99,15 @@ export function NovoAgendamentoModal({
   initialDate,
   initialTime,
   initialProfissional,
-  onCreatePatient,
+  initialProcedimentoId,
+  createdPatient = null,
+  onRequestFullCadastro,
   onSave,
 }: NovoAgendamentoModalProps) {
   const formRef = useRef<HTMLFormElement | null>(null)
   const [pacienteId, setPacienteId] = useState('')
   const [patientQuery, setPatientQuery] = useState('')
   const [patientListOpen, setPatientListOpen] = useState(false)
-  const [showQuickCreate, setShowQuickCreate] = useState(false)
-  const [creatingPatient, setCreatingPatient] = useState(false)
   const [extraPatients, setExtraPatients] = useState<PacienteOption[]>([])
   const [profissional, setProfissional] = useState('')
   const [data, setData] = useState(currentDate ? toLocalISODate(currentDate) : '')
@@ -105,32 +116,78 @@ export function NovoAgendamentoModal({
   const [observacoes, setObservacoes] = useState('')
   const [tipoAtendimento, setTipoAtendimento] = useState<TipoAtendimento>('presencial')
   const [plataformaOnline, setPlataformaOnline] = useState<'zoom' | 'google_meet' | 'teams'>('google_meet')
+  const [urlOnline, setUrlOnline] = useState('')
   const [encaixeExtraHorario, setEncaixeExtraHorario] = useState(false)
   const [motivoEncaixe, setMotivoEncaixe] = useState('')
   const [procedimentoId, setProcedimentoId] = useState('')
+  const [gerarPacote, setGerarPacote] = useState(false)
+  const [serieQuantidade, setSerieQuantidade] = useState('')
+  const [pagamentoValor, setPagamentoValor] = useState('')
+  const [pagamentoMetodo, setPagamentoMetodo] = useState('')
+  const [pagamentoBandeira, setPagamentoBandeira] = useState('')
+  const [pagamentoParcelas, setPagamentoParcelas] = useState('1')
+  const [pagamentoContaId, setPagamentoContaId] = useState('')
   const { data: procedimentosCatalogo } = useProcedimentos()
+  const { data: contasBancarias } = useContasBancarias()
+  const contasAtivas = useMemo(() => contasBancarias.filter((item) => item.ativo), [contasBancarias])
 
   const selectedProfessional = useMemo(
-    () => professionalDetails.find((item) => item.nome === profissional) ?? null,
+    () =>
+      professionalDetails.find(
+        (item) => item.nome.trim().toLowerCase() === profissional.trim().toLowerCase(),
+      ) ?? null,
     [professionalDetails, profissional],
   )
 
   const procedimentosDisponiveis = useMemo(() => {
     const ativos = procedimentosCatalogo.filter((item) => item.ativo)
+    if (!profissional) return []
+    // Sem vínculos cadastrados: lista vazia (não libera todos os procedimentos).
     const vinculados = selectedProfessional?.procedimentoIds ?? []
-    if (vinculados.length === 0) return ativos
+    if (vinculados.length === 0) return []
     const allowed = new Set(vinculados)
     return ativos.filter((item) => allowed.has(item.id))
-  }, [procedimentosCatalogo, selectedProfessional])
+  }, [procedimentosCatalogo, profissional, selectedProfessional])
 
   const procedimentoSelecionado = useMemo(
     () => procedimentosDisponiveis.find((item) => item.id === procedimentoId) ?? null,
     [procedimentosDisponiveis, procedimentoId],
   )
 
+  const valorCobrado = useMemo(() => {
+    if (!procedimentoSelecionado) return undefined
+    if (tipo === 'retorno' && procedimentoSelecionado.temRetorno) {
+      return procedimentoSelecionado.valorRetorno ?? procedimentoSelecionado.valor
+    }
+    return procedimentoSelecionado.valor
+  }, [procedimentoSelecionado, tipo])
+
   useEffect(() => {
+    if (valorCobrado != null && Number.isFinite(valorCobrado)) {
+      setPagamentoValor((current) => (current.trim() ? current : String(Number(valorCobrado.toFixed(2)))))
+    }
+  }, [valorCobrado])
+
+  useEffect(() => {
+    if (skipProcedimentoResetRef.current) {
+      skipProcedimentoResetRef.current = false
+      return
+    }
     setProcedimentoId('')
+    setGerarPacote(false)
+    setSerieQuantidade('')
   }, [profissional])
+
+  useEffect(() => {
+    if (!procedimentoSelecionado?.temPacote) {
+      setGerarPacote(false)
+      setSerieQuantidade('')
+      return
+    }
+    if (procedimentoSelecionado.quantidadeSugeridaPacote) {
+      setSerieQuantidade(String(procedimentoSelecionado.quantidadeSugeridaPacote))
+    }
+  }, [procedimentoSelecionado])
 
   const allPatients = useMemo(() => {
     const map = new Map<string, PacienteOption>()
@@ -156,11 +213,21 @@ export function NovoAgendamentoModal({
   const noPatientMatch = patientQuery.trim().length > 0 && filteredPatients.length === 0
 
   // Horários 'Disponível' do profissional selecionado naquela data (ordenados, únicos).
+  // No dia de hoje, remove horários já passados (não permite booking retroativo).
   const slotsForSelection = useMemo(() => {
     if (!profissional || !data) return [] as string[]
+    const hoje = toLocalISODate(new Date())
     const horarios = availableSlots
       .filter((slot) => slot.profissional === profissional && slot.data === data)
       .map((slot) => slot.horario)
+      .filter((horario) => {
+        if (data !== hoje) return true
+        const [hh, mm] = horario.split(':').map(Number)
+        if (!Number.isFinite(hh) || !Number.isFinite(mm)) return true
+        const agora = new Date()
+        const slotDate = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), hh, mm, 0, 0)
+        return slotDate.getTime() >= agora.getTime()
+      })
     return Array.from(new Set(horarios)).sort()
   }, [availableSlots, profissional, data])
 
@@ -177,6 +244,7 @@ export function NovoAgendamentoModal({
   // `patients`: após createPaciente a lista troca de identidade e apagaria o
   // paciente recém-selecionado.
   const wasOpenRef = useRef(false)
+  const skipProcedimentoResetRef = useRef(false)
   useEffect(() => {
     if (!isOpen) {
       wasOpenRef.current = false
@@ -187,7 +255,6 @@ export function NovoAgendamentoModal({
     if (!justOpened) return
 
     setExtraPatients([])
-    setShowQuickCreate(false)
     setPatientListOpen(false)
     setPacienteId('')
     setPatientQuery('')
@@ -202,14 +269,21 @@ export function NovoAgendamentoModal({
     }
     if (initialDate) setData(initialDate)
     if (initialTime) setHorario(initialTime)
-    if (initialProfissional) setProfissional(initialProfissional)
-    setProcedimentoId('')
+    if (initialProfissional) {
+      skipProcedimentoResetRef.current = Boolean(initialProcedimentoId)
+      setProfissional(initialProfissional)
+    } else {
+      setProfissional('')
+    }
+    setProcedimentoId(initialProcedimentoId || '')
+    setUrlOnline('')
+    setPlataformaOnline('google_meet')
     // patients intencionalmente omitido — lookup usa o valor do render da abertura
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open transition only
-  }, [isOpen, initialDate, initialPatientId, initialProfissional, initialTime])
+  }, [isOpen, initialDate, initialPatientId, initialProfissional, initialProcedimentoId, initialTime])
 
   // Se o modal abriu com preset antes da lista carregar, preenche o nome quando
-  // `patients` chegar — sem limpar seleção feita pelo usuário/create rápido.
+  // `patients` chegar — sem limpar seleção feita pelo usuário/create.
   useEffect(() => {
     if (!isOpen || !initialPatientId) return
     const initial = patients.find((item) => item.id === initialPatientId)
@@ -224,6 +298,18 @@ export function NovoAgendamentoModal({
     })
   }, [isOpen, initialPatientId, patients])
 
+  // Paciente criado no cadastro completo (fora deste modal).
+  useEffect(() => {
+    if (!isOpen || !createdPatient?.id) return
+    setExtraPatients((prev) => {
+      if (prev.some((item) => item.id === createdPatient.id)) return prev
+      return [...prev, createdPatient]
+    })
+    setPacienteId(createdPatient.id)
+    setPatientQuery(createdPatient.nome)
+    setPatientListOpen(false)
+  }, [createdPatient, isOpen])
+
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose()
   }
@@ -236,58 +322,135 @@ export function NovoAgendamentoModal({
     setPacienteId(patient.id)
     setPatientQuery(patient.nome)
     setPatientListOpen(false)
-    setShowQuickCreate(false)
   }
 
   const clearPatient = () => {
     setPacienteId('')
     setPatientQuery('')
     setPatientListOpen(false)
-    setShowQuickCreate(false)
   }
 
-  const handleQuickCreate = async (payload: CadastroRapidoPacientePayload) => {
-    if (!onCreatePatient) {
-      toast.error('Criação rápida de paciente indisponível.')
+  const handleRequestFullCadastro = () => {
+    if (!onRequestFullCadastro) {
+      toast.error('Cadastro de paciente indisponível.')
       return
     }
-    setCreatingPatient(true)
-    try {
-      const created = await onCreatePatient(payload)
-      setExtraPatients((prev) => [...prev, created])
-      selectPatient(created)
-      toast.success('Paciente cadastrado.')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Falha ao cadastrar paciente')
-    } finally {
-      setCreatingPatient(false)
-    }
+    setPatientListOpen(false)
+    onRequestFullCadastro(patientQuery.trim())
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!pacienteId || !data || !horario) return
+
+    const hoje = toLocalISODate(new Date())
+    if (data < hoje || (data === hoje && (() => {
+      const [hh, mm] = horario.split(':').map(Number)
+      const agora = new Date()
+      const slotDate = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), hh, mm, 0, 0)
+      return slotDate.getTime() < agora.getTime()
+    })())) {
+      toast.error('Não é possível agendar em horário já passado.')
+      return
+    }
+
+    if (tipo === 'retorno' && procedimentoSelecionado && !procedimentoSelecionado.temRetorno) {
+      toast.error('Este procedimento não possui retorno cadastrado. Agende como consulta.')
+      return
+    }
+
+    if (gerarPacote && tipo === 'retorno') {
+      toast.error('Pacote recorrente não se aplica a retorno. Use consulta.')
+      return
+    }
+
+    const qtdPacote = Number(serieQuantidade)
+    if (gerarPacote && (!Number.isFinite(qtdPacote) || qtdPacote < 2)) {
+      toast.error('Informe a quantidade de sessões do pacote (mínimo 2).')
+      return
+    }
+    if (gerarPacote && !procedimentoSelecionado?.intervaloRecorrenciaDias) {
+      toast.error('Procedimento sem intervalo de recorrência cadastrado.')
+      return
+    }
+
+    const valorPago = Number(String(pagamentoValor).replace(',', '.'))
+    if (!pagamentoMetodo) {
+      toast.error('Informe o método do pagamento inicial.')
+      return
+    }
+    if (!Number.isFinite(valorPago) || valorPago <= 0) {
+      toast.error('Informe um valor de pagamento inicial (pode ser parcial).')
+      return
+    }
+    const metodoLower = pagamentoMetodo.toLowerCase()
+    const isCartao = metodoLower.includes('cartão') || metodoLower.includes('cartao')
+    const isCredito = metodoLower.includes('crédito') || metodoLower.includes('credito')
+    const isPix = metodoLower.includes('pix')
+    if (isCartao && !pagamentoBandeira) {
+      toast.error('Informe a bandeira do cartão.')
+      return
+    }
+    if (isPix && !pagamentoContaId) {
+      toast.error('Selecione a conta bancária do PIX.')
+      return
+    }
+
     const { modalidade, plataformaOnline: plataforma } = resolveModalidade(tipoAtendimento, plataformaOnline)
-    await onSave?.({
-      pacienteId,
-      profissional,
-      data,
-      horario,
-      tipo,
-      observacoes,
-      modalidade,
-      plataformaOnline: plataforma,
-      foraJanela: encaixeExtraHorario,
-      motivoEncaixe: encaixeExtraHorario ? motivoEncaixe : undefined,
-      procedimentoId: procedimentoId || undefined,
-      valorProcedimento: procedimentoSelecionado?.valor,
-    })
-    onClose()
+    const needsUrl = tipoAtendimento === 'online' || tipoAtendimento === 'hibrido'
+    const urlTrimmed = urlOnline.trim()
+    if (needsUrl) {
+      if (!urlTrimmed) {
+        toast.error('Informe a URL do atendimento online/híbrido.')
+        return
+      }
+      try {
+        const parsed = new URL(urlTrimmed)
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          toast.error('A URL online deve começar com http:// ou https://.')
+          return
+        }
+      } catch {
+        toast.error('URL online inválida.')
+        return
+      }
+    }
+    try {
+      await onSave?.({
+        pacienteId,
+        profissional,
+        data,
+        horario,
+        tipo,
+        observacoes,
+        modalidade,
+        plataformaOnline: plataforma,
+        urlOnline: needsUrl ? urlTrimmed : undefined,
+        foraJanela: encaixeExtraHorario,
+        motivoEncaixe: encaixeExtraHorario ? motivoEncaixe : undefined,
+        procedimentoId: procedimentoId || undefined,
+        valorProcedimento: valorCobrado,
+        serieQuantidade: gerarPacote ? qtdPacote : undefined,
+        serieIntervaloDias: gerarPacote
+          ? procedimentoSelecionado?.intervaloRecorrenciaDias
+          : undefined,
+        pagamentoInicial: {
+          valor: Number(valorPago.toFixed(2)),
+          metodo: pagamentoMetodo,
+          bandeira: isCartao ? pagamentoBandeira : undefined,
+          parcelas: isCredito ? Number(pagamentoParcelas) || 1 : undefined,
+          contaBancariaId: isPix ? pagamentoContaId : undefined,
+        },
+      })
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível criar o agendamento.')
+    }
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="rounded-integrallys-lg bg-app-card dark:bg-app-card-dark">
+      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-integrallys-lg bg-app-card dark:bg-app-card-dark">
         <ModalHeader
           title="Novo Agendamento"
           description="Preencha os dados abaixo para realizar o agendamento."
@@ -311,7 +474,6 @@ export function NovoAgendamentoModal({
                   setPatientQuery(value)
                   setPacienteId('')
                   setPatientListOpen(true)
-                  setShowQuickCreate(false)
                 }}
                 onFocus={() => setPatientListOpen(true)}
                 placeholder="Buscar ou digitar nome do paciente"
@@ -328,7 +490,7 @@ export function NovoAgendamentoModal({
                   <X className="h-4 w-4" />
                 </button>
               )}
-              {patientListOpen && patientQuery.trim().length > 0 && !showQuickCreate && (
+              {patientListOpen && patientQuery.trim().length > 0 && (
                 <div
                   id="paciente-sugestoes"
                   role="listbox"
@@ -350,21 +512,20 @@ export function NovoAgendamentoModal({
                   {noPatientMatch && (
                     <div className="space-y-2 p-3">
                       <p className="text-xs font-medium text-app-text-primary dark:text-white">
-                        Cadastro rápido
+                        Paciente não encontrado
                       </p>
-                      <p className="text-xs text-app-text-muted">Nenhum paciente encontrado.</p>
+                      <p className="text-xs text-app-text-muted">
+                        Abra o cadastro completo para incluir o paciente na clínica.
+                      </p>
                       <Button
                         type="button"
                         variant="outline"
                         className="h-9 w-full gap-2 rounded-integrallys"
                         onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          setShowQuickCreate(true)
-                          setPatientListOpen(false)
-                        }}
+                        onClick={handleRequestFullCadastro}
                       >
                         <UserPlus className="h-4 w-4" />
-                        Cadastrar paciente rápido
+                        Cadastrar paciente completo
                       </Button>
                     </div>
                   )}
@@ -374,13 +535,16 @@ export function NovoAgendamentoModal({
             {pacienteId && patientName && (
               <p className="text-xs text-app-text-muted">Selecionado: {patientName}</p>
             )}
-            {showQuickCreate && (
-              <CadastroRapidoPaciente
-                initialNome={patientQuery.trim()}
-                isSubmitting={creatingPatient}
-                onCancel={() => setShowQuickCreate(false)}
-                onSubmit={handleQuickCreate}
-              />
+            {!pacienteId && noPatientMatch && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full gap-2 rounded-integrallys"
+                onClick={handleRequestFullCadastro}
+              >
+                <UserPlus className="h-4 w-4" />
+                Cadastrar paciente completo
+              </Button>
             )}
           </div>
 
@@ -430,13 +594,53 @@ export function NovoAgendamentoModal({
                 ))}
               </SelectContent>
             </Select>
-            {procedimentoSelecionado?.valor != null && (
+            {procedimentosDisponiveis.length === 0 && profissional && (
               <p className="text-xs text-app-text-muted">
-                Valor para cobrança: R${' '}
-                {procedimentoSelecionado.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                Nenhum procedimento vinculado a este profissional. Cadastre o vínculo em Profissionais.
+              </p>
+            )}
+            {valorCobrado != null && (
+              <p className="text-xs text-app-text-muted">
+                Valor para cobrança{tipo === 'retorno' ? ' (retorno)' : ''}: R${' '}
+                {valorCobrado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            )}
+            {tipo === 'retorno' && procedimentoSelecionado?.temRetorno && (
+              <p className="text-xs text-app-text-muted">
+                Retorno válido em até {procedimentoSelecionado.prazoRetornoDias ?? 35} dias após o
+                último atendimento deste procedimento.
               </p>
             )}
           </div>
+
+          {procedimentoSelecionado?.temPacote && tipo !== 'retorno' && (
+            <div className="space-y-3 rounded-integrallys border border-app-border bg-app-bg-secondary/50 p-3 dark:border-app-border-dark dark:bg-app-bg-dark">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">
+                    Gerar pacote recorrente
+                  </Label>
+                  <p className="text-xs text-app-text-muted">
+                    A cada {procedimentoSelecionado.intervaloRecorrenciaDias} dia(s), mesmo horário.
+                  </p>
+                </div>
+                <Switch checked={gerarPacote} onCheckedChange={setGerarPacote} />
+              </div>
+              {gerarPacote && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-normal">Quantidade de sessões</Label>
+                  <Input
+                    type="number"
+                    min={2}
+                    value={serieQuantidade}
+                    onChange={(event) => setSerieQuantidade(event.target.value)}
+                    className="h-10 rounded-integrallys"
+                    placeholder="Ex: 10"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -523,18 +727,30 @@ export function NovoAgendamentoModal({
           </div>
 
           {(tipoAtendimento === 'online' || tipoAtendimento === 'hibrido') && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-normal text-app-text-primary dark:text-white">Plataforma online</Label>
-              <Select value={plataformaOnline} onValueChange={(value) => setPlataformaOnline(value as 'zoom' | 'google_meet' | 'teams')}>
-                <SelectTrigger className="h-11 rounded-integrallys border-app-border bg-white dark:border-app-border-dark dark:bg-app-bg-dark">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent className="rounded-integrallys">
-                  <SelectItem value="google_meet">Google Meet</SelectItem>
-                  <SelectItem value="zoom">Zoom</SelectItem>
-                  <SelectItem value="teams">Microsoft Teams</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-normal text-app-text-primary dark:text-white">Plataforma online</Label>
+                <Select value={plataformaOnline} onValueChange={(value) => setPlataformaOnline(value as 'zoom' | 'google_meet' | 'teams')}>
+                  <SelectTrigger className="h-11 rounded-integrallys border-app-border bg-white dark:border-app-border-dark dark:bg-app-bg-dark">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-integrallys">
+                    <SelectItem value="google_meet">Google Meet</SelectItem>
+                    <SelectItem value="zoom">Zoom</SelectItem>
+                    <SelectItem value="teams">Microsoft Teams</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-normal text-app-text-primary dark:text-white">Link da reunião</Label>
+                <Input
+                  type="url"
+                  value={urlOnline}
+                  onChange={(event) => setUrlOnline(event.target.value)}
+                  placeholder="https://meet.google.com/..."
+                  className="h-11 rounded-integrallys border-app-border bg-white dark:border-app-border-dark dark:bg-app-bg-dark"
+                />
+              </div>
             </div>
           )}
 
@@ -550,6 +766,104 @@ export function NovoAgendamentoModal({
                 placeholder="Motivo do encaixe extra-horário"
                 className="h-10 rounded-integrallys"
               />
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-integrallys border border-app-border p-4 dark:border-app-border-dark">
+            <div>
+              <p className="text-sm font-medium text-app-text-primary dark:text-white">Pagamento inicial *</p>
+              <p className="text-xs text-app-text-muted">
+                Obrigatório no agendamento. Pode ser parcial — o saldo fica em aberto.
+              </p>
+              {valorCobrado != null && (
+                <p className="mt-1 text-xs text-app-text-secondary dark:text-white/70">
+                  Valor do procedimento: R${' '}
+                  {Number(valorCobrado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Método</Label>
+                <Select value={pagamentoMetodo} onValueChange={setPagamentoMetodo}>
+                  <SelectTrigger className="h-11 rounded-integrallys">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                    <SelectItem value="PIX">PIX</SelectItem>
+                    <SelectItem value="Cartão de Débito">Cartão de Débito</SelectItem>
+                    <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>
+                    <SelectItem value="Transferência">Transferência</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Valor recebido agora</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={pagamentoValor}
+                  onChange={(event) => setPagamentoValor(event.target.value)}
+                  className="h-11 rounded-integrallys"
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+            {(pagamentoMetodo.toLowerCase().includes('cartão') || pagamentoMetodo.toLowerCase().includes('cartao')) && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Bandeira *</Label>
+                  <Select value={pagamentoBandeira || '__none__'} onValueChange={(v) => setPagamentoBandeira(v === '__none__' ? '' : v)}>
+                    <SelectTrigger className="h-11 rounded-integrallys">
+                      <SelectValue placeholder="Bandeira" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" disabled>Selecione</SelectItem>
+                      <SelectItem value="Visa">Visa</SelectItem>
+                      <SelectItem value="Mastercard">Mastercard</SelectItem>
+                      <SelectItem value="Elo">Elo</SelectItem>
+                      <SelectItem value="Amex">Amex</SelectItem>
+                      <SelectItem value="Hipercard">Hipercard</SelectItem>
+                      <SelectItem value="Outros">Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(pagamentoMetodo.toLowerCase().includes('crédito') || pagamentoMetodo.toLowerCase().includes('credito')) && (
+                  <div className="space-y-1.5">
+                    <Label>Parcelas</Label>
+                    <Select value={pagamentoParcelas} onValueChange={setPagamentoParcelas}>
+                      <SelectTrigger className="h-11 rounded-integrallys">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }, (_, idx) => idx + 1).map((n) => (
+                          <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+            {pagamentoMetodo.toLowerCase().includes('pix') && (
+              <div className="space-y-1.5">
+                <Label>Conta PIX *</Label>
+                <Select value={pagamentoContaId || '__none__'} onValueChange={(v) => setPagamentoContaId(v === '__none__' ? '' : v)}>
+                  <SelectTrigger className="h-11 rounded-integrallys">
+                    <SelectValue placeholder="Selecione a conta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__" disabled>Selecione</SelectItem>
+                    {contasAtivas.map((conta) => (
+                      <SelectItem key={conta.id} value={conta.id}>
+                        {conta.nome}{conta.banco ? ` · ${conta.banco}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           </div>
 

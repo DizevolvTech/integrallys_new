@@ -112,13 +112,19 @@ export function PrescricoesView() {
   )
   const productOptions = useMemo(
     () =>
-      estoque.map((item) => ({
-        id: item.id,
-        name: item.produto,
-        stock: item.quantidade,
-        price: item.precoVenda ?? 0,
-        costPrice: item.precoCusto ?? 0,
-      })),
+      estoque
+        .filter(
+          (item) =>
+            Number(item.quantidade ?? 0) > 0 &&
+            !String(item.status ?? '').toLowerCase().includes('indispon'),
+        )
+        .map((item) => ({
+          id: item.id,
+          name: item.produto,
+          stock: item.quantidade,
+          price: item.precoVenda ?? 0,
+          costPrice: item.precoCusto ?? 0,
+        })),
     [estoque],
   )
   const sellerOptions = useMemo(
