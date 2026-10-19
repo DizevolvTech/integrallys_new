@@ -190,6 +190,10 @@ export function mapUsuarioItem(row: Record<string, unknown>) {
   const especialistasPermitidos = Array.isArray(especialistasPermitidosRaw)
     ? (especialistasPermitidosRaw as unknown[]).map((value) => String(value))
     : null
+  const agendaPessoalRaw = row.agenda_pessoal_permitidos
+  const agendaPessoalPermitidos = Array.isArray(agendaPessoalRaw)
+    ? (agendaPessoalRaw as unknown[]).map((value) => String(value))
+    : []
   return {
     id: String(row.id ?? ''),
     nome: String(row.nome ?? ''),
@@ -202,6 +206,7 @@ export function mapUsuarioItem(row: Record<string, unknown>) {
         ? (row.tipo_vinculo as 'parceiro' | 'interno')
         : 'interno',
     especialistasPermitidos,
+    agendaPessoalPermitidos,
   }
 }
 

@@ -14,6 +14,7 @@ export interface UsuarioItem {
   unidadeId?: string | null
   tipoVinculo?: 'interno' | 'parceiro'
   especialistasPermitidos?: string[] | null
+  agendaPessoalPermitidos?: string[]
 }
 
 export interface UsuarioInput {
@@ -27,6 +28,7 @@ export interface UsuarioInput {
   unidadeId?: string | null
   tipoVinculo?: 'interno' | 'parceiro'
   especialistasPermitidos?: string[] | null
+  agendaPessoalPermitidos?: string[]
 }
 
 export function useUsuarios() {

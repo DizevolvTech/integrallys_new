@@ -51,6 +51,7 @@ import {
 import { useAgendaCalendar } from './hooks/use-agenda-calendar'
 import { useAgendaActions } from './hooks/use-agenda-actions'
 import { AgendaDayView } from './components/agenda-day-view'
+import { AgendaCombinadaList } from './components/agenda-combinada-list'
 import { AgendaWeekView } from './components/agenda-week-view'
 import { AgendaMonthView } from './components/agenda-month-view'
 import {
@@ -102,7 +103,7 @@ export function AgendaView() {
   const { data: usuarios } = useUsuarios()
   const { data: profissionaisCatalogo } = useProfissionais()
   const isEspecialista = agendaClinica
-  const [activeTab, setActiveTab] = useState<'global' | 'pessoal'>('global')
+  const [activeTab, setActiveTab] = useState<'global' | 'pessoal' | 'ambas'>('global')
   const [selectedProfessional, setSelectedProfessional] = useState('todos')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPersonalSlot, setSelectedPersonalSlot] = useState<AgendaSlot | null>(null)
@@ -265,10 +266,17 @@ export function AgendaView() {
       personalAgenda.map(mapAgendaItemToSlot),
     [personalAgenda],
   )
+  // Visão simultânea (item 1): atendimentos reais + compromissos pessoais, sem slots livres.
+  const combinedAgendaSlots = useMemo<AgendaSlot[]>(
+    () => [...globalAgendaSlots.filter((slot) => slot.status !== 'Disponível'), ...personalAgendaSlots],
+    [globalAgendaSlots, personalAgendaSlots],
+  )
   const activeAgendaSlots =
-    activeTab === 'pessoal' || (isEspecialista && activeTab !== 'global')
-      ? personalAgendaSlots
-      : globalAgendaSlots
+    activeTab === 'ambas'
+      ? combinedAgendaSlots
+      : activeTab === 'pessoal' || (isEspecialista && activeTab !== 'global')
+        ? personalAgendaSlots
+        : globalAgendaSlots
   const patientOptions = useMemo(() => {
     if (agendaPatients.length > 0) {
       return agendaPatients
@@ -765,9 +773,10 @@ export function AgendaView() {
             options={[
               { value: 'global', label: 'Atendimentos' },
               { value: 'pessoal', label: 'Pessoal' },
+              { value: 'ambas', label: 'Ambas' },
             ]}
             value={activeTab}
-            onChange={(value) => setActiveTab(value as 'global' | 'pessoal')}
+            onChange={(value) => setActiveTab(value as 'global' | 'pessoal' | 'ambas')}
             className={isEspecialista ? 'w-full' : 'min-w-[260px]'}
             fullWidth={isEspecialista}
           />
@@ -938,7 +947,7 @@ export function AgendaView() {
                   fullWidth={false}
                 />
               </div>
-              {activeTab !== 'pessoal' && (
+              {activeTab === 'global' && (
                 <SegmentedControl
                   options={[
                     { value: 'todos', label: 'Todos' },
@@ -1116,6 +1125,35 @@ export function AgendaView() {
               />
             )}
             {activeTab === 'global' && !isLoading && calendar.viewMode === 'mes' && (
+              <AgendaMonthView
+                monthAgendaSummary={calendar.monthAgendaSummary}
+                onSelectDay={(date) => {
+                  calendar.setCurrentDate(date)
+                  calendar.setViewMode('dia')
+                }}
+              />
+            )}
+            {activeTab === 'ambas' && !isLoading && calendar.viewMode === 'dia' && (
+              <AgendaCombinadaList
+                groups={[
+                  {
+                    key: 'dia',
+                    label: calendar.currentDate.toLocaleDateString('pt-BR'),
+                    items: calendar.dayAgendaSlots,
+                  },
+                ]}
+              />
+            )}
+            {activeTab === 'ambas' && !isLoading && calendar.viewMode === 'semana' && (
+              <AgendaCombinadaList
+                groups={calendar.weekAgendaGroups.map((group) => ({
+                  key: group.formattedDay,
+                  label: `${group.label} · ${group.formattedDay}`,
+                  items: group.items,
+                }))}
+              />
+            )}
+            {activeTab === 'ambas' && !isLoading && calendar.viewMode === 'mes' && (
               <AgendaMonthView
                 monthAgendaSummary={calendar.monthAgendaSummary}
                 onSelectDay={(date) => {

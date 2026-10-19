@@ -15,10 +15,16 @@ const TAREFA_SELECT =
 
 async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
-  const { data, error } = await supabase
+  // Item 1 — lista de tarefas é individual: cada usuário vê as próprias (responsável ou
+  // criador). Gestor, administrador e master enxergam todas (base do relatório de tarefas).
+  let query = supabase
     .from('tarefas')
     .select(TAREFA_SELECT)
     .order('created_at', { ascending: false })
+  if (session && !['master', 'admin', 'gestor'].includes(String(session.role))) {
+    query = query.or(`responsavel_id.eq.${session.userId},created_by_id.eq.${session.userId}`)
+  }
+  const { data, error } = await query
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao carregar tarefas')

@@ -33,6 +33,7 @@ type ScopedAgendaContext =
       unidadeId: string | null
       profissionalId: string | null
       especialistasPermitidos: string[] | null
+      agendaPessoalPermitidos?: string[] | null
       error: null
     }
   | {
@@ -73,7 +74,7 @@ async function getScopedAgendaContext(session: Awaited<ReturnType<typeof getRequ
   const supabase = getAppSupabase()
   const { data, error } = await supabase
     .from('usuarios')
-    .select('unidade_id, especialistas_permitidos')
+    .select('unidade_id, especialistas_permitidos, agenda_pessoal_permitidos')
     .eq('id', session.userId)
     .maybeSingle()
 
@@ -93,9 +94,17 @@ async function getScopedAgendaContext(session: Awaited<ReturnType<typeof getRequ
           .filter((value) => value.length > 0)
       : null
 
+  const agendaPessoalPermitidos =
+    session.role === 'recepcao'
+      ? Array.isArray(data?.agenda_pessoal_permitidos)
+        ? (data?.agenda_pessoal_permitidos as unknown[]).map((value) => String(value))
+        : []
+      : null
+
   return {
     unidadeId: data?.unidade_id ? String(data.unidade_id) : null,
     profissionalId: null,
+    agendaPessoalPermitidos,
     especialistasPermitidos:
       especialistasPermitidos && especialistasPermitidos.length > 0
         ? especialistasPermitidos
@@ -129,11 +138,23 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
     query = query.in('profissional_id', scopedContext.especialistasPermitidos)
   }
 
-  const { data, error } = await query
+  const { data: rawData, error } = await query
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao carregar agenda')
   }
+
+  // Item 1 — recepcionista só vê compromissos pessoais (sem paciente) dos
+  // especialistas liberados em "Acesso à Agenda Pessoal". Slots livres seguem visíveis.
+  const pessoalLiberado = scopedContext.agendaPessoalPermitidos
+  const data = pessoalLiberado
+    ? (rawData ?? []).filter(
+        (row) =>
+          row.paciente_id ||
+          String(row.status) === 'Disponível' ||
+          pessoalLiberado.includes(String(row.profissional_id ?? '')),
+      )
+    : rawData
 
   // Em atraso automático: persiste status quando data+hora já passaram.
   const agora = new Date()
@@ -810,10 +831,78 @@ export async function DELETE(request: NextRequest) {
     return supabaseErrorResponse(scopedContext.error, 'Falha ao cancelar agendamento')
   }
 
+  // Item 1 — cancelar mantém o registro da cliente (status Cancelado, cinza na agenda e
+  // no histórico) e cria um NOVO horário livre no mesmo intervalo para outro agendamento.
+  // Compromissos sem paciente (agenda pessoal) seguem liberando o próprio horário.
+  const reasonText = body.reason ? String(body.reason) : ''
+  let current = supabase
+    .from('agendamentos')
+    .select('id,paciente_id,profissional_id,unidade_id,data_agendamento,horario_inicio,horario_fim,status,observacoes')
+    .eq('id', String(body.id))
+  if (scopedContext.profissionalId) {
+    current = current.eq('profissional_id', scopedContext.profissionalId)
+  } else if (scopedContext.unidadeId) {
+    current = current.eq('unidade_id', scopedContext.unidadeId)
+  }
+  if (scopedContext.especialistasPermitidos?.length) {
+    current = current.in('profissional_id', scopedContext.especialistasPermitidos)
+  }
+  const { data: row, error: rowError } = await current.maybeSingle()
+  if (rowError) {
+    return supabaseErrorResponse(rowError, 'Falha ao cancelar agendamento')
+  }
+  if (!row) {
+    return serverErrorResponse('Agendamento não encontrado', 'APPOINTMENT_NOT_FOUND', 404)
+  }
+
+  if (row.paciente_id && row.status !== 'Cancelado') {
+    const { error: cancelError } = await supabase
+      .from('agendamentos')
+      .update({
+        status: 'Cancelado',
+        observacoes: reasonText ? `Cancelado: ${reasonText}` : 'Cancelado',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.id)
+    if (cancelError) {
+      return supabaseErrorResponse(cancelError, 'Falha ao cancelar agendamento')
+    }
+
+    // Só cria o horário livre se ainda não existir outro ocupando/livre no mesmo intervalo.
+    const { data: sameSlot, error: sameSlotError } = await supabase
+      .from('agendamentos')
+      .select('id,status')
+      .eq('profissional_id', row.profissional_id)
+      .eq('data_agendamento', row.data_agendamento)
+      .eq('horario_inicio', row.horario_inicio)
+      .neq('id', row.id)
+      .neq('status', 'Cancelado')
+    if (sameSlotError) {
+      return supabaseErrorResponse(sameSlotError, 'Falha ao liberar horário')
+    }
+    if (!sameSlot || sameSlot.length === 0) {
+      const { error: freeError } = await supabase.from('agendamentos').insert({
+        profissional_id: row.profissional_id,
+        unidade_id: row.unidade_id,
+        data_agendamento: row.data_agendamento,
+        horario_inicio: row.horario_inicio,
+        horario_fim: row.horario_fim,
+        status: 'Disponível',
+        paciente_id: null,
+        criado_por_id: session.userId,
+        tipo: null,
+        titulo: null,
+      })
+      if (freeError) {
+        return supabaseErrorResponse(freeError, 'Falha ao liberar horário')
+      }
+    }
+    return listAgenda(session)
+  }
+
   let query = supabase
     .from('agendamentos')
     .update({
-      // Libera o horário na grade (modelo ocupar-slot). Motivo fica em observacoes.
       status: 'Disponível',
       paciente_id: null,
       tipo: null,
@@ -828,9 +917,7 @@ export async function DELETE(request: NextRequest) {
       tipo_encaixe: null,
       fora_janela: false,
       motivo_encaixe: null,
-      observacoes: body.reason
-        ? `Cancelado: ${String(body.reason)}`
-        : 'Cancelado — horário liberado',
+      observacoes: reasonText ? `Cancelado: ${reasonText}` : 'Cancelado — horário liberado',
       updated_at: new Date().toISOString(),
     })
     .eq('id', String(body.id))

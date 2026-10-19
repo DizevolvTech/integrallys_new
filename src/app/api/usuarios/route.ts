@@ -15,7 +15,7 @@ async function listUsuarios(
   const supabase = getAppSupabase()
   const { data, error } = await supabase
     .from('usuarios')
-    .select('id,nome,email,perfil,status,tipo_vinculo,especialistas_permitidos,unidade_id')
+    .select('id,nome,email,perfil,status,tipo_vinculo,especialistas_permitidos,agenda_pessoal_permitidos,unidade_id')
     .order('nome', { ascending: true })
 
   if (error) {
@@ -142,6 +142,9 @@ export async function POST(request: NextRequest) {
     insertPayload.especialistas_permitidos = normalizeEspecialistasPermitidos(
       body.especialistasPermitidos,
     )
+    insertPayload.agenda_pessoal_permitidos = normalizeEspecialistasPermitidos(
+      body.agendaPessoalPermitidos,
+    )
   }
   const { error } = await supabase.from('usuarios').insert(insertPayload)
 
@@ -188,8 +191,12 @@ export async function PUT(request: NextRequest) {
     updatePayload.especialistas_permitidos = normalizeEspecialistasPermitidos(
       body.especialistasPermitidos,
     )
+    updatePayload.agenda_pessoal_permitidos = normalizeEspecialistasPermitidos(
+      body.agendaPessoalPermitidos,
+    )
   } else {
     updatePayload.especialistas_permitidos = null
+    updatePayload.agenda_pessoal_permitidos = null
   }
 
   const supabase = getAppSupabase()
