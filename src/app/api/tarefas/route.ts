@@ -40,9 +40,27 @@ async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) 
     return supabaseErrorResponse(responsaveisError, 'Falha ao carregar tarefas')
   }
 
+  const ids = (data ?? []).map((row) => String(row.id))
+  const { data: subRows } = ids.length
+    ? await supabase
+        .from('tarefa_subtarefas')
+        .select('id,tarefa_id,titulo,concluida,posicao')
+        .in('tarefa_id', ids)
+        .order('posicao', { ascending: true })
+    : { data: [] as Array<Record<string, unknown>> }
+  const subsByTarefa = new Map<string, Array<Record<string, unknown>>>()
+  for (const sub of subRows ?? []) {
+    const key = String(sub.tarefa_id)
+    subsByTarefa.set(key, [...(subsByTarefa.get(key) ?? []), sub])
+  }
+
   return NextResponse.json({
     data: (data ?? []).map((row) =>
-      mapTarefaItem({ ...row, responsavel_nome: map[String(row.responsavel_id ?? '')] ?? '' }),
+      mapTarefaItem({
+        ...row,
+        responsavel_nome: map[String(row.responsavel_id ?? '')] ?? '',
+        subtarefas: subsByTarefa.get(String(row.id)) ?? [],
+      }),
     ),
     meta: session,
   })

@@ -241,7 +241,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
             </div>
             <div className="flex items-center gap-2">
               <Button asChild variant="outline" className="rounded-[12px]">
-                <Link href="/tarefas" onClick={handleClose}>
+                <Link href="/tarefas/relatorio" onClick={handleClose}>
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Relatório
                 </Link>

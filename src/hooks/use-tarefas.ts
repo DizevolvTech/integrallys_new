@@ -20,6 +20,7 @@ export interface TarefaItem {
   vencimentoEm: string
   data: string
   horario: string
+  subtarefas: Array<{ id: string; titulo: string; concluida: boolean }>
 }
 
 export interface CreateTarefaPayload {
@@ -98,5 +99,31 @@ export function useTarefas() {
     return response.data
   }
 
-  return { data, isLoading, error, load, createTarefa, updateTarefa, deleteTarefa }
+  const addSubtarefa = async (tarefaId: string, titulo: string) => {
+    await api.post('/api/tarefas/subtarefas', { tarefaId, titulo })
+    await load()
+  }
+
+  const toggleSubtarefa = async (id: string, concluida: boolean) => {
+    await api.put('/api/tarefas/subtarefas', { id, concluida })
+    await load()
+  }
+
+  const removeSubtarefa = async (id: string) => {
+    await api.delete('/api/tarefas/subtarefas', { id })
+    await load()
+  }
+
+  return {
+    data,
+    isLoading,
+    error,
+    load,
+    createTarefa,
+    updateTarefa,
+    deleteTarefa,
+    addSubtarefa,
+    toggleSubtarefa,
+    removeSubtarefa,
+  }
 }

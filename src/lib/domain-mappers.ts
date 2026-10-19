@@ -376,6 +376,13 @@ export function mapTarefaItem(row: Record<string, unknown>) {
     vencimentoEm: vencimentoIso,
     data,
     horario,
+    subtarefas: (Array.isArray(row.subtarefas) ? (row.subtarefas as Array<Record<string, unknown>>) : []).map(
+      (sub) => ({
+        id: String(sub.id ?? ''),
+        titulo: String(sub.titulo ?? ''),
+        concluida: Boolean(sub.concluida),
+      }),
+    ),
   }
 }
 

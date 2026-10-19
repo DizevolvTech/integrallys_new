@@ -1,5 +1,5 @@
-import { RelatorioTarefasView } from '@/features/tarefas'
+import { TarefasPlannerView } from '@/features/tarefas'
 
 export default function Page() {
-  return <RelatorioTarefasView />
+  return <TarefasPlannerView />
 }
