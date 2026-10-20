@@ -148,6 +148,10 @@ export function useAgendaActions({
     horario: string
   }) => {
     if (!selectedSlot || !payload.pacienteId) return
+    if (selectedSlot.status === 'Cancelado') {
+      toast.error('Consulta cancelada não pode ser reagendada. Faça um novo agendamento.')
+      return
+    }
     try {
       await updateAgendamento({
         id: payload.id,

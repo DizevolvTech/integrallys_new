@@ -296,7 +296,9 @@ export function AgendaDayView({
                             <DropdownMenuItem onClick={() => onOpenSlotModal('visualizar', item)}>Visualizar detalhes</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onOpenSlotModal('ficha-paciente', item)}>Ficha do paciente</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onOpenSlotModal('detalhes', item)}>Dados do agendamento</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onOpenSlotModal('remarcar', item)}>Reagendar</DropdownMenuItem>
+                            {normalizeAgendaStatus(item.status) !== 'Cancelado' && (
+                              <DropdownMenuItem onClick={() => onOpenSlotModal('remarcar', item)}>Reagendar</DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => onOpenCharge(item)}>Emitir nova cobrança</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onCallSpecialist(item)}>Chamar especialista</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push('/financeiro')}>Abrir financeiro</DropdownMenuItem>
