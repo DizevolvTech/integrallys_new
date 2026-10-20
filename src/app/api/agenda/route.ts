@@ -774,7 +774,7 @@ export async function PUT(request: NextRequest) {
   const { data: existing, error: existingError } = await supabase
     .from('agendamentos')
     .select(
-      'id,paciente_id,profissional_id,procedimento_id,data_agendamento,horario_inicio,horario_fim,status,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes',
+      'id,unidade_id,paciente_id,profissional_id,procedimento_id,data_agendamento,horario_inicio,horario_fim,status,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes',
     )
     .eq('id', String(body.id))
     .maybeSingle()
@@ -849,6 +849,72 @@ export async function PUT(request: NextRequest) {
   const patientUnitId = pacienteId ? await resolvePatientUnitId(supabase, pacienteId) : null
   const unidadeId = scopedContext.unidadeId ?? patientUnitId
 
+  // Remarcar consulta de paciente: ocupa o horário novo (consome o slot livre), libera o antigo,
+  // barra horário passado e dupla marcação. Edições que não mudam data/hora/profissional passam direto.
+  const existingDate = String(existing.data_agendamento ?? '').slice(0, 10)
+  const existingTime = String(existing.horario_inicio ?? '').slice(0, 5)
+  const moved =
+    Boolean(existing.paciente_id) &&
+    (dataAgendamento !== existingDate ||
+      horario !== existingTime ||
+      profissionalId !== (existing.profissional_id ? String(existing.profissional_id) : null))
+  let horarioFimFinal: unknown =
+    body.horarioFim !== undefined ? body.horarioFim : existing.horario_fim
+  let consumedSlot: Record<string, unknown> | null = null
+  if (moved) {
+    if (isHorarioPassado(dataAgendamento, horario)) {
+      return serverErrorResponse(
+        'Não é possível remarcar para um horário que já passou.',
+        'HORARIO_PASSADO',
+        400,
+      )
+    }
+    const { data: targetRows, error: targetError } = await supabase
+      .from('agendamentos')
+      .select('id,status,horario_fim,unidade_id,profissional_id,data_agendamento,horario_inicio')
+      .eq('profissional_id', String(profissionalId))
+      .eq('data_agendamento', dataAgendamento)
+      .eq('horario_inicio', horario)
+      .neq('id', String(existing.id))
+      .neq('status', 'Cancelado')
+    if (targetError) {
+      return supabaseErrorResponse(targetError, 'Falha ao remarcar agendamento')
+    }
+    if ((targetRows ?? []).some((row) => String(row.status) !== 'Disponível')) {
+      return serverErrorResponse(
+        'Esse horário não está disponível para o profissional. Escolha outro horário.',
+        'SLOT_INDISPONIVEL',
+        409,
+      )
+    }
+    consumedSlot = (targetRows ?? [])[0] ?? null
+    if (body.horarioFim === undefined) {
+      if (consumedSlot?.horario_fim) {
+        horarioFimFinal = consumedSlot.horario_fim
+      } else if (existing.horario_inicio && existing.horario_fim) {
+        // sem slot na grade (encaixe): mantém a duração original
+        const toMin = (v: unknown) => {
+          const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? ''))
+          return m ? Number(m[1]) * 60 + Number(m[2]) : 0
+        }
+        const dur = toMin(existing.horario_fim) - toMin(existing.horario_inicio)
+        if (dur > 0) {
+          const end = toMin(horario) + dur
+          horarioFimFinal = `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`
+        }
+      }
+    }
+    if (consumedSlot) {
+      const { error: consumeError } = await supabase
+        .from('agendamentos')
+        .delete()
+        .eq('id', String(consumedSlot.id))
+      if (consumeError) {
+        return supabaseErrorResponse(consumeError, 'Falha ao remarcar agendamento')
+      }
+    }
+  }
+
   let query = supabase
     .from('agendamentos')
     .update({
@@ -857,10 +923,7 @@ export async function PUT(request: NextRequest) {
       profissional_id: profissionalId,
       data_agendamento: dataAgendamento,
       horario_inicio: horario,
-      horario_fim:
-        body.horarioFim !== undefined
-          ? body.horarioFim
-          : existing.horario_fim,
+      horario_fim: horarioFimFinal,
       status: typeof body.status === 'string' && body.status.trim() ? body.status : existing.status,
       tipo: tipoInput ?? null,
       titulo: body.titulo !== undefined ? body.titulo : existing.titulo,
@@ -893,17 +956,58 @@ export async function PUT(request: NextRequest) {
 
   const { data: updatedRows, error } = await query.select('id')
 
+  const restoreConsumedSlot = async () => {
+    if (!consumedSlot) return
+    await supabase.from('agendamentos').insert({
+      profissional_id: consumedSlot.profissional_id,
+      unidade_id: consumedSlot.unidade_id,
+      data_agendamento: consumedSlot.data_agendamento,
+      horario_inicio: consumedSlot.horario_inicio,
+      horario_fim: consumedSlot.horario_fim,
+      status: 'Disponível',
+      paciente_id: null,
+      criado_por_id: session.userId,
+    })
+  }
+
   if (error) {
+    await restoreConsumedSlot()
     return supabaseErrorResponse(error, 'Falha ao atualizar agendamento')
   }
   // Fora do escopo do usuário (unidade/especialista) o update afeta 0 linhas: não devolver
   // sucesso falso, senão a tela mostra "salvo" e nada muda.
   if (!updatedRows || updatedRows.length === 0) {
+    await restoreConsumedSlot()
     return serverErrorResponse(
       'Agendamento não encontrado ou fora da sua unidade',
       'APPOINTMENT_NOT_FOUND',
       404,
     )
+  }
+
+  if (moved) {
+    // Libera o horário antigo (se ninguém mais o ocupa) para outro agendamento.
+    const { data: oldRows } = await supabase
+      .from('agendamentos')
+      .select('id')
+      .eq('profissional_id', String(existing.profissional_id))
+      .eq('data_agendamento', existingDate)
+      .eq('horario_inicio', String(existing.horario_inicio))
+      .neq('id', String(existing.id))
+      .neq('status', 'Cancelado')
+    if (!oldRows || oldRows.length === 0) {
+      const { error: freeError } = await supabase.from('agendamentos').insert({
+        profissional_id: existing.profissional_id,
+        unidade_id: existing.unidade_id,
+        data_agendamento: existingDate,
+        horario_inicio: existing.horario_inicio,
+        horario_fim: existing.horario_fim,
+        status: 'Disponível',
+        paciente_id: null,
+        criado_por_id: session.userId,
+      })
+      if (freeError) console.error('[agenda] falha ao liberar horário antigo', freeError)
+    }
   }
 
   return listAgenda(session)
