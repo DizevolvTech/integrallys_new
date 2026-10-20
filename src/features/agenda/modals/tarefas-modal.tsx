@@ -72,6 +72,11 @@ const emptyForm: FormData = {
   alerta: false,
 }
 
+function hojeLocalIso() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function toPayload(formData: FormData, status: string) {
   return {
     titulo: formData.titulo.trim(),
@@ -95,8 +100,9 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
   const [tarefaEditando, setTarefaEditando] = useState<TarefaItem | null>(null)
   const [formData, setFormData] = useState<FormData>(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
-  const [filtroDe, setFiltroDe] = useState('')
-  const [filtroAte, setFiltroAte] = useState('')
+  // Abre sempre filtrado em hoje (data local do navegador).
+  const [filtroDe, setFiltroDe] = useState(hojeLocalIso)
+  const [filtroAte, setFiltroAte] = useState(hojeLocalIso)
 
   const resetForm = () => {
     setFormData(emptyForm)
@@ -105,6 +111,8 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
 
   const handleClose = () => {
     resetForm()
+    setFiltroDe(hojeLocalIso())
+    setFiltroAte(hojeLocalIso())
     setMostrarFormulario(false)
     onClose()
   }
@@ -298,7 +306,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
             </span>
             {(filtroDe || filtroAte) && (
               <button type="button" className="underline" onClick={() => { setFiltroDe(''); setFiltroAte('') }}>
-                Limpar
+                Ver todas
               </button>
             )}
           </div>
