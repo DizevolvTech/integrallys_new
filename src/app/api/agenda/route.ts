@@ -276,6 +276,23 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   if (professionalOptionsError)
     return supabaseErrorResponse(professionalOptionsError, 'Falha ao carregar agenda')
 
+  const profissionalIds = (professionalOptionsData ?? []).map((row) => String(row.id ?? ''))
+  const { data: vinculosData, error: vinculosError } = profissionalIds.length
+    ? await supabase
+        .from('profissional_procedimentos')
+        .select('profissional_id,procedimento_id')
+        .in('profissional_id', profissionalIds)
+    : { data: [] as Array<{ profissional_id: string; procedimento_id: string }>, error: null }
+  if (vinculosError) return supabaseErrorResponse(vinculosError, 'Falha ao carregar agenda')
+  const procedimentosPorProfissional = new Map<string, string[]>()
+  for (const vinculo of vinculosData ?? []) {
+    const key = String(vinculo.profissional_id)
+    procedimentosPorProfissional.set(key, [
+      ...(procedimentosPorProfissional.get(key) ?? []),
+      String(vinculo.procedimento_id),
+    ])
+  }
+
   return NextResponse.json({
     data: (data ?? []).map((row) => {
       const pag = pagamentoMap[String(row.id ?? '')]
@@ -299,6 +316,9 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
       professionals: (professionalOptionsData ?? []).map((row) => ({
         id: String(row.id ?? ''),
         nome: String(row.nome ?? ''),
+        // Vínculos vêm daqui (e não de /api/profissionais) para que a recepção também veja
+        // os procedimentos de cada especialista ao agendar.
+        procedimentoIds: procedimentosPorProfissional.get(String(row.id ?? '')) ?? [],
       })),
     },
   })

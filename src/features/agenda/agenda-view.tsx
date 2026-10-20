@@ -199,7 +199,10 @@ export function AgendaView() {
       return {
         id: item.id,
         nome: item.nome,
-        procedimentoIds: catalog?.procedimentoIds ?? [],
+        procedimentoIds:
+          item.procedimentoIds && item.procedimentoIds.length > 0
+            ? item.procedimentoIds
+            : (catalog?.procedimentoIds ?? []),
       }
     })
     if (fromAgenda.length > 0) return fromAgenda
