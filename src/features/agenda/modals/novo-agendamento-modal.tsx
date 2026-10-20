@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { isHorarioPassado } from '../agenda.utils'
 import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
 import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
 import { resolveModalidade, type TipoAtendimento } from './novo-agendamento.utils'
@@ -343,13 +344,7 @@ export function NovoAgendamentoModal({
     event.preventDefault()
     if (!pacienteId || !data || !horario) return
 
-    const hoje = toLocalISODate(new Date())
-    if (data < hoje || (data === hoje && (() => {
-      const [hh, mm] = horario.split(':').map(Number)
-      const agora = new Date()
-      const slotDate = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), hh, mm, 0, 0)
-      return slotDate.getTime() < agora.getTime()
-    })())) {
+    if (isHorarioPassado(data, horario)) {
       toast.error('Não é possível agendar em horário já passado.')
       return
     }

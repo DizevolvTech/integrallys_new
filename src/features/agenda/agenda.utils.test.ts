@@ -51,10 +51,22 @@ describe('normalizeAgendaStatus', () => {
 
 describe('isHorarioPassado / canIniciarAtendimento', () => {
   it('detecta horário passado no mesmo dia', () => {
-    const agora = new Date(2026, 8, 9, 14, 30, 0)
+    // 14:30 em Brasília (UTC-3) = 17:30Z
+    const agora = new Date('2026-09-09T17:30:00Z')
     expect(isHorarioPassado('2026-09-09', '08:00', agora)).toBe(true)
     expect(isHorarioPassado('2026-09-09', '15:00', agora)).toBe(false)
     expect(isHorarioPassado('2026-09-10', '08:00', agora)).toBe(false)
+  })
+
+  it('usa o relógio de Brasília mesmo com servidor em UTC (16:40 BRT = 19:40Z)', () => {
+    const agora = new Date('2026-10-20T19:40:00Z')
+    expect(isHorarioPassado('2026-10-20', '16:40', agora)).toBe(false)
+    expect(isHorarioPassado('2026-10-20', '16:30', agora)).toBe(true)
+    expect(isHorarioPassado('2026-10-20', '17:00', agora)).toBe(false)
+    // virada de dia: 23:30 BRT = 02:30Z do dia seguinte
+    const noite = new Date('2026-10-21T02:30:00Z')
+    expect(isHorarioPassado('2026-10-20', '23:00', noite)).toBe(true)
+    expect(isHorarioPassado('2026-10-21', '08:00', noite)).toBe(false)
   })
 
   it('iniciar atendimento só especialista/master', () => {

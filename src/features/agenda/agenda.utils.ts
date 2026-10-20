@@ -96,24 +96,43 @@ export const STATUS_ELEGIVEIS_ATRASO = ['Agendado', 'Confirmado', 'Check-in'] as
  * true quando data (YYYY-MM-DD) + horário (HH:MM) já passaram no relógio local.
  * Usado para bloquear booking retroativo e marcar atraso.
  */
+/** Fuso da clínica: o servidor roda em UTC, então "agora" precisa ser lido no relógio de Brasília. */
+export const CLINIC_TIME_ZONE = 'America/Sao_Paulo'
+
+/** Data/hora de parede de `instant` no fuso da clínica, como número comparável (AAAAMMDDHHMM). */
+function wallClockStamp(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant)
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0)
+  return get('year') * 1e8 + get('month') * 1e6 + get('day') * 1e4 + get('hour') * 100 + get('minute')
+}
+
+/** `dataIso` + `horario` são o relógio da clínica (Brasília); compara com o "agora" no mesmo fuso. */
 export function isHorarioPassado(
   dataIso: string,
   horario: string,
   agora: Date = new Date(),
+  timeZone: string = CLINIC_TIME_ZONE,
 ): boolean {
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataIso.trim())
   if (!dateMatch) return false
   const timeMatch = /^(\d{1,2}):(\d{2})/.exec(horario.trim())
   if (!timeMatch) return false
 
-  const y = Number(dateMatch[1])
-  const m = Number(dateMatch[2])
-  const d = Number(dateMatch[3])
-  const hh = Number(timeMatch[1])
-  const mm = Number(timeMatch[2])
-  const slot = new Date(y, m - 1, d, hh, mm, 0, 0)
-  if (Number.isNaN(slot.getTime())) return false
-  return slot.getTime() < agora.getTime()
+  const slot =
+    Number(dateMatch[1]) * 1e8 +
+    Number(dateMatch[2]) * 1e6 +
+    Number(dateMatch[3]) * 1e4 +
+    Number(timeMatch[1]) * 100 +
+    Number(timeMatch[2])
+  return slot < wallClockStamp(agora, timeZone)
 }
 
 /** Preferir `capabilities.iniciarAtendimento` de `/api/auth/me` nas views. */
