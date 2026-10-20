@@ -60,7 +60,7 @@ export function vagasDaGradeNoIntervalo(
     const ini = timeToMinutes(r.hora_inicio)
     const fim = timeToMinutes(r.hora_fim)
     if (ini === null || fim === null || !(r.duracao_min > 0)) continue
-    for (let t = ini; t + r.duracao_min <= fim; t += r.duracao_min) {
+    for (let t = ini; t < fim; t += r.duracao_min) {
       if (t < fimMin && t + r.duracao_min > inicioMin) out.push({ inicio: t, fim: t + r.duracao_min })
     }
   }

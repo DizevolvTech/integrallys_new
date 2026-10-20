@@ -90,7 +90,7 @@ function contarSlotsDoDia(horarios: HorarioRegra[]): number {
     const fim = parseTimeToMinutes(h.hora_fim)
     if (inicio == null || fim == null) continue
     if (!(h.duracao_min > 0)) continue // termina o laço (0/negativo/NaN não avançaria)
-    for (let s = inicio; s + h.duracao_min <= fim; s += h.duracao_min) total += 1
+    for (let s = inicio; s < fim; s += h.duracao_min) total += 1
   }
   return total
 }
@@ -150,7 +150,7 @@ export function gerarSlots(params: GerarSlotsParams): GerarSlotsResult {
       const fim = parseTimeToMinutes(h.hora_fim)
       if (inicio == null || fim == null) continue
       if (!(h.duracao_min > 0)) continue // termina o laço (0/negativo/NaN não avançaria)
-      for (let s = inicio; s + h.duracao_min <= fim; s += h.duracao_min) {
+      for (let s = inicio; s < fim; s += h.duracao_min) {
         slots.push({
           data: isoData,
           horario_inicio: minutesToTime(s),
