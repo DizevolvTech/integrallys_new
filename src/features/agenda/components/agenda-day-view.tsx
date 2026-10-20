@@ -302,9 +302,11 @@ export function AgendaDayView({
                             <DropdownMenuItem onClick={() => onOpenCharge(item)}>Emitir nova cobrança</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onCallSpecialist(item)}>Chamar especialista</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push('/financeiro')}>Abrir financeiro</DropdownMenuItem>
-                            <DropdownMenuItem className="text-[var(--app-danger-text)]" onClick={() => onOpenSlotModal('cancelar', item)}>
+                            {normalizeAgendaStatus(item.status) !== 'Cancelado' && (
+                              <DropdownMenuItem className="text-[var(--app-danger-text)]" onClick={() => onOpenSlotModal('cancelar', item)}>
                               Desmarcar
                             </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

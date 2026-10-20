@@ -120,9 +120,11 @@ export function AgendaWeekView({
                             {normalizeAgendaStatus(item.status) !== 'Cancelado' && (
                               <DropdownMenuItem onClick={() => onOpenSlotModal('remarcar', item)}>Reagendar</DropdownMenuItem>
                             )}
-                            <DropdownMenuItem className="text-[var(--app-danger-text)]" onClick={() => onOpenSlotModal('cancelar', item)}>
+                            {normalizeAgendaStatus(item.status) !== 'Cancelado' && (
+                              <DropdownMenuItem className="text-[var(--app-danger-text)]" onClick={() => onOpenSlotModal('cancelar', item)}>
                               Desmarcar
                             </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
