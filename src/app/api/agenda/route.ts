@@ -356,6 +356,61 @@ async function resolvePatientUnitId(
 }
 
 /** Registra pagamento inicial obrigatório em consulta com paciente (parcial ou total). */
+/**
+ * Valida o pagamento inicial ANTES de ocupar o horário. Sem isso, um pagamento inválido
+ * devolvia erro 400 mas deixava a cliente agendada e o horário preso, sem pagamento.
+ */
+function validarPagamentoInicial(body: Record<string, unknown>): Response | null {
+  const raw = body.pagamentoInicial
+  if (!raw || typeof raw !== 'object') {
+    return serverErrorResponse(
+      'Informe o pagamento inicial do agendamento (pode ser parcial).',
+      'PAGAMENTO_INICIAL_OBRIGATORIO',
+      400,
+    )
+  }
+  const pagamento = raw as Record<string, unknown>
+  const resolved = resolvePagamentoAgendamentoInput({
+    agendamentoId: 'validacao',
+    valor: pagamento.valor,
+    metodo: pagamento.metodo,
+    bandeira: pagamento.bandeira,
+    parcelas: pagamento.parcelas,
+    contaBancariaId: pagamento.contaBancariaId,
+    observacoes: pagamento.observacoes,
+  })
+  if (!resolved.ok) return serverErrorResponse(resolved.message, resolved.code, 400)
+  return null
+}
+
+/** Desfaz um agendamento recém-criado quando o pagamento inicial falha depois da validação. */
+async function desfazerAgendamentoCriado(
+  supabase: ReturnType<typeof getAppSupabase>,
+  id: string,
+  modo: 'liberar' | 'excluir',
+) {
+  if (modo === 'excluir') {
+    await supabase.from('agendamentos').delete().eq('id', id)
+    return
+  }
+  await supabase
+    .from('agendamentos')
+    .update({
+      status: 'Disponível',
+      paciente_id: null,
+      tipo: null,
+      titulo: null,
+      procedimento_id: null,
+      valor_procedimento: null,
+      observacoes: null,
+      tipo_encaixe: 'normal',
+      fora_janela: false,
+      motivo_encaixe: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+}
+
 async function registrarPagamentoInicialObrigatorio(params: {
   supabase: ReturnType<typeof getAppSupabase>
   agendamentoId: string
@@ -584,6 +639,11 @@ export async function POST(request: NextRequest) {
   const patientUnitId = pacienteId ? await resolvePatientUnitId(supabase, pacienteId) : null
   const unidadeId = scopedContext.unidadeId ?? patientUnitId
 
+  if (pacienteId) {
+    const pagamentoInvalido = validarPagamentoInicial(enrichedBody)
+    if (pagamentoInvalido) return pagamentoInvalido
+  }
+
   const foraJanela = enrichedBody.foraJanela === true
   const motivoEncaixe =
     typeof enrichedBody.motivoEncaixe === 'string' && enrichedBody.motivoEncaixe.trim().length > 0
@@ -622,7 +682,10 @@ export async function POST(request: NextRequest) {
       agendamentoId: result.id,
       body: enrichedBody,
     })
-    if (pagamentoError) return pagamentoError
+    if (pagamentoError) {
+      await desfazerAgendamentoCriado(supabase, result.id, 'liberar')
+      return pagamentoError
+    }
 
     await criarSeriePacoteSeSolicitada({
       supabase,
@@ -670,7 +733,10 @@ export async function POST(request: NextRequest) {
       agendamentoId: String(inserted.id),
       body: enrichedBody,
     })
-    if (pagamentoError) return pagamentoError
+    if (pagamentoError) {
+      await desfazerAgendamentoCriado(supabase, String(inserted.id), 'excluir')
+      return pagamentoError
+    }
   }
 
   if (pacienteId) {
@@ -823,10 +889,19 @@ export async function PUT(request: NextRequest) {
     query = query.in('profissional_id', scopedContext.especialistasPermitidos)
   }
 
-  const { error } = await query
+  const { data: updatedRows, error } = await query.select('id')
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao atualizar agendamento')
+  }
+  // Fora do escopo do usuário (unidade/especialista) o update afeta 0 linhas: não devolver
+  // sucesso falso, senão a tela mostra "salvo" e nada muda.
+  if (!updatedRows || updatedRows.length === 0) {
+    return serverErrorResponse(
+      'Agendamento não encontrado ou fora da sua unidade',
+      'APPOINTMENT_NOT_FOUND',
+      404,
+    )
   }
 
   return listAgenda(session)
@@ -934,7 +1009,7 @@ export async function DELETE(request: NextRequest) {
       modalidade_atendimento: 'Presencial',
       plataforma_online: null,
       url_online: null,
-      tipo_encaixe: null,
+      tipo_encaixe: 'normal', // coluna NOT NULL (default 'normal')
       fora_janela: false,
       motivo_encaixe: null,
       observacoes: reasonText ? `Cancelado: ${reasonText}` : 'Cancelado — horário liberado',
