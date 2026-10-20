@@ -22,10 +22,7 @@ import {
   planejarOcupacao,
   timeToMinutes,
 } from './agenda-duracao'
-import {
-  isHorarioPassado,
-  STATUS_ELEGIVEIS_ATRASO,
-} from '@/features/agenda/agenda.utils'
+import { isHorarioPassado, STATUS_ELEGIVEIS_ATRASO } from '@/features/agenda/agenda.utils'
 import {
   buildInsertPayload,
   buildOccupyUpdate,
@@ -191,37 +188,38 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
 
   const agendaIds = (data ?? []).map((row) => String(row.id ?? ''))
 
-  const [pacientesResult, profissionaisResult, procedimentosResult, pagamentosResult] = await Promise.all([
-    getEntityNameMap(
-      supabase,
-      'pacientes',
-      (data ?? []).map((row) => String(row.paciente_id ?? '')),
-    ),
-    getEntityNameMap(
-      supabase,
-      'usuarios',
-      (data ?? []).map((row) => String(row.profissional_id ?? '')),
-    ),
-    getEntityNameMap(
-      supabase,
-      'procedimentos',
-      (data ?? []).map((row) => String(row.procedimento_id ?? '')),
-    ),
-    agendaIds.length > 0
-      ? supabase
-          .from('v_agendamento_pagamento_resumo')
-          .select('agendamento_id,total_pago,valor_devido,situacao,data_ultimo_pagamento')
-          .in('agendamento_id', agendaIds)
-      : Promise.resolve({
-          data: [] as Array<{
-            agendamento_id: string
-            total_pago: number
-            valor_devido: number
-            situacao: string
-          }>,
-          error: null,
-        }),
-  ])
+  const [pacientesResult, profissionaisResult, procedimentosResult, pagamentosResult] =
+    await Promise.all([
+      getEntityNameMap(
+        supabase,
+        'pacientes',
+        (data ?? []).map((row) => String(row.paciente_id ?? '')),
+      ),
+      getEntityNameMap(
+        supabase,
+        'usuarios',
+        (data ?? []).map((row) => String(row.profissional_id ?? '')),
+      ),
+      getEntityNameMap(
+        supabase,
+        'procedimentos',
+        (data ?? []).map((row) => String(row.procedimento_id ?? '')),
+      ),
+      agendaIds.length > 0
+        ? supabase
+            .from('v_agendamento_pagamento_resumo')
+            .select('agendamento_id,total_pago,valor_devido,situacao,data_ultimo_pagamento')
+            .in('agendamento_id', agendaIds)
+        : Promise.resolve({
+            data: [] as Array<{
+              agendamento_id: string
+              total_pago: number
+              valor_devido: number
+              situacao: string
+            }>,
+            error: null,
+          }),
+    ])
 
   if (pacientesResult.error)
     return supabaseErrorResponse(pacientesResult.error, 'Falha ao carregar agenda')
@@ -708,7 +706,12 @@ export async function POST(request: NextRequest) {
     const occupyUpdate = buildOccupyUpdate(enrichedBody, pacienteId)
     let liberarSlotIds: string[] = []
     if (profissionalId && inicioMin !== null) {
-      const { rows, error: rowsError } = await getLinhasDoDia(supabase, profissionalId, dataSlot, [])
+      const { rows, error: rowsError } = await getLinhasDoDia(
+        supabase,
+        profissionalId,
+        dataSlot,
+        [],
+      )
       if (rowsError) return supabaseErrorResponse(rowsError, 'Falha ao agendar consulta')
       const slotAlvo = rows.find(
         (row) =>
@@ -892,9 +895,8 @@ export async function PUT(request: NextRequest) {
   const modalidadeFinal =
     body.modalidade !== undefined
       ? body.modalidade
-      : existing.modalidade_atendimento ?? (pacienteId ? 'Presencial' : null)
-  const urlOnlineFinal =
-    body.urlOnline !== undefined ? body.urlOnline : existing.url_online
+      : (existing.modalidade_atendimento ?? (pacienteId ? 'Presencial' : null))
+  const urlOnlineFinal = body.urlOnline !== undefined ? body.urlOnline : existing.url_online
   const urlCheck = validateModalidadeOnlineUrl({
     modalidade: modalidadeFinal,
     urlOnline: urlOnlineFinal,
@@ -910,9 +912,7 @@ export async function PUT(request: NextRequest) {
         ? String(existing.procedimento_id)
         : null
   const valorInput =
-    body.valorProcedimento !== undefined
-      ? body.valorProcedimento
-      : existing.valor_procedimento
+    body.valorProcedimento !== undefined ? body.valorProcedimento : existing.valor_procedimento
   const tipoInput = body.tipo !== undefined ? body.tipo : existing.tipo
 
   const procResolved = await resolveAgendamentoProcedimento(supabase, {
@@ -967,13 +967,22 @@ export async function PUT(request: NextRequest) {
         (row) =>
           String(row.status) === 'Disponível' && timeToMinutes(row.horario_inicio) === inicioMin,
       )
-      // A consulta mantém sua duração; sem duração prévia, usa a do slot de destino.
+      // Duração: procedimento > slot de destino (grade) > duração anterior, só se plausível (≤ 4h;
+      // registros antigos podem ter fim inconsistente por causa do remarcar antigo).
+      const duracaoProc = await getDuracaoProcedimento(
+        supabase,
+        existing.procedimento_id ? String(existing.procedimento_id) : null,
+      )
+      const duracaoSlot = slotAlvo
+        ? (timeToMinutes(slotAlvo.horario_fim) ?? inicioMin) - inicioMin
+        : 0
       const duracao =
-        duracaoOriginal > 0
-          ? duracaoOriginal
-          : slotAlvo
-            ? (timeToMinutes(slotAlvo.horario_fim) ?? inicioMin) - inicioMin
-            : 0
+        duracaoProc ??
+        (duracaoSlot > 0
+          ? duracaoSlot
+          : duracaoOriginal > 0 && duracaoOriginal <= 240
+            ? duracaoOriginal
+            : 40)
       const fimMin = inicioMin + Math.max(duracao, 1)
       const plano = planejarOcupacao({
         inicioMin,
@@ -1019,13 +1028,10 @@ export async function PUT(request: NextRequest) {
       tipo: tipoInput ?? null,
       titulo: body.titulo !== undefined ? body.titulo : existing.titulo,
       local: body.local !== undefined ? body.local : existing.local,
-      participantes:
-        body.participantes !== undefined ? body.participantes : existing.participantes,
+      participantes: body.participantes !== undefined ? body.participantes : existing.participantes,
       modalidade_atendimento: modalidadeFinal,
       plataforma_online:
-        body.plataformaOnline !== undefined
-          ? body.plataformaOnline
-          : existing.plataforma_online,
+        body.plataformaOnline !== undefined ? body.plataformaOnline : existing.plataforma_online,
       url_online: urlOnlineFinal,
       // Resolved já herda do registro atual quando o body omite os campos;
       // não usar `?? existing` aqui — senão limpar procedimento/valor não persiste.
@@ -1131,7 +1137,9 @@ export async function DELETE(request: NextRequest) {
   const reasonText = body.reason ? String(body.reason) : ''
   let current = supabase
     .from('agendamentos')
-    .select('id,paciente_id,profissional_id,unidade_id,data_agendamento,horario_inicio,horario_fim,status,observacoes')
+    .select(
+      'id,paciente_id,profissional_id,unidade_id,data_agendamento,horario_inicio,horario_fim,status,observacoes',
+    )
     .eq('id', String(body.id))
   if (scopedContext.profissionalId) {
     current = current.eq('profissional_id', scopedContext.profissionalId)
