@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useAuth } from '@/hooks/use-auth'
 import { dentroDoPeriodo } from '@/features/tarefas/planner-utils'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -101,6 +102,9 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
   const [formData, setFormData] = useState<FormData>(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
   // Abre sempre filtrado em hoje (data local do navegador).
+  const user = useAuth((state) => state.user)
+  const isGestao = ['master', 'admin', 'gestor'].includes(String(user?.role))
+  const [escopo, setEscopo] = useState<'minhas' | 'time'>('minhas')
   const [filtroDe, setFiltroDe] = useState(hojeLocalIso)
   const [filtroAte, setFiltroAte] = useState(hojeLocalIso)
 
@@ -113,6 +117,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
     resetForm()
     setFiltroDe(hojeLocalIso())
     setFiltroAte(hojeLocalIso())
+    setEscopo('minhas')
     setMostrarFormulario(false)
     onClose()
   }
@@ -215,9 +220,10 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
         (item) =>
           item.status !== 'Concluída' &&
           item.status !== 'Cancelada' &&
-          dentroDoPeriodo(item.data, filtroDe, filtroAte),
+          dentroDoPeriodo(item.data, filtroDe, filtroAte) &&
+          (!isGestao || escopo === 'time' || item.responsavelId === user?.id),
       ),
-    [tarefas, filtroDe, filtroAte],
+    [tarefas, filtroDe, filtroAte, isGestao, escopo, user?.id],
   )
 
   const tarefasPendentes = tarefasAbertas.filter((item) => item.status === 'Pendente').length
@@ -296,6 +302,17 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
           <div className="flex flex-wrap items-center gap-2 text-sm">
+            {isGestao && (
+              <select
+                value={escopo}
+                onChange={(event) => setEscopo(event.target.value as 'minhas' | 'time')}
+                aria-label="Escopo das tarefas"
+                className="h-10 rounded-[12px] border border-app-border bg-white px-3 text-sm dark:border-app-border-dark dark:bg-transparent"
+              >
+                <option value="minhas">Minhas tarefas</option>
+                <option value="time">Tarefas do time</option>
+              </select>
+            )}
             <span className="flex items-center gap-2">
               De
               <Input type="date" value={filtroDe} onChange={(event) => setFiltroDe(event.target.value)} className="h-10 w-[150px]" aria-label="Data inicial" />

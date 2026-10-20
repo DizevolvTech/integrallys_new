@@ -84,3 +84,12 @@ describe('filtro por data', () => {
     expect(applyFilters(lista, base).map((t) => t.id)).toEqual(['1', '2', '3', '4'])
   })
 })
+
+describe('escopo minhas/time', () => {
+  const base = { mostrarConcluidas: false, mostrarSubtarefas: true, projeto: 'todos', prioridade: 'todas', busca: '' }
+  it('minhas filtra pelo responsável; time mostra todas', () => {
+    const lista = [tarefa({ id: '1', responsavelId: 'eu' }), tarefa({ id: '2', responsavelId: 'outro' })]
+    expect(applyFilters(lista, { ...base, escopo: 'minhas', meuId: 'eu' }).map((x) => x.id)).toEqual(['1'])
+    expect(applyFilters(lista, { ...base, escopo: 'time', meuId: 'eu' }).map((x) => x.id)).toEqual(['1', '2'])
+  })
+})

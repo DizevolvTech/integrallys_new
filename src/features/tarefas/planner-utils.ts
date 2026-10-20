@@ -61,6 +61,9 @@ export interface PlannerFilters {
   /** Filtro por data da tarefa (AAAA-MM-DD, inclusivo). Vazio = sem limite. */
   dataDe?: string
   dataAte?: string
+  /** 'minhas' = só onde sou responsável; 'time' = todas (gestão). Exige `meuId`. */
+  escopo?: 'minhas' | 'time'
+  meuId?: string
 }
 
 /** Tarefa sem data só aparece quando não há filtro de data. */
@@ -80,6 +83,7 @@ export function applyFilters(tarefas: TarefaItem[], filters: PlannerFilters) {
     if (!filters.mostrarConcluidas && tarefa.status === 'Concluída') return false
     if (filters.projeto !== 'todos' && tarefa.categoria !== filters.projeto) return false
     if (filters.prioridade !== 'todas' && tarefa.prioridade !== filters.prioridade) return false
+    if (filters.escopo === 'minhas' && tarefa.responsavelId !== filters.meuId) return false
     if (!dentroDoPeriodo(tarefa.data, filters.dataDe, filters.dataAte)) return false
     if (busca && !`${tarefa.titulo} ${tarefa.descricao}`.toLowerCase().includes(busca)) return false
     return true

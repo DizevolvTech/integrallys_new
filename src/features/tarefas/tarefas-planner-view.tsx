@@ -233,6 +233,8 @@ export function TarefasPlannerView() {
   const [mode, setMode] = useState<'lista' | 'calendario'>('lista')
   const [cursor, setCursor] = useState(() => new Date())
   const [filters, setFilters] = useState<PlannerFilters>({
+    escopo: isPrivileged ? 'minhas' : undefined,
+    meuId: user?.id,
     mostrarConcluidas: false,
     mostrarSubtarefas: true,
     projeto: 'todos',
@@ -250,7 +252,10 @@ export function TarefasPlannerView() {
     () => Array.from(new Set(data.map((tarefa) => tarefa.categoria).filter(Boolean))).sort(),
     [data],
   )
-  const visiveis = useMemo(() => applyFilters(data, filters), [data, filters])
+  const visiveis = useMemo(
+    () => applyFilters(data, { ...filters, meuId: user?.id, escopo: isPrivileged ? filters.escopo ?? 'minhas' : undefined }),
+    [data, filters, user?.id, isPrivileged],
+  )
   const byDate = (key: string) => visiveis.filter((tarefa) => tarefa.data === key).sort(sortTarefas)
 
   const run = async (action: () => Promise<unknown>, okMessage?: string) => {
@@ -505,6 +510,20 @@ export function TarefasPlannerView() {
           placeholder="Buscar tarefa"
           className="h-10 w-full sm:w-56"
         />
+        {isPrivileged && (
+          <Select
+            value={filters.escopo ?? 'minhas'}
+            onValueChange={(value) => setFilters({ ...filters, escopo: value as 'minhas' | 'time' })}
+          >
+            <SelectTrigger className="w-[170px]" aria-label="Escopo das tarefas">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minhas">Minhas tarefas</SelectItem>
+              <SelectItem value="time">Tarefas do time</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Select value={filters.projeto} onValueChange={(value) => setFilters({ ...filters, projeto: value })}>
           <SelectTrigger className="w-[170px]">
             <SelectValue placeholder="Projeto" />
