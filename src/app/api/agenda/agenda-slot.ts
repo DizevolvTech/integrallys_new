@@ -98,7 +98,6 @@ export function buildInsertPayload(params: {
 }): Record<string, unknown> {
   const { unidadeId, pacienteId, profissionalId, criadoPorId, body, foraJanela, motivoEncaixe } =
     params
-  const isCompromissoPessoal = !pacienteId
   return {
     unidade_id: unidadeId,
     paciente_id: pacienteId,
@@ -112,7 +111,8 @@ export function buildInsertPayload(params: {
     titulo: body.titulo ?? null,
     local: body.local ?? null,
     participantes: body.participantes ?? null,
-    modalidade_atendimento: body.modalidade ?? (isCompromissoPessoal ? null : 'Presencial'),
+    // A coluna é NOT NULL (default 'Presencial'); compromisso pessoal também precisa de valor.
+    modalidade_atendimento: body.modalidade ?? 'Presencial',
     plataforma_online: body.plataformaOnline ?? null,
     url_online: body.urlOnline ?? null,
     valor_procedimento: body.valorProcedimento ?? null,

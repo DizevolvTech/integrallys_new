@@ -135,7 +135,8 @@ describe('buildInsertPayload', () => {
       motivoEncaixe: null,
     })
     expect(row.paciente_id).toBeNull()
-    expect(row.modalidade_atendimento).toBeNull()
+    // coluna NOT NULL: compromisso pessoal grava o padrão 'Presencial' (antes null → erro 500)
+    expect(row.modalidade_atendimento).toBe('Presencial')
     expect(row.titulo).toBe('Reunião')
     expect(row.fora_janela).toBe(false)
     expect(row.tipo_encaixe).toBe('normal')
