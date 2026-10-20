@@ -91,15 +91,21 @@ export function AgendaDayView({
   const rowTimes = Array.from(new Set(dayFilteredItems.map((item) => item.hora))).sort()
 
   const temConteudo = dayFilteredItems.length > 0 || bloqueiosDoDia.length > 0
+  // Bloqueios e horários dividem a mesma linha do tempo: `order` (CSS) ordena por hora de início.
+  const toMinutes = (value?: string | null) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(value ?? '')
+    return m ? Number(m[1]) * 60 + Number(m[2]) : 0
+  }
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         {bloqueiosDoDia.map((b) => {
           const profissionalNome = b.profissionalId ? profIdToNome.get(b.profissionalId) : null
           return (
             <div
               key={`bloq-${b.id}`}
+              style={{ order: b.diaInteiro ? -1 : toMinutes(b.horarioInicio) }}
               className="rounded-integrallys border border-red-200 bg-red-50/70 p-4 dark:border-red-900/40 dark:bg-red-950/20"
               title={b.justificativa ?? undefined}
             >
@@ -156,7 +162,7 @@ export function AgendaDayView({
               : allItemsInSlot.filter((item) => item.status === 'Disponível')
 
           return (
-            <div key={time} className="space-y-2">
+            <div key={time} className="space-y-2" style={{ order: toMinutes(time) }}>
               {itemsInSlot.map((item) => {
                 const currentStatus = normalizeAgendaStatus(item.status)
                 const duracao = formatSlotDuration(item.hora, item.horaFim)

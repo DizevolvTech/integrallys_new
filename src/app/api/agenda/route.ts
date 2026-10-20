@@ -123,7 +123,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   let query = supabase
     .from('agendamentos')
     .select(
-      'id,paciente_id,profissional_id,procedimento_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe',
+      'id,paciente_id,profissional_id,procedimento_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe,criado_por_id',
     )
     .order('data_agendamento', { ascending: true })
     .order('horario_inicio', { ascending: true })
@@ -152,6 +152,8 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
         (row) =>
           row.paciente_id ||
           String(row.status) === 'Disponível' ||
+          // quem criou o compromisso sempre o enxerga, mesmo sem acesso à agenda pessoal do especialista
+          String(row.criado_por_id ?? '') === session?.userId ||
           pessoalLiberado.includes(String(row.profissional_id ?? '')),
       )
     : rawData
