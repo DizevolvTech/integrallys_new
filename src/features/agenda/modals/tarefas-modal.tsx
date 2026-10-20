@@ -326,7 +326,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                 className="h-10 rounded-[12px] border border-app-border bg-white px-3 text-sm dark:border-app-border-dark dark:bg-transparent"
               >
                 <option value="todos">Todo o time</option>
-                {usuarios.map((item) => (
+                {usuarios.filter((item) => item.perfil !== 'paciente').map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.nome}
                   </option>

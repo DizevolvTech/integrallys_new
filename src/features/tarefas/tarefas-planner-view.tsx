@@ -544,7 +544,7 @@ export function TarefasPlannerView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todo o time</SelectItem>
-              {usuarios.map((item) => (
+              {usuarios.filter((item) => item.perfil !== 'paciente').map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   {item.nome}
                 </SelectItem>
