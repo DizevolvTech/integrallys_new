@@ -17,6 +17,12 @@ import {
 import { addDaysIso } from '@/lib/procedimento-retorno'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import {
+  type AgendaRowIntervalo,
+  minutesToHHMM,
+  planejarOcupacao,
+  timeToMinutes,
+} from './agenda-duracao'
+import {
   isHorarioPassado,
   STATUS_ELEGIVEIS_ATRASO,
 } from '@/features/agenda/agenda.utils'
@@ -358,6 +364,43 @@ async function resolvePatientUnitId(
 }
 
 /** Registra pagamento inicial obrigatório em consulta com paciente (parcial ou total). */
+/** Duração (min) definida no procedimento; null = usa a duração da grade do profissional. */
+async function getDuracaoProcedimento(
+  supabase: ReturnType<typeof getAppSupabase>,
+  procedimentoId: string | null,
+): Promise<number | null> {
+  if (!procedimentoId) return null
+  const { data } = await supabase
+    .from('procedimentos')
+    .select('duracao_min')
+    .eq('id', procedimentoId)
+    .maybeSingle()
+  const value = Number(data?.duracao_min)
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
+async function getLinhasDoDia(
+  supabase: ReturnType<typeof getAppSupabase>,
+  profissionalId: string,
+  dataIso: string,
+  ignorarIds: string[],
+) {
+  const { data, error } = await supabase
+    .from('agendamentos')
+    .select('id,status,horario_inicio,horario_fim,unidade_id,profissional_id,data_agendamento')
+    .eq('profissional_id', profissionalId)
+    .eq('data_agendamento', dataIso)
+  const rows = ((data ?? []) as Array<Record<string, unknown>>).filter(
+    (row) => !ignorarIds.includes(String(row.id)),
+  )
+  return { rows, error }
+}
+
+function mensagemConflitoDuracao(conflito: AgendaRowIntervalo, fimMin: number) {
+  const ini = String(conflito.horario_inicio ?? '').slice(0, 5)
+  return `A duração prevista (até ${minutesToHHMM(fimMin)}) conflita com o atendimento das ${ini}. Escolha um horário a partir do fim do atendimento anterior.`
+}
+
 /**
  * Valida o pagamento inicial ANTES de ocupar o horário. Sem isso, um pagamento inválido
  * devolvia erro 400 mas deixava a cliente agendada e o horário preso, sem pagamento.
@@ -657,11 +700,45 @@ export async function POST(request: NextRequest) {
   // O `pacienteId &&` à esquerda é só p/ narrowing de tipo (string|null → string
   // para buildOccupyUpdate); decidirFluxoAgendamento já exige pacienteId.
   if (pacienteId && decidirFluxoAgendamento({ pacienteId, foraJanela }) === 'ocupar') {
+    // Regra de duração: o atendimento ocupa [início, início + duração do procedimento ou da grade).
+    const dataSlot = String(enrichedBody.data)
+    const horarioSlot = String(enrichedBody.horario)
+    const duracaoProc = await getDuracaoProcedimento(supabase, procResolved.data.procedimentoId)
+    const inicioMin = timeToMinutes(horarioSlot)
+    const occupyUpdate = buildOccupyUpdate(enrichedBody, pacienteId)
+    let liberarSlotIds: string[] = []
+    if (profissionalId && inicioMin !== null) {
+      const { rows, error: rowsError } = await getLinhasDoDia(supabase, profissionalId, dataSlot, [])
+      if (rowsError) return supabaseErrorResponse(rowsError, 'Falha ao agendar consulta')
+      const slotAlvo = rows.find(
+        (row) =>
+          String(row.status) === 'Disponível' && timeToMinutes(row.horario_inicio) === inicioMin,
+      )
+      if (slotAlvo) {
+        const fimGrade = timeToMinutes(slotAlvo.horario_fim)
+        const fimMin = duracaoProc ? inicioMin + duracaoProc : (fimGrade ?? inicioMin)
+        const plano = planejarOcupacao({
+          inicioMin,
+          fimMin,
+          outros: rows.filter((row) => row.id !== slotAlvo.id) as unknown as AgendaRowIntervalo[],
+        })
+        if (!plano.ok) {
+          return serverErrorResponse(
+            mensagemConflitoDuracao(plano.conflito, fimMin),
+            'DURACAO_CONFLITA',
+            409,
+          )
+        }
+        liberarSlotIds = plano.liberarSlotIds
+        if (duracaoProc) occupyUpdate.horario_fim = minutesToHHMM(fimMin)
+      }
+    }
+
     const result = await ocuparSlotDisponivel(supabase, {
       profissionalId,
-      data: String(enrichedBody.data),
-      horario: String(enrichedBody.horario),
-      update: buildOccupyUpdate(enrichedBody, pacienteId),
+      data: dataSlot,
+      horario: horarioSlot,
+      update: occupyUpdate,
     })
 
     if (result.kind === 'error') {
@@ -673,6 +750,10 @@ export async function POST(request: NextRequest) {
         'SLOT_INDISPONIVEL',
         409,
       )
+    }
+
+    if (liberarSlotIds.length > 0) {
+      await supabase.from('agendamentos').delete().in('id', liberarSlotIds)
     }
 
     void agendarLembrete(result.id).catch((err) =>
@@ -860,7 +941,7 @@ export async function PUT(request: NextRequest) {
       profissionalId !== (existing.profissional_id ? String(existing.profissional_id) : null))
   let horarioFimFinal: unknown =
     body.horarioFim !== undefined ? body.horarioFim : existing.horario_fim
-  let consumedSlot: Record<string, unknown> | null = null
+  let consumedSlots: Array<Record<string, unknown>> = []
   if (moved) {
     if (isHorarioPassado(dataAgendamento, horario)) {
       return serverErrorResponse(
@@ -869,46 +950,56 @@ export async function PUT(request: NextRequest) {
         400,
       )
     }
-    const { data: targetRows, error: targetError } = await supabase
-      .from('agendamentos')
-      .select('id,status,horario_fim,unidade_id,profissional_id,data_agendamento,horario_inicio')
-      .eq('profissional_id', String(profissionalId))
-      .eq('data_agendamento', dataAgendamento)
-      .eq('horario_inicio', horario)
-      .neq('id', String(existing.id))
-      .neq('status', 'Cancelado')
-    if (targetError) {
-      return supabaseErrorResponse(targetError, 'Falha ao remarcar agendamento')
+    const inicioMin = timeToMinutes(horario)
+    const duracaoOriginal =
+      (timeToMinutes(existing.horario_fim) ?? 0) - (timeToMinutes(existing.horario_inicio) ?? 0)
+    const { rows, error: rowsError } = await getLinhasDoDia(
+      supabase,
+      String(profissionalId),
+      dataAgendamento,
+      [String(existing.id)],
+    )
+    if (rowsError) {
+      return supabaseErrorResponse(rowsError, 'Falha ao remarcar agendamento')
     }
-    if ((targetRows ?? []).some((row) => String(row.status) !== 'Disponível')) {
-      return serverErrorResponse(
-        'Esse horário não está disponível para o profissional. Escolha outro horário.',
-        'SLOT_INDISPONIVEL',
-        409,
+    if (inicioMin !== null) {
+      const slotAlvo = rows.find(
+        (row) =>
+          String(row.status) === 'Disponível' && timeToMinutes(row.horario_inicio) === inicioMin,
       )
-    }
-    consumedSlot = (targetRows ?? [])[0] ?? null
-    if (body.horarioFim === undefined) {
-      if (consumedSlot?.horario_fim) {
-        horarioFimFinal = consumedSlot.horario_fim
-      } else if (existing.horario_inicio && existing.horario_fim) {
-        // sem slot na grade (encaixe): mantém a duração original
-        const toMin = (v: unknown) => {
-          const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? ''))
-          return m ? Number(m[1]) * 60 + Number(m[2]) : 0
-        }
-        const dur = toMin(existing.horario_fim) - toMin(existing.horario_inicio)
-        if (dur > 0) {
-          const end = toMin(horario) + dur
-          horarioFimFinal = `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`
-        }
+      // A consulta mantém sua duração; sem duração prévia, usa a do slot de destino.
+      const duracao =
+        duracaoOriginal > 0
+          ? duracaoOriginal
+          : slotAlvo
+            ? (timeToMinutes(slotAlvo.horario_fim) ?? inicioMin) - inicioMin
+            : 0
+      const fimMin = inicioMin + Math.max(duracao, 1)
+      const plano = planejarOcupacao({
+        inicioMin,
+        fimMin,
+        outros: rows as unknown as AgendaRowIntervalo[],
+      })
+      if (!plano.ok) {
+        return serverErrorResponse(
+          mensagemConflitoDuracao(plano.conflito, fimMin),
+          'DURACAO_CONFLITA',
+          409,
+        )
+      }
+      consumedSlots = rows.filter((row) => plano.liberarSlotIds.includes(String(row.id)))
+      if (body.horarioFim === undefined && duracao > 0) {
+        horarioFimFinal = minutesToHHMM(fimMin)
       }
     }
-    if (consumedSlot) {
+    if (consumedSlots.length > 0) {
       const { error: consumeError } = await supabase
         .from('agendamentos')
         .delete()
-        .eq('id', String(consumedSlot.id))
+        .in(
+          'id',
+          consumedSlots.map((row) => String(row.id)),
+        )
       if (consumeError) {
         return supabaseErrorResponse(consumeError, 'Falha ao remarcar agendamento')
       }
@@ -957,17 +1048,19 @@ export async function PUT(request: NextRequest) {
   const { data: updatedRows, error } = await query.select('id')
 
   const restoreConsumedSlot = async () => {
-    if (!consumedSlot) return
-    await supabase.from('agendamentos').insert({
-      profissional_id: consumedSlot.profissional_id,
-      unidade_id: consumedSlot.unidade_id,
-      data_agendamento: consumedSlot.data_agendamento,
-      horario_inicio: consumedSlot.horario_inicio,
-      horario_fim: consumedSlot.horario_fim,
-      status: 'Disponível',
-      paciente_id: null,
-      criado_por_id: session.userId,
-    })
+    if (consumedSlots.length === 0) return
+    await supabase.from('agendamentos').insert(
+      consumedSlots.map((slot) => ({
+        profissional_id: slot.profissional_id,
+        unidade_id: slot.unidade_id,
+        data_agendamento: slot.data_agendamento,
+        horario_inicio: slot.horario_inicio,
+        horario_fim: slot.horario_fim,
+        status: 'Disponível',
+        paciente_id: null,
+        criado_por_id: session.userId,
+      })),
+    )
   }
 
   if (error) {
