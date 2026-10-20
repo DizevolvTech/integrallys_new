@@ -15,14 +15,14 @@ const TAREFA_SELECT =
 
 async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
-  // Item 1 — lista de tarefas é individual: cada usuário vê as próprias (responsável ou
-  // criador). Gestor, administrador e master enxergam todas (base do relatório de tarefas).
+  // Item 1 — lista de tarefas é individual: cada usuário vê só as tarefas em que é
+  // o responsável. Gestor, administrador e master enxergam todas (base do relatório de tarefas).
   let query = supabase
     .from('tarefas')
     .select(TAREFA_SELECT)
     .order('created_at', { ascending: false })
   if (session && !['master', 'admin', 'gestor'].includes(String(session.role))) {
-    query = query.or(`responsavel_id.eq.${session.userId},created_by_id.eq.${session.userId}`)
+    query = query.eq('responsavel_id', session.userId)
   }
   const { data, error } = await query
 
@@ -64,6 +64,23 @@ async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) 
     ),
     meta: session,
   })
+}
+
+const ROLES_VEEM_TODAS = ['master', 'admin', 'gestor']
+
+/** Perfis comuns só alteram/excluem tarefas das quais são responsáveis. */
+async function podeAlterarTarefa(
+  supabase: ReturnType<typeof getAppSupabase>,
+  session: { userId: string; role?: unknown },
+  taskId: string,
+) {
+  if (ROLES_VEEM_TODAS.includes(String(session.role))) return true
+  const { data } = await supabase
+    .from('tarefas')
+    .select('responsavel_id')
+    .eq('id', taskId)
+    .maybeSingle()
+  return Boolean(data) && String(data?.responsavel_id ?? '') === session.userId
 }
 
 export async function GET(request: NextRequest) {
@@ -239,6 +256,10 @@ export async function PUT(request: NextRequest) {
   const supabase = getAppSupabase()
   const taskId = String(body.id)
 
+  if (!(await podeAlterarTarefa(supabase, session, taskId))) {
+    return serverErrorResponse('Tarefa não encontrada', 'TASK_NOT_FOUND', 404)
+  }
+
   const { data: before, error: beforeError } = await supabase
     .from('tarefas')
     .select(TAREFA_SELECT)
@@ -347,6 +368,9 @@ export async function DELETE(request: NextRequest) {
   }
 
   const supabase = getAppSupabase()
+  if (!(await podeAlterarTarefa(supabase, session, String(body.id)))) {
+    return serverErrorResponse('Tarefa não encontrada', 'TASK_NOT_FOUND', 404)
+  }
   const { error } = await supabase.from('tarefas').delete().eq('id', String(body.id))
 
   if (error) {

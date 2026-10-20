@@ -7,7 +7,7 @@ type Session = NonNullable<Awaited<ReturnType<typeof getRequestAuth>>>
 
 const PRIVILEGED_ROLES = ['master', 'admin', 'gestor']
 
-/** Usuário comum só mexe em subtarefas de tarefas próprias (responsável ou criador). */
+/** Usuário comum só mexe em subtarefas de tarefas próprias (responsável). */
 async function canTouchTarefa(session: Session, tarefaId: string) {
   if (PRIVILEGED_ROLES.includes(String(session.role))) return true
   const supabase = getAppSupabase()
@@ -17,7 +17,7 @@ async function canTouchTarefa(session: Session, tarefaId: string) {
     .eq('id', tarefaId)
     .maybeSingle()
   if (!data) return false
-  return data.responsavel_id === session.userId || data.created_by_id === session.userId
+  return data.responsavel_id === session.userId
 }
 
 async function tarefaIdOfSubtarefa(id: string) {
