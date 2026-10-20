@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Calendar } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -22,10 +22,12 @@ interface RemarcarConsultaModalProps {
   isOpen: boolean
   onClose: () => void
   consulta?: ConsultaInfo | null
+  /** Horários livres da grade (já alinhados à duração de cada profissional/dia). */
+  availableSlots?: Array<{ profissional: string; data: string; horario: string }>
   onSave?: (payload: { id: string; pacienteId?: string; data: string; horario: string }) => Promise<void> | void
 }
 
-export function RemarcarConsultaModal({ isOpen, onClose, consulta, onSave }: RemarcarConsultaModalProps) {
+export function RemarcarConsultaModal({ isOpen, onClose, consulta, availableSlots = [], onSave }: RemarcarConsultaModalProps) {
   const [novoHorario, setNovoHorario] = useState('')
   const [novaData, setNovaData] = useState('')
 
@@ -38,6 +40,18 @@ export function RemarcarConsultaModal({ isOpen, onClose, consulta, onSave }: Rem
     horario: '08:00',
     tipo: 'Consulta',
   }
+
+  const opcoesHorario = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          availableSlots
+            .filter((slot) => slot.profissional === item.especialista && slot.data === novaData)
+            .map((slot) => slot.horario),
+        ),
+      ).sort(),
+    [availableSlots, item.especialista, novaData],
+  )
 
   const handleSave = async () => {
     if (!item.id || !novaData || !novoHorario) return
@@ -80,7 +94,10 @@ export function RemarcarConsultaModal({ isOpen, onClose, consulta, onSave }: Rem
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="font-normal">Nova data *</Label>
-              <Input type="date" value={novaData} onChange={(event) => setNovaData(event.target.value)} className="font-normal" />
+              <Input type="date" value={novaData} onChange={(event) => {
+                  setNovaData(event.target.value)
+                  setNovoHorario('')
+                }} className="font-normal" />
             </div>
             <div className="space-y-2">
               <Label className="font-normal">Novo horário *</Label>
@@ -89,11 +106,17 @@ export function RemarcarConsultaModal({ isOpen, onClose, consulta, onSave }: Rem
                   <SelectValue placeholder="Horário" />
                 </SelectTrigger>
                 <SelectContent>
-                  {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','14:00','14:30','15:00','15:30','16:00'].map((value) => (
-                    <SelectItem key={value} value={value} className="font-normal">
-                      {value}
-                    </SelectItem>
-                  ))}
+                  {opcoesHorario.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-app-text-muted">
+                      {novaData ? 'Sem horários livres nesta data' : 'Escolha a data primeiro'}
+                    </div>
+                  ) : (
+                    opcoesHorario.map((value) => (
+                      <SelectItem key={value} value={value} className="font-normal">
+                        {value}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

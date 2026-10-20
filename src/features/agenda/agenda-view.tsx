@@ -1486,6 +1486,7 @@ export function AgendaView() {
         onSave={actions.handleAddToWaitlist}
       />
       <RemarcarConsultaModal
+        availableSlots={availableSlots}
         isOpen={actions.activeModal === 'remarcar'}
         onClose={() => actions.setActiveModal(null)}
         consulta={
