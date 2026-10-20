@@ -58,6 +58,19 @@ export interface PlannerFilters {
   projeto: string
   prioridade: string
   busca: string
+  /** Filtro por data da tarefa (AAAA-MM-DD, inclusivo). Vazio = sem limite. */
+  dataDe?: string
+  dataAte?: string
+}
+
+/** Tarefa sem data só aparece quando não há filtro de data. */
+export function dentroDoPeriodo(data: string | undefined | null, de?: string, ate?: string) {
+  if (!de && !ate) return true
+  if (!data) return false
+  const dia = String(data).slice(0, 10)
+  if (de && dia < de) return false
+  if (ate && dia > ate) return false
+  return true
 }
 
 export function applyFilters(tarefas: TarefaItem[], filters: PlannerFilters) {
@@ -67,6 +80,7 @@ export function applyFilters(tarefas: TarefaItem[], filters: PlannerFilters) {
     if (!filters.mostrarConcluidas && tarefa.status === 'Concluída') return false
     if (filters.projeto !== 'todos' && tarefa.categoria !== filters.projeto) return false
     if (filters.prioridade !== 'todas' && tarefa.prioridade !== filters.prioridade) return false
+    if (!dentroDoPeriodo(tarefa.data, filters.dataDe, filters.dataAte)) return false
     if (busca && !`${tarefa.titulo} ${tarefa.descricao}`.toLowerCase().includes(busca)) return false
     return true
   })

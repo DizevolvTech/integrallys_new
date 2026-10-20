@@ -529,6 +529,35 @@ export function TarefasPlannerView() {
             <SelectItem value="Baixa">Baixa</SelectItem>
           </SelectContent>
         </Select>
+        <span className="flex items-center gap-2 text-sm">
+          De
+          <Input
+            type="date"
+            value={filters.dataDe ?? ''}
+            onChange={(event) => setFilters({ ...filters, dataDe: event.target.value })}
+            className="h-10 w-[150px]"
+            aria-label="Data inicial"
+          />
+        </span>
+        <span className="flex items-center gap-2 text-sm">
+          Até
+          <Input
+            type="date"
+            value={filters.dataAte ?? ''}
+            onChange={(event) => setFilters({ ...filters, dataAte: event.target.value })}
+            className="h-10 w-[150px]"
+            aria-label="Data final"
+          />
+        </span>
+        {(filters.dataDe || filters.dataAte) && (
+          <button
+            type="button"
+            className="text-sm underline"
+            onClick={() => setFilters({ ...filters, dataDe: '', dataAte: '' })}
+          >
+            Limpar datas
+          </button>
+        )}
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

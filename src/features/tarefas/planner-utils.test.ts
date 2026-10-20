@@ -69,3 +69,18 @@ describe('planner-utils', () => {
     expect(applyFilters(lista, { ...base, busca: 'fornecedor' }).map((t) => t.id)).toEqual(['1'])
   })
 })
+
+describe('filtro por data', () => {
+  const base = { mostrarConcluidas: false, mostrarSubtarefas: true, projeto: 'todos', prioridade: 'todas', busca: '' }
+  it('mantém só tarefas dentro do período (inclusivo) e esconde as sem data', () => {
+    const lista = [
+      tarefa({ id: '1', data: '2026-10-20' }),
+      tarefa({ id: '2', data: '2026-10-23' }),
+      tarefa({ id: '3', data: '2026-10-30' }),
+      tarefa({ id: '4', data: '' }),
+    ]
+    expect(applyFilters(lista, { ...base, dataDe: '2026-10-21', dataAte: '2026-10-30' }).map((t) => t.id)).toEqual(['2', '3'])
+    expect(applyFilters(lista, { ...base, dataDe: '2026-10-23', dataAte: '2026-10-23' }).map((t) => t.id)).toEqual(['2'])
+    expect(applyFilters(lista, base).map((t) => t.id)).toEqual(['1', '2', '3', '4'])
+  })
+})

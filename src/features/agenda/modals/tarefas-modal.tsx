@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { dentroDoPeriodo } from '@/features/tarefas/planner-utils'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
@@ -94,6 +95,8 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
   const [tarefaEditando, setTarefaEditando] = useState<TarefaItem | null>(null)
   const [formData, setFormData] = useState<FormData>(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
+  const [filtroDe, setFiltroDe] = useState('')
+  const [filtroAte, setFiltroAte] = useState('')
 
   const resetForm = () => {
     setFormData(emptyForm)
@@ -199,8 +202,14 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
   }
 
   const tarefasAbertas = useMemo(
-    () => tarefas.filter((item) => item.status !== 'Concluída' && item.status !== 'Cancelada'),
-    [tarefas],
+    () =>
+      tarefas.filter(
+        (item) =>
+          item.status !== 'Concluída' &&
+          item.status !== 'Cancelada' &&
+          dentroDoPeriodo(item.data, filtroDe, filtroAte),
+      ),
+    [tarefas, filtroDe, filtroAte],
   )
 
   const tarefasPendentes = tarefasAbertas.filter((item) => item.status === 'Pendente').length
@@ -277,7 +286,22 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="flex items-center gap-2">
+              De
+              <Input type="date" value={filtroDe} onChange={(event) => setFiltroDe(event.target.value)} className="h-10 w-[150px]" aria-label="Data inicial" />
+            </span>
+            <span className="flex items-center gap-2">
+              Até
+              <Input type="date" value={filtroAte} onChange={(event) => setFiltroAte(event.target.value)} className="h-10 w-[150px]" aria-label="Data final" />
+            </span>
+            {(filtroDe || filtroAte) && (
+              <button type="button" className="underline" onClick={() => { setFiltroDe(''); setFiltroAte('') }}>
+                Limpar
+              </button>
+            )}
+          </div>
           <Button className="h-11 rounded-[12px] bg-app-primary px-4 text-white shadow-sm hover:bg-app-primary-hover" onClick={() => setMostrarFormulario(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Nova tarefa
