@@ -10,6 +10,7 @@ function tarefa(partial: Partial<TarefaItem>): TarefaItem {
     responsavel: '',
     responsavelId: '',
     status: 'Pendente',
+    motivoCancelamento: '',
     recorrencia: 'nenhuma',
     diasSemana: [],
     alerta: false,

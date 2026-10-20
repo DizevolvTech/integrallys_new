@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapTarefaItem } from '@/lib/domain-mappers'
+import { validarCancelamento } from '@/lib/tarefa-status'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import {
   nextVencimentoForRecorrencia,
@@ -11,7 +12,7 @@ import {
 } from '@/lib/tarefa-recorrencia'
 
 const TAREFA_SELECT =
-  'id,titulo,descricao,responsavel_id,status,vencimento_em,recorrencia,dias_semana,alerta,prioridade,categoria,created_at'
+  'id,titulo,descricao,responsavel_id,status,vencimento_em,recorrencia,dias_semana,alerta,prioridade,categoria,motivo_cancelamento,created_at'
 
 async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
@@ -157,6 +158,10 @@ function buildTarefaRow(
     alerta: resolveAlerta(body),
     prioridade: typeof body.prioridade === 'string' && body.prioridade.trim() ? body.prioridade : null,
     categoria: typeof body.categoria === 'string' && body.categoria.trim() ? body.categoria : null,
+    motivo_cancelamento:
+      body.status === 'Cancelada' && typeof body.motivoCancelamento === 'string'
+        ? body.motivoCancelamento.trim() || null
+        : null,
   }
   if (includeCreatedBy) {
     row.created_by_id = sessionUserId
@@ -228,6 +233,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const motivoErro = validarCancelamento(body.status, body.motivoCancelamento)
+  if (motivoErro) return serverErrorResponse(motivoErro, 'MOTIVO_OBRIGATORIO', 400)
+
   const supabase = getAppSupabase()
   const responsavelId = await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)
   const { error } = await supabase
@@ -276,6 +284,12 @@ export async function PUT(request: NextRequest) {
   const responsavelId = await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)
   const nextStatus =
     typeof body.status === 'string' && body.status.trim() ? body.status : String(before.status)
+  const motivoAtual =
+    body.motivoCancelamento !== undefined
+      ? body.motivoCancelamento
+      : (before as Record<string, unknown>).motivo_cancelamento
+  const motivoErro = validarCancelamento(nextStatus, motivoAtual)
+  if (motivoErro) return serverErrorResponse(motivoErro, 'MOTIVO_OBRIGATORIO', 400)
 
   const recorrencia = normalizeTarefaRecorrencia(
     body.recorrencia !== undefined ? body.recorrencia : before.recorrencia,
@@ -297,7 +311,7 @@ export async function PUT(request: NextRequest) {
     .from('tarefas')
     .update(
       buildTarefaRow(
-        { ...body, status: nextStatus, recorrencia, diasSemana },
+        { ...body, status: nextStatus, motivoCancelamento: motivoAtual, recorrencia, diasSemana },
         responsavelId,
         session.userId,
         false,

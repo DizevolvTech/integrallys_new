@@ -40,6 +40,7 @@ import {
   TAREFA_RECORRENCIA_VALUES,
   type TarefaRecorrencia,
 } from '@/lib/tarefa-recorrencia'
+import { TAREFA_STATUS_VALUES, tarefaStatusLabel } from '@/lib/tarefa-status'
 import { DiasSemanaPicker } from '@/features/tarefas/components/dias-semana-picker'
 
 interface TarefasModalProps {
@@ -58,6 +59,8 @@ type FormData = {
   recorrencia: TarefaRecorrencia
   diasSemana: number[]
   alerta: boolean
+  status: string
+  motivoCancelamento: string
 }
 
 const emptyForm: FormData = {
@@ -71,6 +74,8 @@ const emptyForm: FormData = {
   recorrencia: 'nenhuma',
   diasSemana: [],
   alerta: false,
+  status: 'Pendente',
+  motivoCancelamento: '',
 }
 
 function hojeLocalIso() {
@@ -78,7 +83,7 @@ function hojeLocalIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function toPayload(formData: FormData, status: string) {
+function toPayload(formData: FormData) {
   return {
     titulo: formData.titulo.trim(),
     descricao: formData.descricao || undefined,
@@ -90,7 +95,8 @@ function toPayload(formData: FormData, status: string) {
     recorrencia: formData.recorrencia,
     diasSemana: formData.recorrencia === 'dias_especificos' ? formData.diasSemana : [],
     alerta: formData.alerta,
-    status,
+    status: formData.status,
+    motivoCancelamento: formData.status === 'Cancelada' ? formData.motivoCancelamento.trim() : undefined,
   }
 }
 
@@ -139,10 +145,14 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
       toast.error('Selecione ao menos um dia da semana.')
       return
     }
+    if (formData.status === 'Cancelada' && !formData.motivoCancelamento.trim()) {
+      toast.error('Informe o motivo do cancelamento.')
+      return
+    }
 
     setIsSaving(true)
     try {
-      const payload = toPayload(formData, tarefaEditando?.status ?? 'Pendente')
+      const payload = toPayload(formData)
       if (tarefaEditando) {
         await updateTarefa({ ...payload, id: tarefaEditando.id })
         toast.success('Tarefa atualizada.')
@@ -172,8 +182,33 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
       recorrencia: (tarefa.recorrencia as TarefaRecorrencia) || 'nenhuma',
       diasSemana: tarefa.diasSemana || [],
       alerta: Boolean(tarefa.alerta),
+      status: tarefa.status || 'Pendente',
+      motivoCancelamento: tarefa.motivoCancelamento || '',
     })
     setMostrarFormulario(true)
+  }
+
+  const handleMarcarFazendo = async (tarefa: TarefaItem) => {
+    try {
+      await updateTarefa({
+        id: tarefa.id,
+        titulo: tarefa.titulo,
+        descricao: tarefa.descricao || undefined,
+        responsavelId: tarefa.responsavelId || undefined,
+        responsavelNome: tarefa.responsavel || undefined,
+        status: 'Em andamento',
+        data: tarefa.data || undefined,
+        horario: tarefa.horario || undefined,
+        recorrencia: tarefa.recorrencia || 'nenhuma',
+        diasSemana: tarefa.diasSemana || [],
+        alerta: Boolean(tarefa.alerta),
+        prioridade: tarefa.prioridade || undefined,
+        categoria: tarefa.categoria || undefined,
+      })
+      toast.success('Tarefa marcada como "Fazendo".')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar status.')
+    }
   }
 
   const handleToggleConcluir = async (tarefa: TarefaItem) => {
@@ -291,7 +326,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
           </div>
           <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Em andamento</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Fazendo</p>
               <Layers3 className="h-4 w-4 text-[var(--app-primary)]" />
             </div>
             <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasEmAndamento}</p>
@@ -404,7 +439,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                             </Badge>
                           )}
                           <Badge variant="outline" className="rounded-full text-xs">
-                            {tarefa.status}
+                            {tarefaStatusLabel(tarefa.status)}
                           </Badge>
                         </div>
                         {tarefa.descricao && (
@@ -419,6 +454,11 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {tarefa.status !== 'Em andamento' && (
+                        <Button variant="ghost" size="sm" className="rounded-full text-xs" onClick={() => void handleMarcarFazendo(tarefa)}>
+                          Fazendo
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="rounded-full hover:bg-app-bg-secondary dark:hover:bg-app-hover" onClick={() => handleEdit(tarefa)}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
@@ -551,6 +591,32 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
               Classificação
             </div>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid gap-2 md:col-span-2">
+                <Label>Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TAREFA_STATUS_VALUES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {tarefaStatusLabel(value)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.status === 'Cancelada' && (
+                  <Textarea
+                    value={formData.motivoCancelamento}
+                    onChange={(event) => setFormData({ ...formData, motivoCancelamento: event.target.value })}
+                    rows={2}
+                    placeholder="Motivo do cancelamento (obrigatório)"
+                  />
+                )}
+              </div>
               <div className="grid gap-2 md:col-span-2">
                 <Label>Responsável</Label>
                 <Select

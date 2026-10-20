@@ -373,6 +373,7 @@ export function mapTarefaItem(row: Record<string, unknown>) {
     alerta: Boolean(row.alerta),
     prioridade: row.prioridade ? String(row.prioridade) : '',
     categoria: row.categoria ? String(row.categoria) : '',
+    motivoCancelamento: row.motivo_cancelamento ? String(row.motivo_cancelamento) : '',
     vencimentoEm: vencimentoIso,
     data,
     horario,

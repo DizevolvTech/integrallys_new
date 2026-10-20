@@ -19,6 +19,7 @@ import {
   TAREFA_RECORRENCIA_VALUES,
   type TarefaRecorrencia,
 } from '@/lib/tarefa-recorrencia'
+import { tarefaStatusLabel } from '@/lib/tarefa-status'
 import { DiasSemanaPicker } from '@/features/tarefas/components/dias-semana-picker'
 import { DateInput } from '@/components/shared/date-input'
 import { Button } from '@/components/ui/button'
@@ -65,6 +66,7 @@ interface TarefaFormData {
   horario: string
   prioridade: string
   categoria: string
+  motivoCancelamento: string
 }
 
 const emptyForm: TarefaFormData = {
@@ -79,6 +81,7 @@ const emptyForm: TarefaFormData = {
   horario: '',
   prioridade: 'Média',
   categoria: '',
+  motivoCancelamento: '',
 }
 
 export function RelatorioTarefasView() {
@@ -117,6 +120,7 @@ export function RelatorioTarefasView() {
       horario: item.horario || '',
       prioridade: item.prioridade || 'Média',
       categoria: item.categoria || '',
+      motivoCancelamento: item.motivoCancelamento || '',
     })
     setIsModalOpen(true)
   }
@@ -128,6 +132,10 @@ export function RelatorioTarefasView() {
     }
     if (form.recorrencia === 'dias_especificos' && form.diasSemana.length === 0) {
       toast.error('Selecione ao menos um dia da semana.')
+      return
+    }
+    if (form.status === 'Cancelada' && !form.motivoCancelamento.trim()) {
+      toast.error('Informe o motivo do cancelamento.')
       return
     }
     setIsSaving(true)
@@ -144,6 +152,7 @@ export function RelatorioTarefasView() {
         horario: form.horario || undefined,
         prioridade: form.prioridade || undefined,
         categoria: form.categoria || undefined,
+        motivoCancelamento: form.status === 'Cancelada' ? form.motivoCancelamento.trim() : undefined,
       }
       if (editingItem) {
         await updateTarefa({ ...payload, id: editingItem.id })
@@ -211,7 +220,7 @@ export function RelatorioTarefasView() {
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 {STATUS_OPTIONS.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                  <SelectItem key={s} value={s}>{tarefaStatusLabel(s)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -269,6 +278,7 @@ export function RelatorioTarefasView() {
                   )}
                 </div>
                 <p className="mt-1 text-xs text-app-text-secondary">
+                  {item.status === 'Cancelada' && item.motivoCancelamento ? `Motivo: ${item.motivoCancelamento} · ` : ''}
                   {item.responsavel || 'Sem responsável'}
                   {item.data ? ` · ${item.data}` : ''}
                   {item.horario ? ` ${item.horario}` : ''}
@@ -281,7 +291,7 @@ export function RelatorioTarefasView() {
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Badge className={`${statusTone(item.status)} border-none text-xs`}>{item.status}</Badge>
+                <Badge className={`${statusTone(item.status)} border-none text-xs`}>{tarefaStatusLabel(item.status)}</Badge>
                 {item.status !== 'Concluída' && (
                   <Button variant="ghost" size="icon" title="Marcar como concluída" onClick={() => void handleQuickStatus(item, 'Concluída')}>
                     <CheckCircle2 className="h-4 w-4 text-[var(--app-success-text)]" />
@@ -417,10 +427,18 @@ export function RelatorioTarefasView() {
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                    <SelectItem key={s} value={s}>{tarefaStatusLabel(s)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {form.status === 'Cancelada' && (
+                <Textarea
+                  value={form.motivoCancelamento}
+                  onChange={(e) => setForm({ ...form, motivoCancelamento: e.target.value })}
+                  rows={2}
+                  placeholder="Motivo do cancelamento (obrigatório)"
+                />
+              )}
             </div>
           </div>
           <DialogFooter>

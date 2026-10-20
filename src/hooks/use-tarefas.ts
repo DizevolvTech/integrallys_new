@@ -17,6 +17,7 @@ export interface TarefaItem {
   alerta: boolean
   prioridade: string
   categoria: string
+  motivoCancelamento: string
   vencimentoEm: string
   data: string
   horario: string
@@ -37,6 +38,7 @@ export interface CreateTarefaPayload {
   alerta?: boolean
   prioridade?: string
   categoria?: string
+  motivoCancelamento?: string
 }
 
 export function useTarefas() {

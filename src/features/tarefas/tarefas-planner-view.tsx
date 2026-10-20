@@ -20,6 +20,7 @@ import {
   TAREFA_RECORRENCIA_VALUES,
   type TarefaRecorrencia,
 } from '@/lib/tarefa-recorrencia'
+import { TAREFA_STATUS_VALUES, tarefaStatusLabel } from '@/lib/tarefa-status'
 import { DiasSemanaPicker } from './components/dias-semana-picker'
 import {
   addDays,
@@ -62,6 +63,7 @@ interface FormState {
   alerta: boolean
   responsavelId: string
   status: string
+  motivoCancelamento: string
 }
 
 const emptyForm: FormState = {
@@ -76,6 +78,7 @@ const emptyForm: FormState = {
   alerta: false,
   responsavelId: '',
   status: 'Pendente',
+  motivoCancelamento: '',
 }
 
 function toPayload(tarefa: TarefaItem, overrides: Partial<CreateTarefaPayload> = {}): CreateTarefaPayload & { id: string } {
@@ -85,6 +88,7 @@ function toPayload(tarefa: TarefaItem, overrides: Partial<CreateTarefaPayload> =
     descricao: tarefa.descricao || undefined,
     responsavelId: tarefa.responsavelId || undefined,
     status: tarefa.status,
+    motivoCancelamento: tarefa.motivoCancelamento || undefined,
     data: tarefa.data || undefined,
     horario: tarefa.horario || undefined,
     recorrencia: tarefa.recorrencia || 'nenhuma',
@@ -149,6 +153,9 @@ function TaskCard({ tarefa, mostrarSubtarefas, compact, onToggle, onOpen }: Task
           )}
           {!compact && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-app-text-secondary">
+              {tarefa.status === 'Em andamento' && (
+                <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">Fazendo</span>
+              )}
               {tarefa.horario && <span>{tarefa.horario}</span>}
               <span className={`inline-block h-2 w-2 rounded-full ${PRIORIDADE_DOT[tarefa.prioridade] ?? 'bg-slate-300'}`} title={`Prioridade ${tarefa.prioridade || 'Média'}`} />
               {tarefa.categoria && (
@@ -318,6 +325,7 @@ export function TarefasPlannerView() {
       alerta: tarefa.alerta,
       responsavelId: tarefa.responsavelId,
       status: tarefa.status,
+      motivoCancelamento: tarefa.motivoCancelamento || '',
     })
     setNovaSub('')
     setIsDialogOpen(true)
@@ -329,6 +337,10 @@ export function TarefasPlannerView() {
   const handleSave = async () => {
     if (!form.titulo.trim()) {
       toast.error('Informe o título da tarefa.')
+      return
+    }
+    if (form.status === 'Cancelada' && !form.motivoCancelamento.trim()) {
+      toast.error('Informe o motivo do cancelamento.')
       return
     }
     setIsSaving(true)
@@ -344,6 +356,7 @@ export function TarefasPlannerView() {
       alerta: form.alerta,
       responsavelId: form.responsavelId || undefined,
       status: form.status,
+      motivoCancelamento: form.status === 'Cancelada' ? form.motivoCancelamento.trim() : undefined,
     }
     try {
       if (editing) await updateTarefa({ ...payload, id: editing.id })
@@ -759,6 +772,29 @@ export function TarefasPlannerView() {
               <Label>Descrição</Label>
               <Textarea value={form.descricao} onChange={(event) => setForm({ ...form, descricao: event.target.value })} rows={3} placeholder="Opcional" />
             </div>
+<div className="space-y-2">
+  <Label>Status</Label>
+  <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
+    <SelectTrigger>
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      {TAREFA_STATUS_VALUES.map((value) => (
+        <SelectItem key={value} value={value}>
+          {tarefaStatusLabel(value)}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+  {form.status === 'Cancelada' && (
+    <Textarea
+      value={form.motivoCancelamento}
+      onChange={(event) => setForm({ ...form, motivoCancelamento: event.target.value })}
+      rows={2}
+      placeholder="Motivo do cancelamento (obrigatório)"
+    />
+  )}
+</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Data</Label>
