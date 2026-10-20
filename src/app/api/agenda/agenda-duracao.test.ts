@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { minutesToHHMM, planejarOcupacao, timeToMinutes } from './agenda-duracao'
+import { minutesToHHMM, planejarOcupacao, timeToMinutes, vagasDaGradeNoIntervalo } from './agenda-duracao'
 
 const r = (id: string, status: string, i: string, f: string) => ({
   id,
@@ -61,5 +61,19 @@ describe('helpers de horário', () => {
     expect(timeToMinutes('10:40:00')).toBe(640)
     expect(minutesToHHMM(640)).toBe('10:40')
     expect(timeToMinutes(null)).toBeNull()
+  })
+})
+
+describe('vagasDaGradeNoIntervalo', () => {
+  it('consulta fora da grade (09:30-10:30) devolve as vagas 09:20 e 10:00 da grade de 40min', () => {
+    const vagas = vagasDaGradeNoIntervalo(
+      [{ hora_inicio: '08:00:00', hora_fim: '11:00:00', duracao_min: 40 }],
+      570,
+      630,
+    )
+    expect(vagas.map((v) => minutesToHHMM(v.inicio))).toEqual(['09:20', '10:00'])
+  })
+  it('sem grade devolve vazio', () => {
+    expect(vagasDaGradeNoIntervalo([], 570, 630)).toEqual([])
   })
 })

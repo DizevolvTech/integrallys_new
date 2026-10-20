@@ -46,3 +46,23 @@ export function planejarOcupacao(params: {
   }
   return { ok: true, liberarSlotIds }
 }
+
+export type RegraGrade = { hora_inicio: string; hora_fim: string; duracao_min: number }
+
+/** Vagas da grade (do dia da semana) que tocam [inicioMin, fimMin). Vazio se não houver grade. */
+export function vagasDaGradeNoIntervalo(
+  regras: RegraGrade[],
+  inicioMin: number,
+  fimMin: number,
+): Array<{ inicio: number; fim: number }> {
+  const out: Array<{ inicio: number; fim: number }> = []
+  for (const r of regras) {
+    const ini = timeToMinutes(r.hora_inicio)
+    const fim = timeToMinutes(r.hora_fim)
+    if (ini === null || fim === null || !(r.duracao_min > 0)) continue
+    for (let t = ini; t + r.duracao_min <= fim; t += r.duracao_min) {
+      if (t < fimMin && t + r.duracao_min > inicioMin) out.push({ inicio: t, fim: t + r.duracao_min })
+    }
+  }
+  return out
+}

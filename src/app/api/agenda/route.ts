@@ -21,6 +21,7 @@ import {
   minutesToHHMM,
   planejarOcupacao,
   timeToMinutes,
+  vagasDaGradeNoIntervalo,
 } from './agenda-duracao'
 import { isHorarioPassado, STATUS_ELEGIVEIS_ATRASO } from '@/features/agenda/agenda.utils'
 import {
@@ -362,6 +363,63 @@ async function resolvePatientUnitId(
 }
 
 /** Registra pagamento inicial obrigatório em consulta com paciente (parcial ou total). */
+/**
+ * Devolve à agenda as vagas da GRADE do profissional (dia da semana) que cobriam o intervalo liberado,
+ * em vez de copiar o horário da consulta (que pode estar fora da grade). Sem grade, recria o próprio intervalo.
+ */
+async function liberarIntervaloNaGrade(
+  supabase: ReturnType<typeof getAppSupabase>,
+  params: {
+    profissionalId: string
+    unidadeId: unknown
+    dataIso: string
+    horarioInicio: unknown
+    horarioFim: unknown
+    ignorarId: string
+    userId: string
+  },
+) {
+  const ini = timeToMinutes(params.horarioInicio)
+  if (ini === null) return
+  const fim = timeToMinutes(params.horarioFim) ?? ini + 30
+  const dow = new Date(`${params.dataIso}T12:00:00Z`).getUTCDay()
+  const { data: regras } = await supabase
+    .from('profissional_horarios')
+    .select('hora_inicio,hora_fim,duracao_min')
+    .eq('profissional_id', params.profissionalId)
+    .eq('dia_semana', dow)
+    .eq('ativo', true)
+  let vagas = vagasDaGradeNoIntervalo(
+    (regras ?? []) as Array<{ hora_inicio: string; hora_fim: string; duracao_min: number }>,
+    ini,
+    fim,
+  )
+  if (vagas.length === 0) vagas = [{ inicio: ini, fim }]
+  const { rows } = await getLinhasDoDia(supabase, params.profissionalId, params.dataIso, [
+    params.ignorarId,
+  ])
+  for (const vaga of vagas) {
+    const plano = planejarOcupacao({
+      inicioMin: vaga.inicio,
+      fimMin: vaga.fim,
+      outros: rows as unknown as AgendaRowIntervalo[],
+    })
+    // sobrepõe item ativo, ou já existe vaga livre: não duplica
+    if (!plano.ok || plano.liberarSlotIds.length > 0) continue
+    const { error } = await supabase.from('agendamentos').insert({
+      profissional_id: params.profissionalId,
+      unidade_id: params.unidadeId,
+      data_agendamento: params.dataIso,
+      horario_inicio: minutesToHHMM(vaga.inicio),
+      horario_fim: minutesToHHMM(vaga.fim),
+      status: 'Disponível',
+      paciente_id: null,
+      criado_por_id: params.userId,
+    })
+    if (error) console.error('[agenda] falha ao recriar vaga da grade', error)
+  }
+}
+
 /** Duração (min) definida no procedimento; null = usa a duração da grade do profissional. */
 async function getDuracaoProcedimento(
   supabase: ReturnType<typeof getAppSupabase>,
@@ -1085,28 +1143,16 @@ export async function PUT(request: NextRequest) {
   }
 
   if (moved) {
-    // Libera o horário antigo (se ninguém mais o ocupa) para outro agendamento.
-    const { data: oldRows } = await supabase
-      .from('agendamentos')
-      .select('id')
-      .eq('profissional_id', String(existing.profissional_id))
-      .eq('data_agendamento', existingDate)
-      .eq('horario_inicio', String(existing.horario_inicio))
-      .neq('id', String(existing.id))
-      .neq('status', 'Cancelado')
-    if (!oldRows || oldRows.length === 0) {
-      const { error: freeError } = await supabase.from('agendamentos').insert({
-        profissional_id: existing.profissional_id,
-        unidade_id: existing.unidade_id,
-        data_agendamento: existingDate,
-        horario_inicio: existing.horario_inicio,
-        horario_fim: existing.horario_fim,
-        status: 'Disponível',
-        paciente_id: null,
-        criado_por_id: session.userId,
-      })
-      if (freeError) console.error('[agenda] falha ao liberar horário antigo', freeError)
-    }
+    // Libera o horário antigo devolvendo as vagas da grade (ninguém mais o ocupa).
+    await liberarIntervaloNaGrade(supabase, {
+      profissionalId: String(existing.profissional_id),
+      unidadeId: existing.unidade_id,
+      dataIso: existingDate,
+      horarioInicio: existing.horario_inicio,
+      horarioFim: existing.horario_fim,
+      ignorarId: String(existing.id),
+      userId: session.userId,
+    })
   }
 
   return listAgenda(session)
@@ -1170,35 +1216,15 @@ export async function DELETE(request: NextRequest) {
       return supabaseErrorResponse(cancelError, 'Falha ao cancelar agendamento')
     }
 
-    // Só cria o horário livre se ainda não existir outro ocupando/livre no mesmo intervalo.
-    const { data: sameSlot, error: sameSlotError } = await supabase
-      .from('agendamentos')
-      .select('id,status')
-      .eq('profissional_id', row.profissional_id)
-      .eq('data_agendamento', row.data_agendamento)
-      .eq('horario_inicio', row.horario_inicio)
-      .neq('id', row.id)
-      .neq('status', 'Cancelado')
-    if (sameSlotError) {
-      return supabaseErrorResponse(sameSlotError, 'Falha ao liberar horário')
-    }
-    if (!sameSlot || sameSlot.length === 0) {
-      const { error: freeError } = await supabase.from('agendamentos').insert({
-        profissional_id: row.profissional_id,
-        unidade_id: row.unidade_id,
-        data_agendamento: row.data_agendamento,
-        horario_inicio: row.horario_inicio,
-        horario_fim: row.horario_fim,
-        status: 'Disponível',
-        paciente_id: null,
-        criado_por_id: session.userId,
-        tipo: null,
-        titulo: null,
-      })
-      if (freeError) {
-        return supabaseErrorResponse(freeError, 'Falha ao liberar horário')
-      }
-    }
+    await liberarIntervaloNaGrade(supabase, {
+      profissionalId: String(row.profissional_id),
+      unidadeId: row.unidade_id,
+      dataIso: String(row.data_agendamento).slice(0, 10),
+      horarioInicio: row.horario_inicio,
+      horarioFim: row.horario_fim,
+      ignorarId: String(row.id),
+      userId: session.userId,
+    })
     return listAgenda(session)
   }
 
