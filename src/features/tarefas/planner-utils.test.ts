@@ -93,3 +93,13 @@ describe('escopo minhas/time', () => {
     expect(applyFilters(lista, { ...base, escopo: 'time', meuId: 'eu' }).map((x) => x.id)).toEqual(['1', '2'])
   })
 })
+
+describe('filtro por membro do time', () => {
+  const base = { mostrarConcluidas: false, mostrarSubtarefas: true, projeto: 'todos', prioridade: 'todas', busca: '', escopo: 'time' as const, meuId: 'eu' }
+  it('filtra por responsável só no escopo time', () => {
+    const lista = [tarefa({ id: '1', responsavelId: 'a' }), tarefa({ id: '2', responsavelId: 'b' })]
+    expect(applyFilters(lista, { ...base, responsavelId: 'b' }).map((x) => x.id)).toEqual(['2'])
+    expect(applyFilters(lista, { ...base, responsavelId: 'todos' }).map((x) => x.id)).toEqual(['1', '2'])
+    expect(applyFilters(lista, { ...base, escopo: 'minhas', responsavelId: 'b' }).map((x) => x.id)).toEqual([])
+  })
+})

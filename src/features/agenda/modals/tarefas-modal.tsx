@@ -105,6 +105,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
   const user = useAuth((state) => state.user)
   const isGestao = ['master', 'admin', 'gestor'].includes(String(user?.role))
   const [escopo, setEscopo] = useState<'minhas' | 'time'>('minhas')
+  const [filtroPessoa, setFiltroPessoa] = useState('todos')
   const [filtroDe, setFiltroDe] = useState(hojeLocalIso)
   const [filtroAte, setFiltroAte] = useState(hojeLocalIso)
 
@@ -118,6 +119,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
     setFiltroDe(hojeLocalIso())
     setFiltroAte(hojeLocalIso())
     setEscopo('minhas')
+    setFiltroPessoa('todos')
     setMostrarFormulario(false)
     onClose()
   }
@@ -221,9 +223,12 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
           item.status !== 'Concluída' &&
           item.status !== 'Cancelada' &&
           dentroDoPeriodo(item.data, filtroDe, filtroAte) &&
-          (!isGestao || escopo === 'time' || item.responsavelId === user?.id),
+          (!isGestao ||
+            (escopo === 'time'
+              ? filtroPessoa === 'todos' || item.responsavelId === filtroPessoa
+              : item.responsavelId === user?.id)),
       ),
-    [tarefas, filtroDe, filtroAte, isGestao, escopo, user?.id],
+    [tarefas, filtroDe, filtroAte, isGestao, escopo, filtroPessoa, user?.id],
   )
 
   const tarefasPendentes = tarefasAbertas.filter((item) => item.status === 'Pendente').length
@@ -311,6 +316,21 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
               >
                 <option value="minhas">Minhas tarefas</option>
                 <option value="time">Tarefas do time</option>
+              </select>
+            )}
+            {isGestao && escopo === 'time' && (
+              <select
+                value={filtroPessoa}
+                onChange={(event) => setFiltroPessoa(event.target.value)}
+                aria-label="Filtrar por pessoa do time"
+                className="h-10 rounded-[12px] border border-app-border bg-white px-3 text-sm dark:border-app-border-dark dark:bg-transparent"
+              >
+                <option value="todos">Todo o time</option>
+                {usuarios.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.nome}
+                  </option>
+                ))}
               </select>
             )}
             <span className="flex items-center gap-2">

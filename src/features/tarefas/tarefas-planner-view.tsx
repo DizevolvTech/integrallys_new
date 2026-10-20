@@ -1,6 +1,6 @@
 // biome-ignore-all lint/a11y/useSemanticElements: arrastar-e-soltar exige contêineres genéricos (zonas de soltar e cartão arrastável)
 'use client'
-import { useMemo, useState, type DragEvent } from 'react'
+import { createContext, useContext, useMemo, useState, type DragEvent } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Check, ChevronLeft, ChevronRight, Plus, Repeat, Trash2 } from 'lucide-react'
@@ -104,10 +104,14 @@ interface TaskCardProps {
   onOpen: (tarefa: TarefaItem) => void
 }
 
+/** Em 'Tarefas do time' os cartões mostram quem é o responsável. */
+const MostrarResponsavelContext = createContext(false)
+
 function TaskCard({ tarefa, mostrarSubtarefas, compact, onToggle, onOpen }: TaskCardProps) {
   const done = !isOpen(tarefa)
   const total = tarefa.subtarefas.length
   const feitas = tarefa.subtarefas.filter((sub) => sub.concluida).length
+  const mostrarResponsavel = useContext(MostrarResponsavelContext)
   return (
     <div
       role="button"
@@ -140,6 +144,9 @@ function TaskCard({ tarefa, mostrarSubtarefas, compact, onToggle, onOpen }: Task
           <p className={`text-sm text-app-text-primary dark:text-white ${done ? 'line-through' : ''} ${compact ? 'truncate' : ''}`}>
             {tarefa.titulo}
           </p>
+          {mostrarResponsavel && (
+            <p className="truncate text-[11px] text-app-text-secondary">Resp.: {tarefa.responsavel || '-'}</p>
+          )}
           {!compact && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-app-text-secondary">
               {tarefa.horario && <span>{tarefa.horario}</span>}
@@ -235,6 +242,7 @@ export function TarefasPlannerView() {
   const [filters, setFilters] = useState<PlannerFilters>({
     escopo: isPrivileged ? 'minhas' : undefined,
     meuId: user?.id,
+    responsavelId: 'todos',
     mostrarConcluidas: false,
     mostrarSubtarefas: true,
     projeto: 'todos',
@@ -256,6 +264,7 @@ export function TarefasPlannerView() {
     () => applyFilters(data, { ...filters, meuId: user?.id, escopo: isPrivileged ? filters.escopo ?? 'minhas' : undefined }),
     [data, filters, user?.id, isPrivileged],
   )
+  const escopoAtual = isPrivileged ? filters.escopo ?? 'minhas' : 'minhas'
   const byDate = (key: string) => visiveis.filter((tarefa) => tarefa.data === key).sort(sortTarefas)
 
   const run = async (action: () => Promise<unknown>, okMessage?: string) => {
@@ -437,6 +446,7 @@ export function TarefasPlannerView() {
   ]
 
   return (
+    <MostrarResponsavelContext.Provider value={isPrivileged && escopoAtual === 'time'}>
     <div className="app-page">
       <PageHeader
         title="Tarefas"
@@ -521,6 +531,24 @@ export function TarefasPlannerView() {
             <SelectContent>
               <SelectItem value="minhas">Minhas tarefas</SelectItem>
               <SelectItem value="time">Tarefas do time</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        {isPrivileged && escopoAtual === 'time' && (
+          <Select
+            value={filters.responsavelId ?? 'todos'}
+            onValueChange={(value) => setFilters({ ...filters, responsavelId: value })}
+          >
+            <SelectTrigger className="w-[190px]" aria-label="Filtrar por pessoa do time">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todo o time</SelectItem>
+              {usuarios.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.nome}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}
@@ -891,5 +919,6 @@ export function TarefasPlannerView() {
         </DialogContent>
       </Dialog>
     </div>
+    </MostrarResponsavelContext.Provider>
   )
 }
