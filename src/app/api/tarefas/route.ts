@@ -237,7 +237,9 @@ export async function POST(request: NextRequest) {
   if (motivoErro) return serverErrorResponse(motivoErro, 'MOTIVO_OBRIGATORIO', 400)
 
   const supabase = getAppSupabase()
-  const responsavelId = await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)
+  // Sem responsável informado, a tarefa é de quem a criou (senão ninguém, nem o criador, a veria).
+  const responsavelId =
+    (await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)) ?? session.userId
   const { error } = await supabase
     .from('tarefas')
     .insert(buildTarefaRow(body, responsavelId, session.userId, true))
