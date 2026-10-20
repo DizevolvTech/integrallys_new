@@ -232,6 +232,7 @@ describe('gerarSlots — último horário que começa antes do fim da janela', (
       horarios: [{ dia_semana: 3, turno: 'manha', hora_inicio: '08:00', hora_fim: '11:00', duracao_min: 40, ativo: true }],
       dataInicio: d('2026-10-21'),
       dataFim: d('2026-10-21'),
+      diasSemanaFiltro: null,
       considerarFeriados: false,
     })
     expect(slots.map((x) => x.horario_inicio)).toEqual(['08:00', '08:40', '09:20', '10:00', '10:40'])
