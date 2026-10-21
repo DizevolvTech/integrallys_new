@@ -1,3 +1,4 @@
+import { calcularDinheiroNaGaveta, validarTransferenciaCofre } from "@/features/caixa/fechamento";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   getAppSupabase,
@@ -357,7 +358,7 @@ export async function POST(request: NextRequest) {
 
     const movimentosQuery = await supabase
       .from("caixa_movimentos")
-      .select("tipo,valor")
+      .select("tipo,valor,forma")
       .eq("sessao_id", currentSession.id);
 
     if (movimentosQuery.error) {
@@ -378,6 +379,25 @@ export async function POST(request: NextRequest) {
     const saldoFinal = saldoInicial + entradas - saidas;
     const valorTransferido =
       typeof body.valorTransferido === "number" ? body.valorTransferido : 0;
+    const dinheiroNaGaveta = calcularDinheiroNaGaveta(
+      saldoInicial,
+      (movimentosQuery.data ?? []).map((item) => ({
+        tipo: String(item.tipo),
+        valor: Number(item.valor ?? 0),
+        forma: item.forma as string | null,
+      })),
+    );
+    const transferError = validarTransferenciaCofre(
+      valorTransferido,
+      dinheiroNaGaveta,
+    );
+    if (transferError) {
+      return serverErrorResponse(
+        transferError,
+        "CAIXA_TRANSFER_INVALID",
+        400,
+      );
+    }
     const saldoRestante = Math.max(0, saldoFinal - valorTransferido);
 
     const fechadoEm = new Date().toISOString();
@@ -393,6 +413,8 @@ export async function POST(request: NextRequest) {
       saldoFinal,
       valorTransferido,
       saldoRestante,
+      dinheiroNaGaveta,
+      dinheiroRestante: Math.round((dinheiroNaGaveta - valorTransferido) * 100) / 100,
       fechadoEm,
     };
 

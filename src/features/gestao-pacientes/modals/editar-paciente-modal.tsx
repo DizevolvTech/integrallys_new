@@ -11,6 +11,8 @@ import { DateInput } from '@/components/shared/date-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Patient } from '@/types/patient'
+import { NotaFiscalFields } from '../components/nota-fiscal-fields'
+import { NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal, type NotaFiscalForm } from '../utils/nota-fiscal'
 import { DocumentoCadastro } from '../components/documento-cadastro'
 import { gerarCadastroPdf, abrirWhatsAppCadastro } from '../utils/documento-pdf'
 import { FeedbackConsulta, SpinnerCampo } from '@/components/shared/feedback-consulta'
@@ -69,6 +71,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
         vinculoTipos: ['cliente'] as string[],
         origemDetalhe: '',
         precisaNf: false,
+        notaFiscal: { ...NOTA_FISCAL_VAZIA } as NotaFiscalForm,
         photoUrl: '',
         photoFile: null as File | null,
         addressDetails: {
@@ -168,6 +171,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 vinculoTipos: paciente.vinculoTipos && paciente.vinculoTipos.length > 0 ? paciente.vinculoTipos : ['cliente'],
                 origemDetalhe: paciente.origemDetalhe || '',
                 precisaNf: paciente.precisaNf === true,
+                notaFiscal: notaFiscalFromFinancial(paciente.financial),
                 photoUrl: paciente.photoUrl || '',
                 photoFile: null,
                 addressDetails: {
@@ -324,6 +328,17 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
             return
         }
 
+        const nfError = validarNotaFiscal(formData.precisaNf, formData.notaFiscal)
+        if (nfError) {
+            toast.error(nfError)
+            return
+        }
+
+        if (needsMandatoryResponsible && (!formData.responsible.name.trim() || !formData.responsible.relationship)) {
+            toast.error('Paciente menor de 18 anos: informe o nome e o parentesco do responsável.')
+            return
+        }
+
         const selectedUnit = unitOptions.find((unit) => unit.id === formData.unidadeId)
         if (!selectedUnit) {
             toast.error('Selecione uma unidade válida para o paciente.')
@@ -374,6 +389,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 vinculoTipos: formData.vinculoTipos,
                 origemDetalhe: formData.origemDetalhe || undefined,
                 precisaNf: formData.precisaNf,
+                financial: notaFiscalToFinancial(formData.precisaNf, formData.notaFiscal),
                 age: patientAge != null ? `${patientAge} anos` : undefined,
                 address: [
                     formData.addressDetails.street,
@@ -536,6 +552,9 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                             <span className="text-xs font-bold uppercase tracking-tight text-app-text-secondary dark:text-white/60">{formData.precisaNf ? 'Sim' : 'Não'}</span>
                                         </label>
                                     </div>
+                                    {formData.precisaNf && (
+                                        <NotaFiscalFields value={formData.notaFiscal} onChange={(notaFiscal) => setFormData((prev) => ({ ...prev, notaFiscal }))} />
+                                    )}
                                     <div className="md:col-span-6 space-y-2">
                                         <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Tipo de vínculo <span className="normal-case font-normal text-app-text-muted">(pode marcar mais de um)</span></Label>
                                         <div className="flex flex-wrap gap-2">

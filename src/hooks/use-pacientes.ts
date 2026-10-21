@@ -66,6 +66,7 @@ export interface PacienteInput {
   }
   specialNeeds?: Record<string, unknown>
   responsible?: Record<string, unknown>
+  financial?: Record<string, unknown>
   supplierData?: Record<string, unknown>
   criarAcessoPortal?: boolean
 }

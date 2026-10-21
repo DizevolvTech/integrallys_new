@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useCaixa, type CaixaItem } from '@/hooks/use-caixa'
 import { cn } from '@/lib/utils'
+import { calcularDinheiroNaGaveta, sugerirTransferenciaCofre, validarTransferenciaCofre } from '@/features/caixa/fechamento'
 import { DetalheFormaModal } from '@/features/caixa/modals/detalhe-forma-modal'
 import { usePaymentConfig } from '@/features/prescricoes/hooks/use-payment-config'
 import { toast } from 'sonner'
@@ -231,6 +232,15 @@ export function CaixaView() {
     return { saldoInicial, totalEntradas, totalSaidas, saldoAtual, resumoForma }
   }, [data, session, isClosed])
 
+  const dinheiroNaGaveta = useMemo(
+    () => calcularDinheiroNaGaveta(summary.saldoInicial, data),
+    [data, summary.saldoInicial],
+  )
+  const sugestaoCofre = sugerirTransferenciaCofre(summary.saldoInicial, dinheiroNaGaveta)
+  const valorCofreNum = form.valorTransferido ? Number(form.valorTransferido) : 0
+  const erroCofre = validarTransferenciaCofre(valorCofreNum, dinheiroNaGaveta)
+  const brl = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+
   const cardBreakdown = useMemo(() => buildCardBreakdown(data, getCardFee), [data, getCardFee])
 
   const resetForm = () =>
@@ -281,6 +291,11 @@ export function CaixaView() {
         toast.success('Sangria lançada com sucesso.')
       } else if (activeModal === 'fecharcaixa') {
         const valorTransferidoNum = form.valorTransferido ? Number(form.valorTransferido) : 0
+        if (erroCofre) {
+          toast.error(erroCofre)
+          setIsSubmitting(false)
+          return
+        }
         const saldoFinal = summary.saldoInicial + summary.totalEntradas - summary.totalSaidas
         const saldoRestante = Math.max(0, saldoFinal - valorTransferidoNum)
         const snapshot: ResumoFechamentoSnapshot = {
@@ -685,9 +700,23 @@ export function CaixaView() {
 
               {activeModal === 'fecharcaixa' && (
                 <>
+                  <div className="rounded-xl border border-app-border dark:border-app-border-dark p-4 space-y-2 text-sm" data-testid="fechamento-resumo">
+                    <div className="flex justify-between"><span>Saldo inicial (abertura)</span><strong>{brl(summary.saldoInicial)}</strong></div>
+                    <div className="flex justify-between"><span>Entradas do dia</span><strong>{brl(summary.totalEntradas)}</strong></div>
+                    <div className="flex justify-between"><span>Saídas do dia</span><strong>{brl(summary.totalSaidas)}</strong></div>
+                    <div className="flex justify-between border-t border-app-border dark:border-app-border-dark pt-2"><span>Dinheiro em caixa agora</span><strong data-testid="dinheiro-gaveta">{brl(dinheiroNaGaveta)}</strong></div>
+                  </div>
                   <div className="space-y-2">
-                    <Label>Valor transferido ao cofre (R$)</Label>
-                    <Input type="number" step="0.01" className="h-12 rounded-[12px]" value={form.valorTransferido} onChange={(e) => setForm((c) => ({ ...c, valorTransferido: e.target.value }))} />
+                    <Label htmlFor="valor-cofre">Valor transferido ao cofre (R$)</Label>
+                    <Input id="valor-cofre" type="number" min="0" step="0.01" className="h-12 rounded-[12px]" value={form.valorTransferido} onChange={(e) => setForm((c) => ({ ...c, valorTransferido: e.target.value }))} aria-invalid={Boolean(erroCofre)} />
+                    <Button type="button" variant="outline" size="sm" className="rounded-lg" disabled={sugestaoCofre <= 0} onClick={() => setForm((c) => ({ ...c, valorTransferido: String(sugestaoCofre) }))}>
+                      Transferir {brl(sugestaoCofre)} (tudo que passa da abertura)
+                    </Button>
+                    {erroCofre ? (
+                      <p className="text-xs text-[var(--app-danger-text)]" role="alert">{erroCofre}</p>
+                    ) : (
+                      <p className="text-xs text-app-text-secondary dark:text-white/60">Fica no caixa em dinheiro: <strong>{brl(dinheiroNaGaveta - valorCofreNum)}</strong></p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Observações</Label>
@@ -701,7 +730,7 @@ export function CaixaView() {
               <Button variant="outline" className="h-11 rounded-xl border-app-border dark:border-app-border-dark" onClick={handleModalClose}>
                 Cancelar
               </Button>
-              <Button className="h-11 rounded-xl bg-app-primary text-white hover:bg-app-primary-hover" disabled={isSubmitting} onClick={() => void handleSubmit()}>
+              <Button className="h-11 rounded-xl bg-app-primary text-white hover:bg-app-primary-hover" disabled={isSubmitting || (activeModal === 'fecharcaixa' && Boolean(erroCofre))} onClick={() => void handleSubmit()}>
                 {isSubmitting ? 'Salvando...' : activeModal === 'abrircaixa' ? 'Abrir caixa' : activeModal === 'fecharcaixa' ? 'Fechar caixa' : activeModal === 'edit_caixa' ? 'Salvar' : 'Registrar'}
               </Button>
             </DialogFooter>
