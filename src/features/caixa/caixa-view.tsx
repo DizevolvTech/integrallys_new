@@ -297,7 +297,7 @@ export function CaixaView() {
           return
         }
         const saldoFinal = summary.saldoInicial + summary.totalEntradas - summary.totalSaidas
-        const saldoRestante = Math.max(0, saldoFinal - valorTransferidoNum)
+        const saldoRestante = Math.max(0, Math.round((dinheiroNaGaveta - valorTransferidoNum) * 100) / 100)
         const snapshot: ResumoFechamentoSnapshot = {
           saldoInicial: summary.saldoInicial,
           totalEntradas: summary.totalEntradas,

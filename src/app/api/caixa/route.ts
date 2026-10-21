@@ -398,7 +398,8 @@ export async function POST(request: NextRequest) {
         400,
       );
     }
-    const saldoRestante = Math.max(0, saldoFinal - valorTransferido);
+    // O que fica na gaveta é dinheiro: PIX e cartão não passam pelo cofre.
+    const saldoRestante = Math.max(0, Math.round((dinheiroNaGaveta - valorTransferido) * 100) / 100);
 
     const fechadoEm = new Date().toISOString();
     const resumoFromBody =

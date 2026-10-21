@@ -57,3 +57,9 @@ export function notaFiscalToFinancial(precisaNf: boolean, nf: NotaFiscalForm) {
     },
   }
 }
+
+export function descreverNotaFiscal(precisaNf: boolean, nf: NotaFiscalForm): string {
+  if (!precisaNf) return 'Não precisa'
+  if (nf.modo === 'mesmos') return 'Sim — com os dados do cadastro'
+  return `Sim — ${nf.nome || 'outro titular'}${nf.documento ? ` (${nf.documento})` : ''}`
+}

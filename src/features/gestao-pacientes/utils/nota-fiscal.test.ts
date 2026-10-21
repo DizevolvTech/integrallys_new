@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal } from './nota-fiscal'
+import { descreverNotaFiscal, NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal } from './nota-fiscal'
 
 describe('nota fiscal do paciente', () => {
   it('"mesmos" não exige dados extras', () => {
@@ -22,5 +22,10 @@ describe('nota fiscal do paciente', () => {
     expect(f.receiptData).toMatchObject({ useProfileData: 'adicionar', taxId: '52998224725', name: 'João', address: 'Sítio' })
     expect(notaFiscalFromFinancial(f)).toEqual({ modo: 'adicionar', documento: '529.982.247-25', nome: 'João', endereco: 'Sítio' })
     expect(notaFiscalFromFinancial(undefined)).toEqual(NOTA_FISCAL_VAZIA)
+  })
+  it('descreve a NF na visualização', () => {
+    expect(descreverNotaFiscal(false, NOTA_FISCAL_VAZIA)).toBe('Não precisa')
+    expect(descreverNotaFiscal(true, NOTA_FISCAL_VAZIA)).toMatch(/cadastro/)
+    expect(descreverNotaFiscal(true, { modo: 'adicionar', documento: '529.982.247-25', nome: 'João', endereco: '' })).toBe('Sim — João (529.982.247-25)')
   })
 })
