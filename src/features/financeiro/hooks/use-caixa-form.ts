@@ -117,7 +117,7 @@ export function useCaixaForm({ onOpen, onAdd, onClose, onUpdate, onDelete }: Use
           valor: parseCurrencyInput(caixaForm.valor),
           tipo: activeCaixaModal === 'suprimento' ? 'entrada' : 'saida',
         })
-        toast.success(activeCaixaModal === 'suprimento' ? 'Suprimento registrado.' : 'Sangria registrada.')
+        toast.success(activeCaixaModal === 'suprimento' ? 'Recebimento registrado.' : 'Pagamento registrado.')
       } else if (activeCaixaModal === 'fechar') {
         await onClose({
           valorTransferido: parseCurrencyInput(caixaForm.valorTransferido),

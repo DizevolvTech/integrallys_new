@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Patient } from '@/types/patient'
 import { useClinicaConfig } from '@/features/configuracoes/hooks/use-clinica-config'
 import { NotaFiscalFields } from '../components/nota-fiscal-fields'
+import { QuemIndicouField } from '../components/quem-indicou-field'
 import { NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal, type NotaFiscalForm } from '../utils/nota-fiscal'
 import { DocumentoCadastro } from '../components/documento-cadastro'
 import { gerarCadastroPdf, abrirWhatsAppCadastro } from '../utils/documento-pdf'
@@ -74,6 +75,7 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
         email: '',
         criarAcessoPortal: false,
         indicacao: '',
+        indicadoPorId: null as string | null,
         status: 'Ativo',
         vinculoTipos: ['cliente'] as string[],
         origemDetalhe: '',
@@ -300,7 +302,11 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
         }
 
         if (formData.criarAcessoPortal && (!formData.email.trim() || !formData.cpf.trim())) {
-            toast.error('Para liberar o portal, informe email e CPF do paciente.')
+            // Vídeo de 26/10: o cadastro não salvava porque "Liberar acesso ao portal" estava em Sim
+            // sem e-mail. A mensagem diz o que falta e leva até o campo.
+            const falta = !formData.email.trim() ? 'o e-mail' : 'o CPF'
+            toast.error(`Para liberar o portal do paciente, informe ${falta}. Se não for usar o portal agora, marque "Não" em "Liberar acesso ao portal".`)
+            document.getElementById(!formData.email.trim() ? 'email' : 'cpf')?.focus()
             return
         }
 
@@ -348,6 +354,7 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
             photoUrl: formData.photoUrl || undefined,
             vinculoTipos: formData.vinculoTipos,
             origemDetalhe: formData.origemDetalhe || undefined,
+            indicadoPorId: formData.indicacao === 'indicacao' ? formData.indicadoPorId : null,
             precisaNf: formData.precisaNf,
             financial: notaFiscalToFinancial(formData.precisaNf, formData.notaFiscal),
             age: patientAge != null ? `${patientAge} anos` : undefined,
@@ -491,9 +498,16 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
                                             <SelectContent><SelectItem value="instagram">Instagram</SelectItem><SelectItem value="google">Google</SelectItem><SelectItem value="indicacao">Indicação</SelectItem><SelectItem value="outros">Outros</SelectItem></SelectContent>
                                         </Select>
                                     </div>
-                                    {(formData.indicacao === 'indicacao' || formData.indicacao === 'outros') && (
+                                    {formData.indicacao === 'indicacao' && (
+                                        <QuemIndicouField
+                                            nome={formData.origemDetalhe}
+                                            indicadoPorId={formData.indicadoPorId}
+                                            onChange={({ nome, indicadoPorId }) => setFormData((prev) => ({ ...prev, origemDetalhe: nome, indicadoPorId }))}
+                                        />
+                                    )}
+                                    {formData.indicacao === 'outros' && (
                                         <div className="md:col-span-2 space-y-2">
-                                            <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">{formData.indicacao === 'indicacao' ? 'Quem indicou?' : 'Qual a origem?'}</Label>
+                                            <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Qual a origem?</Label>
                                             <Input value={formData.origemDetalhe} onChange={(e) => setFormData({ ...formData, origemDetalhe: e.target.value })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="Detalhe da origem" />
                                         </div>
                                     )}
@@ -670,7 +684,7 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
                                         <div className="space-y-1">
                                             <p className="text-sm font-bold text-[var(--app-text-primary)] dark:text-white">Liberar acesso ao portal do paciente</p>
                                             <p className="text-xs text-[var(--app-text-secondary)] dark:text-white/60">
-                                                Quando ativado, o sistema cria o usuário em <strong>usuarios</strong>, vincula em <strong>pacientes.usuario_id</strong> e exige troca de senha no primeiro login.
+                                                Cria o acesso do paciente ao portal com o e-mail e o CPF informados. No primeiro acesso ele troca a senha.
                                             </p>
                                         </div>
                                         <div className="flex p-1 bg-white dark:bg-app-card-dark rounded-2xl w-full max-w-[220px]">

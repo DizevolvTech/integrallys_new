@@ -31,6 +31,7 @@ export interface Patient {
   historicoRecente?: string
   vinculoTipos?: string[]
   origemDetalhe?: string
+  indicadoPorId?: string | null
   precisaNf?: boolean
   addressDetails?: {
     zipCode?: string

@@ -286,7 +286,7 @@ export function TarefasPlannerView() {
   const handleToggle = (tarefa: TarefaItem) =>
     run(
       () => updateTarefa(toPayload(tarefa, { status: isOpen(tarefa) ? 'Concluída' : 'Pendente' })),
-      isOpen(tarefa) && tarefa.recorrencia !== 'nenhuma' ? 'Concluída. Próxima ocorrência criada.' : undefined,
+      isOpen(tarefa) && tarefa.recorrencia !== 'nenhuma' ? 'Concluída. As próximas ocorrências seguem na agenda.' : undefined,
     )
 
   const handleDrop = (tarefaId: string, dateKey: string) => {

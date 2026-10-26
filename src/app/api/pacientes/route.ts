@@ -4,6 +4,7 @@ import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/li
 import { requirePermission } from '@/lib/authz'
 import { getPasswordSetupRequiredKey } from '@/lib/auth-payload'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+import { validarFinancialNotaFiscal } from '@/features/gestao-pacientes/utils/nota-fiscal'
 
 function pickString(...values: Array<unknown>) {
   for (const value of values) {
@@ -81,6 +82,10 @@ function buildPacientePayload(body: Record<string, unknown>) {
         ? (body.responsible as Record<string, unknown>)
         : null
   }
+  if (body.indicadoPorId !== undefined) {
+    const indicadoPorId = pickString(body.indicadoPorId)
+    payload.indicado_por_id = /^[0-9a-f-]{36}$/i.test(indicadoPorId) ? indicadoPorId : null
+  }
   if (body.financial !== undefined) {
     payload.financeiro =
       body.financial && typeof body.financial === 'object'
@@ -102,7 +107,7 @@ async function fetchPatientContext(unidadeId: string | null) {
   let pacientesQuery = supabase
     .from('pacientes')
     .select(
-      'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,origem_detalhe,vinculo_tipos,precisa_nf,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,created_at,updated_at,' +
+      'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,origem_detalhe,vinculo_tipos,precisa_nf,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,indicado_por_id,created_at,updated_at,' +
         'crm:crm_paciente_estagios(estagio,observacoes,proxima_acao,data_proxima_acao,updated_at)',
     )
     .order('nome', { ascending: true })
@@ -164,6 +169,7 @@ async function fetchPatientContext(unidadeId: string | null) {
         gender: paciente.sexo ? String(paciente.sexo) : '',
         source: paciente.origem ? String(paciente.origem) : '',
         origemDetalhe: paciente.origem_detalhe ? String(paciente.origem_detalhe) : '',
+        indicadoPorId: paciente.indicado_por_id ? String(paciente.indicado_por_id) : undefined,
         vinculoTipos: Array.isArray(paciente.vinculo_tipos)
           ? paciente.vinculo_tipos.map(String)
           : ['cliente'],
@@ -258,7 +264,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: impacto.data, meta: session })
   }
 
+  const busca = request.nextUrl.searchParams.get('busca')
+  if (busca !== null) return buscarPacientes(session, busca)
+
   return listPacientes(request, session)
+}
+
+/**
+ * GET /api/pacientes?busca=<termo> — sugestões leves (id e nome) para campos
+ * como "Quem indicou?". Mesmo escopo de unidade da listagem; no máximo 8.
+ */
+async function buscarPacientes(session: NonNullable<Awaited<ReturnType<typeof getRequestAuth>>>, termo: string) {
+  const limpo = termo.replace(/[%_,()]/g, ' ').trim()
+  if (limpo.length < 2) return NextResponse.json({ data: [] })
+  const scoped = await getScopedUnitId(session)
+  if (scoped.error) return supabaseErrorResponse(scoped.error, 'Falha ao buscar pacientes')
+  let query = getAppSupabase()
+    .from('pacientes')
+    .select('id,nome,telefone')
+    .ilike('nome', `%${limpo}%`)
+    .order('nome', { ascending: true })
+    .limit(8)
+  if (scoped.unidadeId) query = query.eq('unidade_id', scoped.unidadeId)
+  const { data, error } = await query
+  if (error) return supabaseErrorResponse(error, 'Falha ao buscar pacientes')
+  return NextResponse.json({
+    data: (data ?? []).map((row) => ({ id: String(row.id), nome: String(row.nome ?? ''), telefone: String(row.telefone ?? '') })),
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -346,6 +378,8 @@ export async function POST(request: NextRequest) {
     if (configError) return supabaseErrorResponse(configError, 'Falha ao preparar primeiro acesso')
   }
 
+  const nfError = validarFinancialNotaFiscal(body?.financial)
+  if (nfError) return serverErrorResponse(nfError, 'INVALID_NOTA_FISCAL', 400)
   const extra = buildPacientePayload(body ?? {})
 
   const { data: createdPatient, error } = await supabase
@@ -398,6 +432,8 @@ export async function PUT(request: NextRequest) {
     return serverErrorResponse('Paciente inválido', 'INVALID_PATIENT', 400)
   }
 
+  const nfError = validarFinancialNotaFiscal(body?.financial)
+  if (nfError) return serverErrorResponse(nfError, 'INVALID_NOTA_FISCAL', 400)
   const extra = buildPacientePayload(body ?? {})
 
   const supabase = getAppSupabase()

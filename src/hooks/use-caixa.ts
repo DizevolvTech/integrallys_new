@@ -10,6 +10,7 @@ export interface CaixaItem {
   tipo: 'entrada' | 'saida'
   valor: number
   data: string
+  dia?: string
   hora?: string
   forma?: string
   operador?: string

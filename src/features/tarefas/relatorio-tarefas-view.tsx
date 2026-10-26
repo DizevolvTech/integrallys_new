@@ -196,7 +196,7 @@ export function RelatorioTarefasView() {
       })
       toast.success(
         newStatus === 'Concluída' && item.recorrencia && item.recorrencia !== 'nenhuma'
-          ? 'Concluída. Próxima ocorrência gerada.'
+          ? 'Concluída. As próximas ocorrências seguem na agenda.'
           : `Status alterado para ${newStatus}.`,
       )
     } catch (err) {

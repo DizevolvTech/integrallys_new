@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import type { CaixaItem, CaixaSessionState } from '@/hooks/use-caixa'
 import type { FinanceiroItem } from '@/hooks/use-financeiro'
+import { formaCaixaLabel } from '@/features/caixa/caixa-format'
 import {
   FINANCEIRO_STAT_ICONS,
   formatCurrency,
@@ -130,15 +131,17 @@ export function useFinanceiroStats(
     }
   }, [caixaSession])
 
-  const resumoForma = useMemo(
-    () => [
-      { label: 'Dinheiro', value: caixaTodayData.filter((item) => item.tipo === 'entrada').reduce((acc, item) => acc + item.valor, 0) },
-      { label: 'PIX', value: 0 },
-      { label: 'Cartão crédito', value: 0 },
-      { label: 'Cartão débito', value: 0 },
-    ],
-    [caixaTodayData],
-  )
+  // Entradas do dia por forma (antes tudo caía em Dinheiro e o resto ficava zerado).
+  const resumoForma = useMemo(() => {
+    const total = (label: string) =>
+      caixaTodayData
+        .filter((item) => item.tipo === 'entrada' && formaCaixaLabel(item.forma) === label)
+        .reduce((acc, item) => acc + item.valor, 0)
+    return ['Dinheiro', 'PIX', 'Crédito', 'Débito', 'Transferência'].map((label) => ({
+      label: label === 'Crédito' ? 'Cartão crédito' : label === 'Débito' ? 'Cartão débito' : label,
+      value: total(label),
+    }))
+  }, [caixaTodayData])
 
   return {
     cards,

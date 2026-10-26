@@ -4,18 +4,17 @@ import { requirePermission } from '@/lib/authz'
 import { mapTarefaItem } from '@/lib/domain-mappers'
 import { validarCancelamento } from '@/lib/tarefa-status'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
-import {
-  nextVencimentoForRecorrencia,
-  normalizeDiasSemana,
-  normalizeTarefaRecorrencia,
-  type TarefaRecorrencia,
-} from '@/lib/tarefa-recorrencia'
+import { normalizeDiasSemana, normalizeTarefaRecorrencia } from '@/lib/tarefa-recorrencia'
+import { criarSerie, encerrarSerie, materializarSeries } from '@/lib/tarefa-series'
 
 const TAREFA_SELECT =
-  'id,titulo,descricao,responsavel_id,status,vencimento_em,recorrencia,dias_semana,alerta,prioridade,categoria,motivo_cancelamento,created_at'
+  'id,titulo,descricao,responsavel_id,status,vencimento_em,recorrencia,dias_semana,alerta,prioridade,categoria,motivo_cancelamento,serie_id,created_at'
 
 async function listTarefas(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
+  // Tarefas recorrentes: garante as ocorrências até alguns dias à frente antes de listar.
+  const serieError = await materializarSeries(supabase)
+  if (serieError) console.error('[tarefas] falha ao gerar recorrências', serieError)
   // Item 1 — lista de tarefas é individual: cada usuário vê só as tarefas em que é
   // o responsável. Gestor, administrador e master enxergam todas (base do relatório de tarefas).
   let query = supabase
@@ -171,45 +170,11 @@ function buildTarefaRow(
   return row
 }
 
-async function spawnNextOccurrence(
-  supabase: ReturnType<typeof getAppSupabase>,
-  current: {
-    titulo: string
-    descricao: string | null
-    responsavel_id: string | null
-    vencimento_em: string | null
-    recorrencia: TarefaRecorrencia
-    dias_semana: number[]
-    alerta: boolean
-    prioridade: string | null
-    categoria: string | null
-  },
-  createdById: string,
-) {
-  if (current.recorrencia === 'nenhuma') return null
+/** Campos que definem a série: mudá-los numa ocorrência refaz as ocorrências seguintes. */
+const CAMPOS_SERIE = ['titulo', 'descricao', 'responsavel_id', 'recorrencia', 'dias_semana', 'alerta', 'prioridade', 'categoria'] as const
 
-  const nextDate = nextVencimentoForRecorrencia(
-    current.recorrencia,
-    current.vencimento_em,
-    current.dias_semana,
-  )
-  if (!nextDate) return null
-
-  const { error } = await supabase.from('tarefas').insert({
-    titulo: current.titulo,
-    descricao: current.descricao,
-    responsavel_id: current.responsavel_id,
-    status: 'Pendente',
-    vencimento_em: nextDate.toISOString(),
-    recorrencia: current.recorrencia,
-    dias_semana: current.dias_semana.length > 0 ? current.dias_semana : null,
-    alerta: current.alerta,
-    prioridade: current.prioridade,
-    categoria: current.categoria,
-    created_by_id: createdById,
-  })
-
-  return error
+function serieMudou(before: Record<string, unknown>, after: Record<string, unknown>) {
+  return CAMPOS_SERIE.some((campo) => JSON.stringify(before[campo] ?? null) !== JSON.stringify(after[campo] ?? null))
 }
 
 export async function POST(request: NextRequest) {
@@ -240,12 +205,16 @@ export async function POST(request: NextRequest) {
   // Sem responsável informado, a tarefa é de quem a criou (senão ninguém, nem o criador, a veria).
   const responsavelId =
     (await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)) ?? session.userId
-  const { error } = await supabase
-    .from('tarefas')
-    .insert(buildTarefaRow(body, responsavelId, session.userId, true))
+  const row = buildTarefaRow(body, responsavelId, session.userId, true)
+  const { data: created, error } = await supabase.from('tarefas').insert(row).select('id').single()
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao criar tarefa')
+  }
+
+  if (row.recorrencia !== 'nenhuma' && typeof row.vencimento_em === 'string' && created?.id) {
+    const serieError = await criarSerie(supabase, String(created.id), row.vencimento_em)
+    if (serieError) return supabaseErrorResponse(serieError, 'Tarefa criada, mas falhou ao programar a recorrência')
   }
 
   return listTarefas(session)
@@ -309,66 +278,65 @@ export async function PUT(request: NextRequest) {
     )
   }
 
-  const { error } = await supabase
-    .from('tarefas')
-    .update(
-      buildTarefaRow(
-        { ...body, status: nextStatus, motivoCancelamento: motivoAtual, recorrencia, diasSemana },
-        responsavelId,
-        session.userId,
-        false,
-      ),
-    )
-    .eq('id', taskId)
+  const row = buildTarefaRow(
+    { ...body, status: nextStatus, motivoCancelamento: motivoAtual, recorrencia, diasSemana },
+    responsavelId,
+    session.userId,
+    false,
+  )
+  const { error } = await supabase.from('tarefas').update(row).eq('id', taskId)
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao atualizar tarefa')
   }
 
-  const wasOpen = String(before.status) !== 'Concluída'
-  const nowDone = nextStatus === 'Concluída'
-
-  if (wasOpen && nowDone && recorrencia !== 'nenhuma') {
-    const spawnError = await spawnNextOccurrence(
-      supabase,
-      {
-        titulo: String(body.titulo),
-        descricao:
-          typeof body.descricao === 'string' && body.descricao.trim()
-            ? body.descricao
-            : before.descricao
-              ? String(before.descricao)
-              : null,
-        responsavel_id: responsavelId ?? (before.responsavel_id ? String(before.responsavel_id) : null),
-        vencimento_em: resolveVencimentoEm(body) ?? (before.vencimento_em ? String(before.vencimento_em) : null),
-        recorrencia,
-        dias_semana: diasSemana,
-        alerta:
-          typeof body.alerta === 'boolean'
-            ? body.alerta
-            : Boolean(before.alerta),
-        prioridade:
-          typeof body.prioridade === 'string' && body.prioridade.trim()
-            ? body.prioridade
-            : before.prioridade
-              ? String(before.prioridade)
-              : null,
-        categoria:
-          typeof body.categoria === 'string' && body.categoria.trim()
-            ? body.categoria
-            : before.categoria
-              ? String(before.categoria)
-              : null,
-      },
-      session.userId,
-    )
-
-    if (spawnError) {
-      return supabaseErrorResponse(spawnError, 'Tarefa concluída, mas falhou ao gerar a próxima ocorrência')
-    }
+  const serieError = await atualizarSerie(supabase, before as Record<string, unknown>, row, taskId)
+  if (serieError) {
+    return supabaseErrorResponse(serieError, 'Tarefa salva, mas falhou ao atualizar as próximas ocorrências')
   }
 
   return listTarefas(session)
+}
+
+/**
+ * Mantém a série coerente depois de editar uma ocorrência:
+ * - virou recorrente: cria a série a partir desta ocorrência;
+ * - deixou de ser recorrente: encerra a série e remove as próximas pendentes;
+ * - mudou título, responsável, frequência etc.: refaz as próximas pendentes com os dados novos.
+ */
+async function atualizarSerie(
+  supabase: ReturnType<typeof getAppSupabase>,
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+  taskId: string,
+) {
+  const serieId = before.serie_id ? String(before.serie_id) : null
+  const vencimento = typeof after.vencimento_em === 'string' ? after.vencimento_em : null
+
+  if (!serieId) {
+    if (after.recorrencia === 'nenhuma' || !vencimento) return null
+    return criarSerie(supabase, taskId, vencimento)
+  }
+  if (after.recorrencia === 'nenhuma') {
+    await encerrarSerie(supabase, serieId, vencimento ?? (before.vencimento_em ? String(before.vencimento_em) : null))
+    return null
+  }
+  if (!vencimento || !serieMudou(before, after)) return null
+
+  const { error: deleteError } = await supabase
+    .from('tarefas')
+    .delete()
+    .eq('serie_id', serieId)
+    .eq('status', 'Pendente')
+    .gt('vencimento_em', vencimento)
+    .neq('id', taskId)
+  if (deleteError) return deleteError
+  const { error: resetError } = await supabase
+    .from('tarefa_series')
+    .update({ gerada_ate: vencimento, ativa: true })
+    .eq('id', serieId)
+  if (resetError) return resetError
+  return null
 }
 
 export async function DELETE(request: NextRequest) {

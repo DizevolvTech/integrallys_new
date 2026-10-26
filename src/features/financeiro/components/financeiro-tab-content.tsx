@@ -31,6 +31,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { CaixaItem, CaixaSessionState } from '@/hooks/use-caixa'
+import { diaDoMovimento, formaCaixaLabel } from '@/features/caixa/caixa-format'
+import { CofreCard } from '@/features/caixa/cofre-card'
 import type { FinanceiroItem } from '@/hooks/use-financeiro'
 import {
   formatCurrency,
@@ -229,7 +231,7 @@ export function FinanceiroTabContent({
               variant="outline"
               className="h-14 w-full justify-center gap-3 rounded-xl border-app-border px-6 font-normal text-app-text-primary shadow-sm dark:border-app-border-dark dark:text-white/80 lg:h-12 lg:w-auto"
             >
-              <ArrowUpRight size={18} /> <span>Suprimento</span>
+              <ArrowUpRight size={18} /> <span>Recebimento</span>
             </Button>
             <Button
               disabled={!caixaStatus.aberto}
@@ -237,7 +239,7 @@ export function FinanceiroTabContent({
               variant="outline"
               className="h-14 w-full justify-center gap-3 rounded-xl border-app-border px-6 font-normal text-app-text-primary shadow-sm dark:border-app-border-dark dark:text-white/80 lg:h-12 lg:w-auto"
             >
-              <ArrowDownRight size={18} /> <span>Sangria</span>
+              <ArrowDownRight size={18} /> <span>Pagamento</span>
             </Button>
             <Button
               disabled={!caixaStatus.aberto}
@@ -260,6 +262,9 @@ export function FinanceiroTabContent({
                 <Table>
                   <TableHeader>
                     <TableRow className="border-none bg-app-bg-secondary/50 dark:bg-app-card/[0.02]">
+                      <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary dark:text-white/60">
+                        Data
+                      </TableHead>
                       <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary dark:text-white/60">
                         Hora
                       </TableHead>
@@ -290,7 +295,10 @@ export function FinanceiroTabContent({
                         className="border-app-border transition-colors hover:bg-app-bg-secondary/50 dark:border-app-border-dark dark:hover:bg-app-card/[0.02]"
                       >
                         <TableCell className="font-normal text-app-text-secondary">
-                          {move.data.split(' ')[1] ?? '--:--'}
+                          {diaDoMovimento(move)}
+                        </TableCell>
+                        <TableCell className="font-normal text-app-text-secondary">
+                          {move.hora || move.data.split(' ')[1] || '--:--'}
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -303,7 +311,7 @@ export function FinanceiroTabContent({
                           {move.descricao}
                         </TableCell>
                         <TableCell className="font-normal text-app-text-secondary dark:text-white/60">
-                          Dinheiro
+                          {formaCaixaLabel(move.forma)}
                         </TableCell>
                         <TableCell
                           className={`text-right font-normal ${move.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}`}
@@ -311,7 +319,7 @@ export function FinanceiroTabContent({
                           {formatCurrency(move.valor)}
                         </TableCell>
                         <TableCell className="font-normal text-app-text-secondary dark:text-white/60">
-                          Sistema
+                          {move.operador || '—'}
                         </TableCell>
                         <TableCell className="text-center">
                           <DropdownMenu>
@@ -353,7 +361,7 @@ export function FinanceiroTabContent({
                     {caixaTodayData.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={8}
                           className="py-10 text-center text-app-text-secondary dark:text-white/60"
                         >
                           Nenhuma movimentação registrada na sessão de hoje.
@@ -411,6 +419,8 @@ export function FinanceiroTabContent({
               </div>
             </Card>
           </div>
+
+          <CofreCard atualizarQuando={`${caixaStatus.aberto}-${caixaStatus.movimentos}`} />
         </div>
       )}
 

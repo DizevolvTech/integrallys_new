@@ -113,12 +113,8 @@ export function resolvePagamentoAgendamentoInput(
   }
 }
 
-export async function insertPagamentoAgendamento(
-  supabase: SupabaseClient,
-  resolved: PagamentoAgendamentoResolved & { agendamentoId: string },
-) {
-  const now = new Date().toISOString()
-  return supabase.from('agendamentos_pagamentos').insert({
+export function pagamentoAgendamentoRow(resolved: PagamentoAgendamentoResolved & { agendamentoId: string }) {
+  return {
     agendamento_id: resolved.agendamentoId,
     valor: resolved.valor,
     metodo: resolved.metodo,
@@ -126,9 +122,16 @@ export async function insertPagamentoAgendamento(
     parcelas: resolved.parcelas,
     conta_bancaria_id: resolved.contaBancariaId,
     status: 'Pago',
-    pago_em: now,
+    pago_em: new Date().toISOString(),
     observacoes: resolved.observacoes,
-  })
+  }
+}
+
+export async function insertPagamentoAgendamento(
+  supabase: SupabaseClient,
+  resolved: PagamentoAgendamentoResolved & { agendamentoId: string },
+) {
+  return supabase.from('agendamentos_pagamentos').insert(pagamentoAgendamentoRow(resolved))
 }
 
 export function buildMetodoLabel(resolved: PagamentoAgendamentoResolved) {

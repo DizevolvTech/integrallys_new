@@ -50,6 +50,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { diaDoMovimento, formaCaixaLabel } from './caixa-format'
 
 type CaixaModal = 'abrircaixa' | 'suprimento' | 'sangria' | 'fecharcaixa' | 'edit_caixa' | null
 
@@ -276,7 +277,7 @@ export function CaixaView() {
         const isCard = form.forma === 'cartao_credito' || form.forma === 'cartao_debito'
         const parcelasNum = form.forma === 'cartao_credito' ? Number(form.parcelas) || 1 : null
         await addMovimentacao({
-          descricao: form.descricao || 'Suprimento',
+          descricao: form.descricao || 'Recebimento',
           valor: valorNum,
           tipo: 'entrada',
           forma: form.forma,
@@ -285,10 +286,10 @@ export function CaixaView() {
           valorParcela:
             parcelasNum && parcelasNum > 0 && valorNum > 0 ? Number((valorNum / parcelasNum).toFixed(2)) : null,
         })
-        toast.success('Suprimento lançado com sucesso.')
+        toast.success('Recebimento lançado com sucesso.')
       } else if (activeModal === 'sangria') {
-        await addMovimentacao({ descricao: form.descricao || 'Sangria', valor: Number(form.valor || 0), tipo: 'saida', forma: form.forma })
-        toast.success('Sangria lançada com sucesso.')
+        await addMovimentacao({ descricao: form.descricao || 'Pagamento', valor: Number(form.valor || 0), tipo: 'saida', forma: form.forma })
+        toast.success('Pagamento lançado com sucesso.')
       } else if (activeModal === 'fecharcaixa') {
         const valorTransferidoNum = form.valorTransferido ? Number(form.valorTransferido) : 0
         if (erroCofre) {
@@ -406,7 +407,7 @@ export function CaixaView() {
           className="rounded-xl h-14 lg:h-12 flex items-center justify-center gap-3 border-app-border dark:border-app-border-dark shadow-sm font-normal text-app-text-primary dark:text-white/80 px-6 w-full lg:w-auto"
         >
           <ArrowUpRight size={18} />
-          <span>Suprimento</span>
+          <span>Recebimento</span>
         </Button>
         <Button
           disabled={isClosed}
@@ -415,7 +416,7 @@ export function CaixaView() {
           className="rounded-xl h-14 lg:h-12 flex items-center justify-center gap-3 border-app-border dark:border-app-border-dark shadow-sm font-normal text-app-text-primary dark:text-white/80 px-6 w-full lg:w-auto"
         >
           <ArrowDownRight size={18} />
-          <span>Sangria</span>
+          <span>Pagamento</span>
         </Button>
         <Button
           disabled={isClosed}
@@ -439,6 +440,7 @@ export function CaixaView() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-app-bg-secondary/50 dark:bg-app-hover/20 border-none">
+                  <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Data</TableHead>
                   <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Hora</TableHead>
                   <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Tipo</TableHead>
                   <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Descrição</TableHead>
@@ -451,27 +453,28 @@ export function CaixaView() {
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-app-text-secondary dark:text-white/60">
+                    <TableCell colSpan={8} className="text-center py-10 text-app-text-secondary dark:text-white/60">
                       Carregando movimentações...
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && error && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-[var(--app-danger-text)]">
+                    <TableCell colSpan={8} className="text-center py-10 text-[var(--app-danger-text)]">
                       {error}
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && !error && data.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-app-text-secondary dark:text-white/60">
+                    <TableCell colSpan={8} className="text-center py-10 text-app-text-secondary dark:text-white/60">
                       Sem movimentações no período.
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && data.map((item) => (
                   <TableRow key={item.id} className="border-app-border dark:border-app-border-dark hover:bg-app-bg-secondary/50 dark:hover:bg-app-hover/20 transition-colors">
+                    <TableCell className="text-app-text-secondary font-normal">{diaDoMovimento(item)}</TableCell>
                     <TableCell className="text-app-text-secondary font-normal">{item.hora || '--:--'}</TableCell>
                     <TableCell>
                       <Badge className={`${item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} font-normal border-none`}>
@@ -481,15 +484,7 @@ export function CaixaView() {
                     <TableCell className="text-app-text-primary dark:text-white font-normal">{item.descricao}</TableCell>
                     <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">
                       {(() => {
-                        const formaLabel =
-                          item.forma === 'cartao_credito'
-                            ? 'Crédito'
-                            : item.forma === 'cartao_debito'
-                              ? 'Débito'
-                              : item.forma === 'pix'
-                                ? 'PIX'
-                                : 'Dinheiro'
-                        const parts: string[] = [formaLabel]
+                        const parts: string[] = [formaCaixaLabel(item.forma)]
                         if (item.bandeira) parts.push(item.bandeira)
                         if (item.parcelas && item.parcelas > 1) {
                           const valorParcela = item.valorParcela
@@ -599,8 +594,8 @@ export function CaixaView() {
                 {activeModal === 'fecharcaixa' && <Lock className="h-5 w-5 text-[var(--app-primary)]" />}
                 {activeModal === 'edit_caixa' && <Banknote className="h-5 w-5 text-[var(--app-primary)]" />}
                 {activeModal === 'abrircaixa' && 'Abrir caixa'}
-                {activeModal === 'suprimento' && 'Suprimento'}
-                {activeModal === 'sangria' && 'Sangria'}
+                {activeModal === 'suprimento' && 'Recebimento'}
+                {activeModal === 'sangria' && 'Pagamento'}
                 {activeModal === 'fecharcaixa' && 'Fechar caixa'}
                 {activeModal === 'edit_caixa' && 'Editar movimentação'}
               </DialogTitle>

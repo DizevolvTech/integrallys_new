@@ -26,7 +26,8 @@ function formatDateTime(value: Nullable<string>) {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('pt-BR')
+  // O servidor roda em UTC: sem o fuso da clínica as horas saíam 3h adiantadas.
+  return date.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
 
 export function mapAgendaItem(row: Record<string, unknown>) {
@@ -154,6 +155,7 @@ export function mapCaixaItem(row: Record<string, unknown>) {
     tipo: row.tipo === 'saida' ? 'saida' : 'entrada',
     valor: Number(row.valor ?? 0),
     data: dateTime,
+    dia: (dateTime.split(' ')[0] ?? '').replace(',', ''),
     hora: dateTime.split(' ')[1] ?? '',
     forma: row.forma ? String(row.forma) : 'Dinheiro',
     operador: row.operador_nome ? String(row.operador_nome) : 'Sistema',

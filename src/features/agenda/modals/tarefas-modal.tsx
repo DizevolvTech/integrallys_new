@@ -233,7 +233,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
       if (nextStatus === 'Concluída') {
         toast.success(
           tarefa.recorrencia && tarefa.recorrencia !== 'nenhuma'
-            ? 'Tarefa concluída. Próxima ocorrência gerada.'
+            ? 'Tarefa concluída. As próximas ocorrências seguem na agenda.'
             : 'Tarefa concluída.',
         )
       }

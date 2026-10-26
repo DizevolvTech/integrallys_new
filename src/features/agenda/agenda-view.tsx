@@ -19,7 +19,6 @@ import { useAgenda } from '@/hooks/use-agenda'
 import { useApi } from '@/hooks/use-api'
 import { useAgendaBloqueios } from '@/features/agenda/hooks/use-agenda-bloqueios'
 import { useAuth } from '@/hooks/use-auth'
-import { useFinanceiro } from '@/hooks/use-financeiro'
 import { useListaEspera } from '@/hooks/use-lista-espera'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useTarefas } from '@/hooks/use-tarefas'
@@ -96,7 +95,6 @@ export function AgendaView() {
   } = useAgenda()
   const api = useApi()
   const { data: bloqueios, create: createBloqueio, remove: removeBloqueio } = useAgendaBloqueios()
-  const { createLancamento } = useFinanceiro()
   const { data: pacientes, createPaciente, updatePaciente, units: pacienteUnits } = usePacientes()
   const { data: waitlistItems, createItem: createWaitlistItem } = useListaEspera()
   const { createTarefa } = useTarefas()
@@ -298,7 +296,6 @@ export function AgendaView() {
     deleteAgendamento: async (id, reason) => {
       await deleteAgendamento(id, reason)
     },
-    createLancamento,
     createWaitlistItem: async (payload) => {
       await createWaitlistItem(payload)
     },
@@ -306,7 +303,8 @@ export function AgendaView() {
       await createTarefa(payload)
     },
     registerAgendamentoPagamento: async (payload) => {
-      await api.post('/api/agenda/pagamentos', payload)
+      const res = await api.post<{ data?: { caixaRegistrado?: boolean } }>('/api/agenda/pagamentos', payload)
+      return { caixaRegistrado: res?.data?.caixaRegistrado === true }
     },
     reloadAgenda,
     findPacienteId,
@@ -361,6 +359,8 @@ export function AgendaView() {
       source: item.source,
       indicacao: item.source,
       origemDetalhe: item.origemDetalhe,
+      indicadoPorId: item.indicadoPorId,
+      financial: item.financial,
       vinculoTipos: item.vinculoTipos,
       precisaNf: item.precisaNf,
       photoUrl: item.photoUrl,
@@ -1448,6 +1448,8 @@ export function AgendaView() {
             status: patient.activeStatus || 'Ativo',
             indicacao: patient.source || patient.indicacao || '',
             origemDetalhe: patient.origemDetalhe || '',
+            indicadoPorId: patient.indicadoPorId ?? null,
+            financial: patient.financial as Record<string, unknown> | undefined,
             vinculoTipos:
               patient.vinculoTipos && patient.vinculoTipos.length > 0
                 ? patient.vinculoTipos
@@ -1650,6 +1652,8 @@ export function AgendaView() {
             status: patient.activeStatus || 'Ativo',
             indicacao: patient.source || patient.indicacao || '',
             origemDetalhe: patient.origemDetalhe || '',
+            indicadoPorId: patient.indicadoPorId ?? null,
+            financial: patient.financial as Record<string, unknown> | undefined,
             vinculoTipos:
               patient.vinculoTipos && patient.vinculoTipos.length > 0
                 ? patient.vinculoTipos

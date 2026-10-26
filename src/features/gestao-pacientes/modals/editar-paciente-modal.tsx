@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Patient } from '@/types/patient'
 import { NotaFiscalFields } from '../components/nota-fiscal-fields'
+import { QuemIndicouField } from '../components/quem-indicou-field'
 import { NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal, type NotaFiscalForm } from '../utils/nota-fiscal'
 import { DocumentoCadastro } from '../components/documento-cadastro'
 import { gerarCadastroPdf, abrirWhatsAppCadastro } from '../utils/documento-pdf'
@@ -67,6 +68,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
         telefone: '',
         email: '',
         indicacao: '',
+        indicadoPorId: null as string | null,
         status: 'Ativo',
         vinculoTipos: ['cliente'] as string[],
         origemDetalhe: '',
@@ -170,6 +172,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 status: paciente.activeStatus || 'Ativo',
                 vinculoTipos: paciente.vinculoTipos && paciente.vinculoTipos.length > 0 ? paciente.vinculoTipos : ['cliente'],
                 origemDetalhe: paciente.origemDetalhe || '',
+                indicadoPorId: paciente.indicadoPorId ?? null,
                 precisaNf: paciente.precisaNf === true,
                 notaFiscal: notaFiscalFromFinancial(paciente.financial),
                 photoUrl: paciente.photoUrl || '',
@@ -388,6 +391,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 photoUrl: formData.photoUrl || undefined,
                 vinculoTipos: formData.vinculoTipos,
                 origemDetalhe: formData.origemDetalhe || undefined,
+                indicadoPorId: formData.indicacao === 'indicacao' ? formData.indicadoPorId : null,
                 precisaNf: formData.precisaNf,
                 financial: notaFiscalToFinancial(formData.precisaNf, formData.notaFiscal),
                 age: patientAge != null ? `${patientAge} anos` : undefined,
@@ -539,9 +543,17 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                             <SelectContent><SelectItem value="instagram">Instagram</SelectItem><SelectItem value="google">Google</SelectItem><SelectItem value="indicacao">Indicação</SelectItem><SelectItem value="outros">Outros</SelectItem></SelectContent>
                                         </Select>
                                     </div>
-                                    {(formData.indicacao === 'indicacao' || formData.indicacao === 'outros') && (
+                                    {formData.indicacao === 'indicacao' && (
+                                        <QuemIndicouField
+                                            nome={formData.origemDetalhe}
+                                            indicadoPorId={formData.indicadoPorId}
+                                            excluirId={paciente?.id ? String(paciente.id) : undefined}
+                                            onChange={({ nome, indicadoPorId }) => setFormData((prev) => ({ ...prev, origemDetalhe: nome, indicadoPorId }))}
+                                        />
+                                    )}
+                                    {formData.indicacao === 'outros' && (
                                         <div className="md:col-span-2 space-y-2">
-                                            <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">{formData.indicacao === 'indicacao' ? 'Quem indicou?' : 'Qual a origem?'}</Label>
+                                            <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Qual a origem?</Label>
                                             <Input value={formData.origemDetalhe} onChange={(e) => setFormData({ ...formData, origemDetalhe: e.target.value })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="Detalhe da origem" />
                                         </div>
                                     )}

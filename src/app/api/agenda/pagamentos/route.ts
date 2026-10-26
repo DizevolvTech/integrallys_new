@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
-import {
-  insertPagamentoAgendamento,
-  resolvePagamentoAgendamentoInput,
-} from '@/lib/agendamento-pagamento'
+import { resolvePagamentoAgendamentoInput } from '@/lib/agendamento-pagamento'
+import { registrarRecebimentoAgendamento } from '@/lib/recebimento-agendamento'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
@@ -48,9 +46,12 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Agendamento não encontrado', 'AGENDAMENTO_NOT_FOUND', 404)
   }
 
-  const { error } = await insertPagamentoAgendamento(supabase, {
+  const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : '')
+  const { error, caixaRegistrado } = await registrarRecebimentoAgendamento(supabase, session, {
     agendamentoId,
-    ...resolved.data,
+    resolved: resolved.data,
+    descricao: texto(body?.descricao) || 'Recebimento de atendimento',
+    beneficiario: texto(body?.beneficiario) || null,
   })
 
   if (error) {
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       bandeira: resolved.data.bandeira,
       parcelas: resolved.data.parcelas,
       contaBancariaId: resolved.data.contaBancariaId,
+      caixaRegistrado,
     },
   })
 }

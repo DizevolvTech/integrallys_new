@@ -22,18 +22,6 @@ interface UseAgendaActionsProps {
     urlOnline?: string
   }) => Promise<void>
   deleteAgendamento: (id: string, reason: string) => Promise<void>
-  createLancamento: (payload: {
-    descricao: string
-    categoria: string
-    valor: number
-    tipo: 'receita' | 'despesa'
-    metodo?: string
-    observacoes?: string
-    status?: string
-    contaBancariaId?: string
-    parcelas?: number
-    beneficiario?: string
-  }) => Promise<void>
   createWaitlistItem: (payload: {
     pacienteId: string
     prioridade: string
@@ -55,7 +43,9 @@ interface UseAgendaActionsProps {
     bandeira?: string
     parcelas?: number
     contaBancariaId?: string
-  }) => Promise<void>
+    descricao?: string
+    beneficiario?: string
+  }) => Promise<{ caixaRegistrado: boolean }>
   reloadAgenda: () => Promise<void>
   findPacienteId: (slot: AgendaSlot) => string | undefined
 }
@@ -63,7 +53,6 @@ interface UseAgendaActionsProps {
 export function useAgendaActions({
   updateAgendamento,
   deleteAgendamento,
-  createLancamento,
   createWaitlistItem,
   createTarefa,
   registerAgendamentoPagamento,
@@ -258,37 +247,23 @@ export function useAgendaActions({
   }) => {
     if (!selectedSlot) return
     try {
-      const metodoLabel = [
-        payload.metodo,
-        payload.bandeira,
-        payload.parcelas && payload.parcelas > 1 ? `${payload.parcelas}x` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-
-      await createLancamento({
-        descricao: payload.descricao,
-        categoria: 'Consultas',
-        valor: payload.valor,
-        tipo: 'receita',
-        metodo: metodoLabel,
-        observacoes: payload.observacoes || `${selectedSlot.profissional} • ${selectedSlot.hora}`,
-        status: 'Pago',
-        contaBancariaId: payload.contaBancariaId,
-        parcelas: payload.parcelas,
-        beneficiario: selectedSlot.paciente,
-      })
-      await registerAgendamentoPagamento({
+      const { caixaRegistrado } = await registerAgendamentoPagamento({
         agendamentoId: selectedSlot.id,
         valor: payload.valor,
         metodo: payload.metodo,
-        observacoes: payload.observacoes,
+        observacoes: payload.observacoes || `${selectedSlot.profissional} • ${selectedSlot.hora}`,
         bandeira: payload.bandeira,
         parcelas: payload.parcelas,
         contaBancariaId: payload.contaBancariaId,
+        descricao: payload.descricao,
+        beneficiario: selectedSlot.paciente,
       })
       await reloadAgenda()
-      toast.success('Recebimento registrado com sucesso.')
+      toast.success(
+        caixaRegistrado
+          ? 'Recebimento registrado e lançado no caixa.'
+          : 'Recebimento registrado. O caixa de hoje está fechado, então o valor não entrou no caixa.',
+      )
       setActiveModal(null)
       setSelectedSlot(null)
     } catch (err) {

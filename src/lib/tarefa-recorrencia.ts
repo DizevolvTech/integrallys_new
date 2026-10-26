@@ -53,16 +53,18 @@ export function normalizeDiasSemana(value: unknown): number[] {
 
 function nextMatchingWeekday(from: Date, allowed: number[]): Date | null {
   if (allowed.length === 0) return null
-  const base = new Date(from.getTime())
   for (let offset = 1; offset <= 14; offset += 1) {
-    const candidate = new Date(base.getTime())
-    candidate.setDate(base.getDate() + offset)
-    if (allowed.includes(candidate.getDay())) return candidate
+    const candidate = new Date(from.getTime())
+    candidate.setUTCDate(from.getUTCDate() + offset)
+    if (allowed.includes(candidate.getUTCDay())) return candidate
   }
   return null
 }
 
-/** Próximo vencimento a partir de uma data base (ISO ou Date). */
+/**
+ * Próximo vencimento a partir de uma data base (ISO ou Date). Usa o calendário
+ * UTC porque o horário da tarefa é gravado como relógio de parede em UTC.
+ */
 export function nextVencimentoForRecorrencia(
   recorrencia: TarefaRecorrencia,
   from: Date | string | null | undefined,
@@ -77,27 +79,70 @@ export function nextVencimentoForRecorrencia(
 
   switch (recorrencia) {
     case 'diaria':
-      next.setDate(next.getDate() + 1)
+      next.setUTCDate(next.getUTCDate() + 1)
       return next
     case 'dias_uteis':
       return nextMatchingWeekday(base, [1, 2, 3, 4, 5])
     case 'semanal':
-      next.setDate(next.getDate() + 7)
+      next.setUTCDate(next.getUTCDate() + 7)
       return next
     case 'quinzenal':
-      next.setDate(next.getDate() + 14)
+      next.setUTCDate(next.getUTCDate() + 14)
       return next
     case 'mensal':
-      next.setMonth(next.getMonth() + 1)
+      next.setUTCMonth(next.getUTCMonth() + 1)
       return next
     case 'anual':
-      next.setFullYear(next.getFullYear() + 1)
+      next.setUTCFullYear(next.getUTCFullYear() + 1)
       return next
     case 'dias_especificos':
       return nextMatchingWeekday(base, normalizeDiasSemana(diasSemana))
     default:
       return null
   }
+}
+
+/** Quantos dias à frente as ocorrências de uma série já ficam visíveis. */
+export const HORIZONTE_RECORRENCIA_DIAS = 7
+
+/**
+ * Limite (inclusivo) até onde gerar ocorrências: fim do dia `hoje + dias` no
+ * calendário da clínica. Horários de tarefa são gravados como relógio de parede
+ * em UTC (o servidor roda em UTC), então o limite segue a mesma convenção.
+ */
+export function limiteGeracaoRecorrencia(agora: Date = new Date(), dias = HORIZONTE_RECORRENCIA_DIAS): Date {
+  const hojeClinica = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(agora)
+  const limite = new Date(`${hojeClinica}T23:59:59.999Z`)
+  limite.setUTCDate(limite.getUTCDate() + dias)
+  return limite
+}
+
+/**
+ * Próximas datas de uma série depois de `aPartirDe` (exclusivo) até `limite`
+ * (inclusivo). Mantém o horário da ocorrência base. `max` evita laço infinito
+ * com dado inconsistente.
+ */
+export function proximasOcorrencias(
+  recorrencia: TarefaRecorrencia,
+  aPartirDe: Date | string,
+  limite: Date,
+  diasSemana: number[] = [],
+  max = 120,
+): Date[] {
+  const datas: Date[] = []
+  let atual: Date | null = new Date(aPartirDe)
+  if (Number.isNaN(atual.getTime())) return datas
+  while (datas.length < max) {
+    atual = nextVencimentoForRecorrencia(recorrencia, atual, diasSemana)
+    if (!atual || atual.getTime() > limite.getTime()) break
+    datas.push(atual)
+  }
+  return datas
 }
 
 export function formatDiasSemanaLabel(dias: number[]): string {

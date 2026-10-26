@@ -73,14 +73,14 @@ export function CaixaActionModal({ open, mode, onClose, form, onChange, onSubmit
               <div className="space-y-0.5">
                 <DialogTitle className="text-xl font-normal text-app-text-primary dark:text-white tracking-tight">
                   {mode === 'abrir' && 'Abrir caixa'}
-                  {mode === 'suprimento' && 'Suprimento'}
-                  {mode === 'sangria' && 'Sangria'}
+                  {mode === 'suprimento' && 'Recebimento'}
+                  {mode === 'sangria' && 'Pagamento'}
                   {mode === 'fechar' && 'Fechar caixa'}
                 </DialogTitle>
                 <DialogDescription className="text-sm font-normal text-app-text-secondary dark:text-white/60">
                   {mode === 'abrir' && 'Inicie a operação diária do caixa a partir do saldo inicial do dia.'}
-                  {mode === 'suprimento' && 'Registre entradas complementares enquanto o caixa estiver aberto.'}
-                  {mode === 'sangria' && 'Registre retiradas operacionais do caixa aberto.'}
+                  {mode === 'suprimento' && 'Registre um recebimento (entrada de dinheiro) enquanto o caixa estiver aberto.'}
+                  {mode === 'sangria' && 'Registre um pagamento (saída de dinheiro) do caixa aberto.'}
                   {mode === 'fechar' && 'Revise os totais do dia antes de encerrar o caixa.'}
                 </DialogDescription>
               </div>
@@ -130,7 +130,7 @@ export function CaixaActionModal({ open, mode, onClose, form, onChange, onSubmit
                 </div>
                 <div className="space-y-3">
                   <Label>Descrição</Label>
-                  <Textarea value={form.descricao} onChange={(event) => onChange({ ...form, descricao: event.target.value })} placeholder={mode === 'suprimento' ? 'Motivo do suprimento' : 'Motivo da sangria'} className="min-h-[96px] rounded-xl border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-card/5" />
+                  <Textarea value={form.descricao} onChange={(event) => onChange({ ...form, descricao: event.target.value })} placeholder={mode === 'suprimento' ? 'Motivo do recebimento' : 'Motivo do pagamento'} className="min-h-[96px] rounded-xl border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-card/5" />
                 </div>
               </div>
             )}
@@ -154,8 +154,8 @@ export function CaixaActionModal({ open, mode, onClose, form, onChange, onSubmit
               </Button>
               <Button type="button" className="w-full sm:flex-1 h-11 rounded-xl px-6 text-white font-normal" onClick={onSubmit}>
                 {mode === 'abrir' && 'Confirmar abertura'}
-                {mode === 'suprimento' && 'Registrar suprimento'}
-                {mode === 'sangria' && 'Registrar sangria'}
+                {mode === 'suprimento' && 'Registrar recebimento'}
+                {mode === 'sangria' && 'Registrar pagamento'}
                 {mode === 'fechar' && 'Confirmar fechamento'}
               </Button>
             </DialogFooter>

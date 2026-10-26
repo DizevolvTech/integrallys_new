@@ -7,6 +7,7 @@ import {
 } from "@/lib/app-api";
 import { requirePermission } from "@/lib/authz";
 import { mapCaixaItem } from "@/lib/domain-mappers";
+import { resolverUnidadeCaixa } from "@/lib/recebimento-agendamento";
 import {
   authErrorResponse,
   getRequestAuth,
@@ -23,52 +24,7 @@ function getTodayKey() {
   }).format(new Date());
 }
 
-async function resolveUnitId(
-  session: NonNullable<Awaited<ReturnType<typeof getRequestAuth>>>,
-  requestedUnitId: unknown,
-) {
-  const scoped = await getScopedUnitId(session);
-  if (scoped.error) {
-    return { unitId: null as string | null, error: scoped.error };
-  }
-
-  // Perfis escopados: nunca confiar no unitId do client.
-  if (isScopedRole(session.role)) {
-    if (scoped.unidadeId) {
-      return { unitId: scoped.unidadeId, error: null as null };
-    }
-    // Escopado sem unidade no cadastro — não escolher unidade arbitrária.
-    return { unitId: null, error: null };
-  }
-
-  const supabase = getAppSupabase();
-  const requested =
-    typeof requestedUnitId === "string" && requestedUnitId.trim() !== ""
-      ? requestedUnitId.trim()
-      : null;
-  if (requested) {
-    return { unitId: requested, error: null };
-  }
-
-  if (session.user?.unidadeId) {
-    return { unitId: String(session.user.unidadeId), error: null };
-  }
-
-  const firstUnitResult = await supabase
-    .from("unidades")
-    .select("id")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (firstUnitResult.error) {
-    return { unitId: null, error: firstUnitResult.error };
-  }
-
-  return {
-    unitId: firstUnitResult.data?.id ? String(firstUnitResult.data.id) : null,
-    error: null,
-  };
-}
+const resolveUnitId = resolverUnidadeCaixa;
 
 async function getCaixaPayload(
   request: NextRequest,
@@ -344,7 +300,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       return supabaseErrorResponse(
         error,
-        `Falha ao registrar ${action === "entrada" ? "suprimento" : "sangria"}`,
+        `Falha ao registrar ${action === "entrada" ? "recebimento" : "pagamento"}`,
       );
     }
   } else if (action === "close") {
@@ -435,6 +391,23 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return supabaseErrorResponse(error, "Falha ao fechar caixa");
+    }
+
+    // O dinheiro levado ao cofre vira um registro do cofre, visível ao gestor.
+    if (valorTransferido > 0) {
+      const { error: cofreError } = await supabase.from("cofre_movimentos").insert({
+        unidade_id: unitId,
+        sessao_id: currentSession.id,
+        tipo: "entrada",
+        valor: Math.round(valorTransferido * 100) / 100,
+        descricao: "Transferência do caixa (fechamento)",
+        usuario_id: session.userId,
+        operador_nome: session.user?.name || null,
+        data_movimento: fechadoEm,
+      });
+      if (cofreError) {
+        return supabaseErrorResponse(cofreError, "Caixa fechado, mas falhou ao registrar a transferência ao cofre");
+      }
     }
   } else {
     return serverErrorResponse(
