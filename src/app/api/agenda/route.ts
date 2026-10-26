@@ -8,10 +8,10 @@ import {
   supabaseErrorResponse,
 } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { registrarRecebimentoAgendamento } from '@/lib/recebimento-agendamento'
 import { mapAgendaItem } from '@/lib/domain-mappers'
 import { resolveAgendamentoProcedimento } from '@/lib/agendamento-procedimento'
 import {
-  insertPagamentoAgendamento,
   resolvePagamentoAgendamentoInput,
 } from '@/lib/agendamento-pagamento'
 import { addDaysIso } from '@/lib/procedimento-retorno'
@@ -117,6 +117,28 @@ async function getScopedAgendaContext(session: Awaited<ReturnType<typeof getRequ
   } satisfies ScopedAgendaContext
 }
 
+/**
+ * Resumo de pagamento por agendamento, em lotes. Com ~500 agendamentos a lista de
+ * ids na URL estourava o limite do servidor: a chamada falhava após ~7 s e a agenda
+ * mostrava "Total já pago: R$ 0,00" (aceite do vídeo de 26/10).
+ */
+async function buscarResumoPagamentos(supabase: ReturnType<typeof getAppSupabase>, ids: string[]) {
+  const LOTE = 150
+  const lotes: string[][] = []
+  for (let i = 0; i < ids.length; i += LOTE) lotes.push(ids.slice(i, i + LOTE))
+  const resultados = await Promise.all(
+    lotes.map((lote) =>
+      supabase
+        .from('v_agendamento_pagamento_resumo')
+        .select('agendamento_id,total_pago,valor_devido,situacao,data_ultimo_pagamento')
+        .in('agendamento_id', lote),
+    ),
+  )
+  const erro = resultados.find((r) => r.error)?.error ?? null
+  if (erro) console.error('[agenda] falha ao carregar resumo de pagamentos', erro)
+  return { data: resultados.flatMap((r) => r.data ?? []), error: erro }
+}
+
 async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
   const scopedContext = await getScopedAgendaContext(session)
@@ -206,20 +228,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
         'procedimentos',
         (data ?? []).map((row) => String(row.procedimento_id ?? '')),
       ),
-      agendaIds.length > 0
-        ? supabase
-            .from('v_agendamento_pagamento_resumo')
-            .select('agendamento_id,total_pago,valor_devido,situacao,data_ultimo_pagamento')
-            .in('agendamento_id', agendaIds)
-        : Promise.resolve({
-            data: [] as Array<{
-              agendamento_id: string
-              total_pago: number
-              valor_devido: number
-              situacao: string
-            }>,
-            error: null,
-          }),
+      buscarResumoPagamentos(supabase, agendaIds),
     ])
 
   if (pacientesResult.error)
@@ -514,6 +523,7 @@ async function desfazerAgendamentoCriado(
 
 async function registrarPagamentoInicialObrigatorio(params: {
   supabase: ReturnType<typeof getAppSupabase>
+  session: NonNullable<Awaited<ReturnType<typeof getRequestAuth>>>
   agendamentoId: string
   body: Record<string, unknown>
 }): Promise<Response | null> {
@@ -539,9 +549,18 @@ async function registrarPagamentoInicialObrigatorio(params: {
     return serverErrorResponse(resolved.message, resolved.code, 400)
   }
 
-  const { error } = await insertPagamentoAgendamento(params.supabase, {
+  // Aceite do vídeo de 26/10: o pagamento inicial também vira lançamento pago e,
+  // com caixa aberto, entrada no caixa do dia (antes ficava só no agendamento).
+  const pacienteId = typeof params.body.pacienteId === 'string' ? params.body.pacienteId : ''
+  const { data: paciente } = pacienteId
+    ? await params.supabase.from('pacientes').select('nome').eq('id', pacienteId).maybeSingle()
+    : { data: null }
+  const nome = paciente?.nome ? String(paciente.nome) : ''
+  const { error } = await registrarRecebimentoAgendamento(params.supabase, params.session, {
     agendamentoId: params.agendamentoId,
-    ...resolved.data,
+    resolved: resolved.data,
+    descricao: nome ? `Pagamento inicial do agendamento – ${nome}` : 'Pagamento inicial do agendamento',
+    beneficiario: nome || null,
   })
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao registrar pagamento inicial')
@@ -823,6 +842,7 @@ export async function POST(request: NextRequest) {
 
     const pagamentoError = await registrarPagamentoInicialObrigatorio({
       supabase,
+      session,
       agendamentoId: result.id,
       body: enrichedBody,
     })
@@ -874,6 +894,7 @@ export async function POST(request: NextRequest) {
 
     const pagamentoError = await registrarPagamentoInicialObrigatorio({
       supabase,
+      session,
       agendamentoId: String(inserted.id),
       body: enrichedBody,
     })

@@ -94,6 +94,24 @@ export function notaFiscalFromFinancial(financial: FinancialLike): NotaFiscalFor
   }
 }
 
+/** Campos da NF ("adicionar outros dados") que faltam, em linguagem de tela. Vazio = completo. */
+export function camposFaltandoNotaFiscal(precisaNf: boolean, nf: NotaFiscalForm): string[] {
+  if (!precisaNf || nf.modo !== 'adicionar') return []
+  const faltam: string[] = []
+  const digits = nf.documento.replace(/\D/g, '')
+  const docOk = digits.length === 11 ? validarCPF(nf.documento) : digits.length === 14 ? validarCNPJ(nf.documento) : false
+  if (!docOk) faltam.push(digits ? 'CPF/CNPJ da nota (inválido)' : 'CPF/CNPJ da nota')
+  if (!nf.nome.trim()) faltam.push('nome ou razão social da nota')
+  const e = nf.endereco
+  if (e.cep.replace(/\D/g, '').length !== 8) faltam.push('CEP da nota')
+  if (!e.logradouro.trim()) faltam.push('logradouro da nota')
+  if (!e.numero.trim()) faltam.push('número da nota')
+  if (!e.bairro.trim()) faltam.push('bairro da nota')
+  if (!e.cidade.trim()) faltam.push('cidade da nota')
+  if (!/^[A-Za-z]{2}$/.test(e.uf.trim())) faltam.push('UF da nota')
+  return faltam
+}
+
 /** Primeiro campo obrigatório do endereço da NF que está vazio ou inválido. */
 function faltaNoEndereco(e: EnderecoNf): string | null {
   if (e.cep.replace(/\D/g, '').length !== 8) return 'Informe um CEP válido no endereço da nota fiscal.'

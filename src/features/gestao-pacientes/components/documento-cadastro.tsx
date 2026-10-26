@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Patient } from '@/types/patient'
+import { descreverOrigem } from '../utils/origem'
 
 interface DocumentoCadastroProps {
     data: Partial<Patient>;
@@ -55,6 +56,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
                     })() : '-')}</div>
                     <div><span className="font-bold">Telefone:</span> {data.phone}</div>
                     <div><span className="font-bold">E-mail:</span> {data.email}</div>
+                    <div className="col-span-2"><span className="font-bold">Origem:</span> {descreverOrigem(data.source, data.origemDetalhe)}</div>
                     <div className="col-span-2"><span className="font-bold">Endereço:</span> {data.address} - {data.addressDetails?.city}/{data.addressDetails?.state} - CEP: {data.addressDetails?.zipCode}</div>
                 </div>
             </section>

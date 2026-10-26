@@ -302,7 +302,6 @@ export function PacientesView() {
     })
     setSelectedPaciente(patient)
     setIsEditOpen(false)
-    toast.success('Paciente atualizado com sucesso.')
   }
 
   const handleSoftDeletePatient = async () => {

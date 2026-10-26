@@ -1,6 +1,7 @@
 'use client'
 
 import { descreverNotaFiscal, notaFiscalFromFinancial } from '../utils/nota-fiscal'
+import { descreverOrigem } from '../utils/origem'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -178,6 +179,7 @@ export function VisualizarPacienteModal({
                 <p><strong>E-mail:</strong> {paciente?.email || '-'}</p>
                 <p><strong>RG:</strong> {paciente?.rg || '-'}</p>
                 <p><strong>Inscrição Estadual:</strong> {paciente?.inscricaoEstadual || '-'}</p>
+                <p><strong>Origem:</strong> {descreverOrigem(paciente?.source, paciente?.origemDetalhe)}</p>
                 <p><strong>Nota fiscal:</strong> {descreverNotaFiscal(paciente?.precisaNf === true, notaFiscalFromFinancial(paciente?.financial))}</p>
                 <p><strong>Nascimento:</strong> {paciente?.birthDate ? new Date(paciente.birthDate).toLocaleDateString('pt-BR') : '-'}</p>
                 <p><strong>Status:</strong> {paciente?.activeStatus || 'Ativo'}</p>

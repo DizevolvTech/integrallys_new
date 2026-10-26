@@ -15,6 +15,7 @@ import type { Patient } from '@/types/patient'
 import { useClinicaConfig } from '@/features/configuracoes/hooks/use-clinica-config'
 import { NotaFiscalFields } from '../components/nota-fiscal-fields'
 import { QuemIndicouField } from '../components/quem-indicou-field'
+import { camposFaltandoCadastro, mensagemCamposFaltando } from '../utils/cadastro-validacao'
 import { NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal, type NotaFiscalForm } from '../utils/nota-fiscal'
 import { DocumentoCadastro } from '../components/documento-cadastro'
 import { gerarCadastroPdf, abrirWhatsAppCadastro } from '../utils/documento-pdf'
@@ -278,20 +279,28 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        const cepDigits = formData.addressDetails.zipCode.replace(/\D/g, '')
-        if (cepDigits.length !== 8) {
-            toast.error('Informe um CEP válido para concluir o cadastro.')
+        const faltando = mensagemCamposFaltando(
+            camposFaltandoCadastro({
+                nome: formData.nome,
+                cpf: formData.cpf,
+                dataNascimento: formData.dataNascimento,
+                cep: formData.addressDetails.zipCode,
+                telefone: formData.telefone,
+                precisaNf: formData.precisaNf,
+                notaFiscal: formData.notaFiscal,
+                menorDeIdade: needsMandatoryResponsible,
+                responsavelNome: formData.responsible.name,
+                responsavelParentesco: formData.responsible.relationship,
+            }),
+        )
+        if (faltando) {
+            toast.error(faltando)
             return
         }
 
         const nfError = validarNotaFiscal(formData.precisaNf, formData.notaFiscal)
         if (nfError) {
             toast.error(nfError)
-            return
-        }
-
-        if (needsMandatoryResponsible && (!formData.responsible.name.trim() || !formData.responsible.relationship)) {
-            toast.error('Paciente menor de 18 anos: informe o nome e o parentesco do responsável.')
             return
         }
 
@@ -443,7 +452,7 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
 
                 <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 py-6 bg-app-bg-secondary dark:bg-transparent">
                     {!isSaved ? (
-                        <form id="novo-paciente-form" onSubmit={handleSubmit} className="space-y-12">
+                        <form id="novo-paciente-form" noValidate onSubmit={handleSubmit} className="space-y-12">
 
                             {/* 1. Informações Básicas */}
                             <div className="bg-white dark:bg-app-hover p-6 rounded-2xl border border-app-border dark:border-app-border-dark shadow-sm animate-in fade-in slide-in-from-top-2">
@@ -823,7 +832,7 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
                             <Button type="button" variant="outline" onClick={onClose} className="sm:w-32 h-12 rounded-xl font-bold text-[var(--app-text-secondary)] dark:text-white/70 border-app-border dark:border-app-border-dark hover:bg-app-hover dark:hover:bg-app-hover transition-all text-xs uppercase tracking-widest">
                                 Cancelar
                             </Button>
-                            <Button form="novo-paciente-form" type="submit" className="flex-1 h-12 bg-app-primary hover:bg-app-primary-hover text-white font-black rounded-xl shadow-sm transition-all active:scale-[0.98] text-xs uppercase tracking-[0.1em]">
+                            <Button form="novo-paciente-form" type="submit" className="w-full shrink-0 sm:w-auto sm:flex-1 h-12 bg-app-primary hover:bg-app-primary-hover text-white font-black rounded-xl shadow-sm transition-all active:scale-[0.98] text-xs uppercase tracking-[0.1em]">
                                 Salvar Cadastro
                             </Button>
                         </div>
@@ -848,6 +857,8 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
                             address: `${formData.addressDetails.street}, ${formData.addressDetails.number}`,
                             addressDetails: formData.addressDetails,
                             responsible: formData.responsible.name ? formData.responsible : undefined,
+                            source: formData.indicacao,
+                            origemDetalhe: formData.origemDetalhe,
                         }}
                         manualText={MANUAL_SERVICOS_TEXTO_PADRAO}
                         clinicaNome={clinicaConfig?.nome}

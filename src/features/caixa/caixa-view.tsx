@@ -498,7 +498,7 @@ export function CaixaView() {
                       })()}
                     </TableCell>
                     <TableCell className={`text-right font-normal ${item.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}`}>
-                      R$ {item.valor.toFixed(2)}
+                      R$ {formatBRL(item.valor)}
                     </TableCell>
                     <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">{item.operador || '—'}</TableCell>
                     <TableCell className="text-center">
@@ -509,7 +509,7 @@ export function CaixaView() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toast.info(`Movimentação: ${item.descricao} — R$ ${item.valor.toFixed(2)}`)}>
+                          <DropdownMenuItem onClick={() => toast.info(`Movimentação: ${item.descricao} — R$ ${formatBRL(item.valor)}`)}>
                             <Eye className="h-4 w-4 mr-2 text-app-text-secondary" />
                             <span>Visualizar</span>
                           </DropdownMenuItem>

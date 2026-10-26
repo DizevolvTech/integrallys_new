@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Download, ExternalLink, FileText, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useApi } from '@/hooks/use-api'
+import { isForbiddenError } from '@/lib/api-client'
 
 interface DocumentoEmitido {
   id: string
@@ -65,6 +66,8 @@ export function DocumentosDoPacienteCard({
   const [documentos, setDocumentos] = useState<DocumentoEmitido[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Perfil sem acesso a documentos (ex.: recepção): o card some em vez de mostrar "Acesso negado".
+  const [semAcesso, setSemAcesso] = useState(false)
 
   useEffect(() => {
     if (!pacienteId) {
@@ -84,6 +87,10 @@ export function DocumentosDoPacienteCard({
         setDocumentos(res.data ?? [])
       } catch (err) {
         if (!mounted) return
+        if (isForbiddenError(err)) {
+          setSemAcesso(true)
+          return
+        }
         setError(err instanceof Error ? err.message : 'Falha ao carregar documentos')
       } finally {
         if (mounted) setIsLoading(false)
@@ -105,6 +112,8 @@ export function DocumentosDoPacienteCard({
       : `https://wa.me/?text=${encodeURIComponent(mensagem)}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
+
+  if (semAcesso) return null
 
   if (ocultarSeVazio && !isLoading && documentos.length === 0 && !error) {
     return null

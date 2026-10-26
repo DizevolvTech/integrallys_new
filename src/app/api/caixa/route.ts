@@ -76,7 +76,8 @@ async function getCaixaPayload(
       "id,descricao,tipo,valor,data_movimento,forma,operador_nome,sessao_id,bandeira,parcelas,valor_parcela,forma_pagamento_id",
     )
     .eq("unidade_id", unitId)
-    .gte("data_movimento", `${todayKey}T00:00:00`)
+    // Caixa reaberto no mesmo dia: a sessão nova começa do zero (só movimentos desde a reabertura).
+    .gte("data_movimento", caixaSession?.aberto_em ? String(caixaSession.aberto_em) : `${todayKey}T00:00:00`)
     .lte("data_movimento", `${todayKey}T23:59:59.999`)
     .order("data_movimento", { ascending: false });
 
@@ -179,7 +180,7 @@ export async function POST(request: NextRequest) {
 
   const currentSessionQuery = await supabase
     .from("caixa_sessoes")
-    .select("id,status,saldo_inicial")
+    .select("id,status,saldo_inicial,aberto_em")
     .eq("data_operacao", todayKey)
     .eq("unidade_id", unitId)
     .order("aberto_em", { ascending: false })
@@ -315,7 +316,8 @@ export async function POST(request: NextRequest) {
     const movimentosQuery = await supabase
       .from("caixa_movimentos")
       .select("tipo,valor,forma")
-      .eq("sessao_id", currentSession.id);
+      .eq("sessao_id", currentSession.id)
+      .gte("data_movimento", String(currentSession.aberto_em));
 
     if (movimentosQuery.error) {
       return supabaseErrorResponse(

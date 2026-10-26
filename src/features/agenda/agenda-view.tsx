@@ -1667,7 +1667,6 @@ export function AgendaView() {
             supplierData: patient.supplierData as Record<string, unknown> | undefined,
             criarAcessoPortal: patient.criarAcessoPortal === true,
           })
-          toast.success('Paciente atualizado.')
           actions.setActiveModal(null)
           actions.setSelectedSlot(null)
         }}

@@ -39,12 +39,18 @@ export async function getEntityNameMap(
     return { map: {} as Record<string, string>, error: null as PostgrestError | null }
   }
 
-  const { data, error } = await supabase.from(table).select('id,nome').in('id', uniqueIds)
+  // Em lotes: listas longas de ids na URL estouram o limite do servidor e a chamada falha.
+  const LOTE = 150
+  const lotes: string[][] = []
+  for (let i = 0; i < uniqueIds.length; i += LOTE) lotes.push(uniqueIds.slice(i, i + LOTE))
+  const resultados = await Promise.all(lotes.map((lote) => supabase.from(table).select('id,nome').in('id', lote)))
+  const error = resultados.find((r) => r.error)?.error ?? null
   if (error) {
     return { map: {} as Record<string, string>, error }
   }
+  const data = resultados.flatMap((r) => r.data ?? [])
 
-  const map = (data ?? []).reduce<Record<string, string>>((acc, row) => {
+  const map = data.reduce<Record<string, string>>((acc, row) => {
     acc[String(row.id)] = String(row.nome ?? '')
     return acc
   }, {})
