@@ -252,7 +252,11 @@ export async function PUT(request: NextRequest) {
     return serverErrorResponse('Tarefa não encontrada', 'TASK_NOT_FOUND', 404)
   }
 
-  const responsavelId = await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)
+  // Sem responsável no corpo (ex.: só mudar o status), mantém o atual em vez de apagá-lo.
+  const responsavelInformado = body.responsavelId !== undefined || body.responsavelNome !== undefined
+  const responsavelId =
+    (await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)) ??
+    (responsavelInformado ? null : before.responsavel_id ? String(before.responsavel_id) : null)
   const nextStatus =
     typeof body.status === 'string' && body.status.trim() ? body.status : String(before.status)
   const motivoAtual =
