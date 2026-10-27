@@ -4,6 +4,7 @@ import { formaCaixaLabel } from '@/features/caixa/caixa-format'
 import { isLiquidado } from '../financeiro.utils'
 import type { GrupoDetalhe } from './detalhe-grupos-modal'
 import { montarGrupos, totalDosGrupos, type LinhaAgrupavel } from './detalhe-util'
+import { formatarMoeda } from '@/lib/moeda'
 
 export type DetalheCard = {
   titulo: string
@@ -59,7 +60,7 @@ export function detalheLancamentos(tipo: TipoDetalheFinanceiro, data: Financeiro
   const totalSaidas = totalDosGrupos(saidas)
   return {
     titulo: 'Saldo consolidado',
-    descricao: `Entradas menos saídas: ${totalEntradas.toFixed(2)} − ${totalSaidas.toFixed(2)}`,
+    descricao: `Entradas menos saídas: ${formatarMoeda(totalEntradas)} − ${formatarMoeda(totalSaidas)}`,
     total: Math.round((totalEntradas - totalSaidas) * 100) / 100,
     grupos: [...entradas, ...saidas],
     agrupadoPor: 'Composição',

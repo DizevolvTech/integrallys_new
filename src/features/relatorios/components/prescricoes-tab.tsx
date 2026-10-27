@@ -4,8 +4,6 @@ import { AlertCircle, CheckCircle2, Search } from 'lucide-react'
 import { usePrescricoesRelatorio, type PrescricaoSituacaoFilter } from '@/features/relatorios/hooks/use-prescricoes-relatorio'
 import { useUnidades } from '@/hooks/use-unidades'
 import { useUsuarios } from '@/hooks/use-usuarios'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -53,39 +51,37 @@ export function PrescricoesTab() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {[
             {
-              key: 'todos' as PrescricaoSituacaoFilter,
+              key: 'ativa' as PrescricaoSituacaoFilter,
               label: 'Ativas',
-              count:
-                prescricoesRelatorio.meta.noPrazo +
-                prescricoesRelatorio.meta.semValidade,
-              valor: prescricoesRelatorio.meta.valorNoPrazo,
+              count: prescricoesRelatorio.meta.ativas,
+              valor: prescricoesRelatorio.meta.valorAtivas,
               border: 'border-emerald-300/60 dark:border-emerald-800/40',
               bg: 'bg-emerald-50/60 dark:bg-emerald-950/20',
               icon: CheckCircle2,
               iconTone: 'text-[var(--app-success-text)]',
-              descricao: 'Total em aberto e dentro do prazo',
+              descricao: 'Prescrições ativas dentro da validade',
             },
             {
               key: 'limite_prazo' as PrescricaoSituacaoFilter,
               label: 'Limite de prazo',
-              count: prescricoesRelatorio.meta.limitePrazo,
-              valor: prescricoesRelatorio.meta.valorLimitePrazo,
+              count: prescricoesRelatorio.meta.ativasLimitePrazo,
+              valor: prescricoesRelatorio.meta.valorAtivasLimitePrazo,
               border: 'border-amber-300/70 dark:border-amber-800/50',
               bg: 'bg-amber-50/70 dark:bg-amber-950/20',
               icon: AlertCircle,
               iconTone: 'text-[var(--app-warning-text)]',
-              descricao: 'Vencem em até 10 dias',
+              descricao: 'Ativas que vencem em até 10 dias',
             },
             {
               key: 'vencido' as PrescricaoSituacaoFilter,
               label: 'Vencidas',
-              count: prescricoesRelatorio.meta.vencido,
-              valor: prescricoesRelatorio.meta.valorVencido,
+              count: prescricoesRelatorio.meta.vencidas,
+              valor: prescricoesRelatorio.meta.valorVencidas,
               border: 'border-red-300/70 dark:border-red-800/50',
               bg: 'bg-red-50/70 dark:bg-red-950/20',
               icon: AlertCircle,
               iconTone: 'text-[var(--app-danger-text)]',
-              descricao: 'Validade já vencida',
+              descricao: 'Vencidas por status ou validade',
             },
           ].map((card) => {
             const isActive = prescricoesRelatorio.filtros.situacao === card.key
@@ -192,6 +188,7 @@ export function PrescricoesTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todas as situações</SelectItem>
+              <SelectItem value="ativa">Ativas</SelectItem>
               <SelectItem value="no_prazo">No prazo</SelectItem>
               <SelectItem value="limite_prazo">Limite de prazo (≤10 dias)</SelectItem>
               <SelectItem value="vencido">Vencido</SelectItem>
@@ -339,13 +336,13 @@ export function PrescricoesTab() {
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-end gap-3 px-2">
           <p className="text-sm text-app-text-secondary dark:text-white/70">
-            Total em aberto:{' '}
+            Total ativo:{' '}
             <span className="font-medium text-app-text-primary dark:text-white">
-              R$ {prescricoesRelatorio.meta.valorNoPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatMoney(prescricoesRelatorio.meta.valorAtivas)}
             </span>
           </p>
           <p className="text-sm text-[var(--app-danger-text)]">
-            Vencidos: R$ {prescricoesRelatorio.meta.valorVencido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Vencidas: {formatMoney(prescricoesRelatorio.meta.valorVencidas)}
           </p>
         </div>
       </div>

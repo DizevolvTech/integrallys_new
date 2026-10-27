@@ -11,6 +11,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbS
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { formatarMoeda } from '@/lib/moeda'
 
 export function NovoAgendamentoView() {
   const router = useRouter()
@@ -168,7 +169,7 @@ export function NovoAgendamentoView() {
                   <SelectContent>
                     {options.procedures.map((item) => (
                       <SelectItem key={item.id} value={`${item.id}::${item.name} - R$${item.price.toFixed(2).replace('.', ',')}`}>
-                        {item.name} - R${item.price.toFixed(2).replace('.', ',')}
+                        {item.name} - {formatarMoeda(item.price)}
                       </SelectItem>
                     ))}
                   </SelectContent>

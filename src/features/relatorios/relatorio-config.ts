@@ -469,9 +469,11 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
         ],
       },
     ],
-    cartoes: (t) => [
-      { label: `Atendimentos (${num(t.atendimentos)})`, valor: formatMoeda(t.valor), tom: 'neutro' },
+    // A tabela lista atendidos e cancelados; os cartões separam os dois para a conta bater com as linhas.
+    cartoes: (t, total) => [
+      { label: `Atendidos (${num(t.atendimentos)})`, valor: formatMoeda(t.valor), tom: 'neutro' },
       { label: 'Repasse total', valor: formatMoeda(t.repasse), tom: 'sucesso' },
+      { label: 'Cancelados', valor: String(Math.max(total - Number(t.atendimentos ?? 0), 0)), tom: 'alerta' },
     ],
   },
   comissoes: {

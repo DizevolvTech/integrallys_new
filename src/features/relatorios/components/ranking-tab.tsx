@@ -25,7 +25,7 @@ export function RankingTab() {
             <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
               <CardContent className="p-5 space-y-3">
                 <h3 className="text-base font-medium text-app-text-primary dark:text-white">Mais vendidos</h3>
-                <Table>
+                <Table className="[&_td]:px-2 [&_th]:px-2">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Produto</TableHead>
@@ -58,7 +58,7 @@ export function RankingTab() {
             <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
               <CardContent className="p-5 space-y-3">
                 <h3 className="text-base font-medium text-app-text-primary dark:text-white">Mais lucrativos</h3>
-                <Table>
+                <Table className="[&_td]:px-2 [&_th]:px-2">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Produto</TableHead>
@@ -113,7 +113,7 @@ export function RankingTab() {
               {rankingProcedimentos.isLoading ? (
                 <p className="text-sm text-app-text-muted">Carregando…</p>
               ) : (
-                <Table>
+                <Table className="[&_td]:px-2 [&_th]:px-2">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Procedimento</TableHead>
@@ -154,7 +154,7 @@ export function RankingTab() {
               {rankingProcedimentos.isLoading ? (
                 <p className="text-sm text-app-text-muted">Carregando…</p>
               ) : (
-                <Table>
+                <Table className="[&_td]:px-2 [&_th]:px-2">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Procedimento</TableHead>

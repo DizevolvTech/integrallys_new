@@ -24,6 +24,7 @@ import {
 import { useProntuarios, type ProntuarioItem } from '@/features/prontuarios/hooks/use-prontuarios'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { PacienteCadastroCard } from '@/components/shared/paciente-cadastro-card'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -140,137 +141,8 @@ function ProntuarioViewList() {
     setSelectedItem(null)
   }
 
-  return (
-    <div className="app-page">
-      <PageHeader
-        title="Prontuários de atendimento"
-        description="Gerencie os prontuários de atendimento dos pacientes."
-        actions={
-          <Button onClick={() => setIsCreateOpen(true)} className="h-11 rounded-integrallys px-6 text-white">
-            <Plus className="mr-2 h-4 w-4" />
-            Novo prontuário
-          </Button>
-        }
-      />
-
-      {error && (
-        <Card className="rounded-integrallys-lg border-[var(--app-danger-border)] bg-[var(--app-danger-bg)] p-4 text-sm text-[var(--app-danger-text)]">
-          {error}
-        </Card>
-      )}
-
-      <div className="overflow-hidden rounded-integrallys-lg border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
-        <div className="space-y-8 p-8">
-          <div className="flex items-center gap-3">
-            <FileText className="h-6 w-6 text-app-text-primary dark:text-white" />
-            <h2 className="text-xl font-normal tracking-tight text-app-text-primary dark:text-white">
-              Lista de prontuários ({filteredData.length})
-            </h2>
-          </div>
-
-          <div className="flex flex-col items-center gap-4 lg:flex-row">
-            <div className="relative w-full flex-1">
-              <Search className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-app-text-muted" />
-              <Input
-                placeholder="Buscar por nome do paciente..."
-                className="h-12 w-full rounded-[12px] border-app-border bg-app-bg-secondary/50 pl-12 transition-all focus-visible:ring-[var(--app-primary)] dark:border-app-border-dark dark:bg-app-table-header-dark"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-              />
-            </div>
-
-            <div className="flex w-full items-center gap-3 lg:w-auto">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="flex h-12 min-w-[180px] justify-between gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Filter className="h-4 w-4 text-app-text-muted" />
-                      <span className="whitespace-nowrap">
-                        {statusFilter === 'Todos os Status' ? 'Todos os status' : statusFilter}
-                      </span>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-app-text-muted" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[200px] rounded-integrallys-lg border-app-border bg-app-card p-2 dark:border-app-border-dark dark:bg-app-card-dark">
-                  <DropdownMenuItem onClick={() => setStatusFilter('Todos os Status')}>Todos os status</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter('Aberto')}>Em andamento</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter('Fechado')}>Finalizado</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="flex h-12 min-w-[180px] justify-between gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Filter className="h-4 w-4 text-app-text-muted" />
-                      <span className="whitespace-nowrap">
-                        {typeFilter === 'Todos os Tipos' ? 'Todos os tipos' : typeFilter}
-                      </span>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-app-text-muted" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[220px] rounded-integrallys-lg border-app-border bg-app-card p-2 dark:border-app-border-dark dark:bg-app-card-dark">
-                  <DropdownMenuItem onClick={() => setTypeFilter('Todos os Tipos')}>Todos os tipos</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTypeFilter('Consultas')}>Consultas</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTypeFilter('Avaliações')}>Avaliações</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="px-8 pb-8 text-sm text-app-text-muted">Carregando prontuários...</div>
-        ) : filteredData.length === 0 ? (
-          <div className="px-8 pb-8">
-            <EmptyState
-              icon={ClipboardList}
-              title="Nenhum prontuário encontrado."
-              description="Ajuste os filtros ou cadastre um novo prontuário para preencher esta listagem."
-            />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b border-app-border hover:bg-transparent dark:border-app-border-dark">
-                  <TableHead className="px-6 py-4 font-normal text-app-text-muted">Paciente</TableHead>
-                  <TableHead className="py-4 font-normal text-app-text-muted">Data</TableHead>
-                  <TableHead className="py-4 font-normal text-app-text-muted">Tipo de consulta</TableHead>
-                  <TableHead className="py-4 text-center font-normal text-app-text-muted">Status</TableHead>
-                  <TableHead className="py-4 text-center font-normal text-app-text-muted">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className="border-b border-app-border transition-colors hover:bg-app-bg-secondary dark:border-app-border-dark dark:hover:bg-app-bg-dark/50"
-                  >
-                    <TableCell className="px-6 font-normal text-app-text-primary dark:text-white">{item.paciente}</TableCell>
-                    <TableCell className="text-app-text-secondary dark:text-white/80">{item.data}</TableCell>
-                    <TableCell className="text-app-text-muted dark:text-app-text-muted">{item.tipo}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge
-                        className={`rounded-lg border-0 px-2.5 py-1 text-xs font-normal tracking-wider shadow-sm ${
-                          item.status === 'Fechado'
-                            ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
-                            : 'bg-app-primary text-white dark:bg-blue-900/40 dark:text-[var(--app-info-text)]'
-                        }`}
-                      >
-                        {item.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
+  const renderAcoes = (item: (typeof filteredData)[number]) => (
+    <div className="flex items-center justify-center gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -310,6 +182,163 @@ function ProntuarioViewList() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+    </div>
+  )
+
+  return (
+    <div className="app-page">
+      <PageHeader
+        title="Prontuários de atendimento"
+        description="Gerencie os prontuários de atendimento dos pacientes."
+        actions={
+          <Button onClick={() => setIsCreateOpen(true)} className="h-11 rounded-integrallys px-6 text-white">
+            <Plus className="mr-2 h-4 w-4" />
+            Novo prontuário
+          </Button>
+        }
+      />
+
+      {error && (
+        <Card className="rounded-integrallys-lg border-[var(--app-danger-border)] bg-[var(--app-danger-bg)] p-4 text-sm text-[var(--app-danger-text)]">
+          {error}
+        </Card>
+      )}
+
+      <div className="overflow-hidden rounded-integrallys-lg border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
+        <div className="space-y-8 p-4 md:p-8">
+          <div className="flex items-center gap-3">
+            <FileText className="h-6 w-6 text-app-text-primary dark:text-white" />
+            <h2 className="text-xl font-normal tracking-tight text-app-text-primary dark:text-white">
+              Lista de prontuários ({filteredData.length})
+            </h2>
+          </div>
+
+          <div className="flex flex-col items-center gap-4 lg:flex-row">
+            <div className="relative w-full flex-1">
+              <Search className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-app-text-muted" />
+              <Input
+                placeholder="Buscar por nome do paciente..."
+                className="h-12 w-full rounded-[12px] border-app-border bg-app-bg-secondary/50 pl-12 transition-all focus-visible:ring-[var(--app-primary)] dark:border-app-border-dark dark:bg-app-table-header-dark"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
+
+            <div className="flex w-full items-center gap-3 lg:w-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Filter className="h-4 w-4 text-app-text-muted" />
+                      <span className="whitespace-nowrap">
+                        {statusFilter === 'Todos os Status' ? 'Todos os status' : statusFilter}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-app-text-muted" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-[200px] rounded-integrallys-lg border-app-border bg-app-card p-2 dark:border-app-border-dark dark:bg-app-card-dark">
+                  <DropdownMenuItem onClick={() => setStatusFilter('Todos os Status')}>Todos os status</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter('Aberto')}>Em andamento</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter('Fechado')}>Finalizado</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Filter className="h-4 w-4 text-app-text-muted" />
+                      <span className="whitespace-nowrap">
+                        {typeFilter === 'Todos os Tipos' ? 'Todos os tipos' : typeFilter}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-app-text-muted" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-[220px] rounded-integrallys-lg border-app-border bg-app-card p-2 dark:border-app-border-dark dark:bg-app-card-dark">
+                  <DropdownMenuItem onClick={() => setTypeFilter('Todos os Tipos')}>Todos os tipos</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTypeFilter('Consultas')}>Consultas</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTypeFilter('Avaliações')}>Avaliações</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="px-8 pb-8 text-sm text-app-text-muted">Carregando prontuários...</div>
+        ) : filteredData.length === 0 ? (
+          <div className="px-8 pb-8">
+            <EmptyState
+              icon={ClipboardList}
+              title="Nenhum prontuário encontrado."
+              description="Ajuste os filtros ou cadastre um novo prontuário para preencher esta listagem."
+            />
+          </div>
+        ) : (
+          <>
+          <ListaCartoesMobile>
+            {filteredData.map((item) => (
+              <CartaoMobile
+                key={item.id}
+                titulo={item.paciente}
+                subtitulo={`${item.data} · ${item.tipo}`}
+                selo={
+                  <Badge
+                    className={`rounded-lg border-0 px-2.5 py-1 text-xs font-normal tracking-wider shadow-sm ${
+                      item.status === 'Fechado'
+                        ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
+                        : 'bg-app-primary text-white dark:bg-blue-900/40 dark:text-[var(--app-info-text)]'
+                    }`}
+                  >
+                    {item.status}
+                  </Badge>
+                }
+                acoes={renderAcoes(item)}
+              />
+            ))}
+          </ListaCartoesMobile>
+          <div className="hidden overflow-x-auto md:block">
+            <Table className="[&_td]:px-2 [&_th]:px-2">
+              <TableHeader>
+                <TableRow className="border-b border-app-border hover:bg-transparent dark:border-app-border-dark">
+                  <TableHead className="px-6 py-4 font-normal text-app-text-muted">Paciente</TableHead>
+                  <TableHead className="py-4 font-normal text-app-text-muted">Data</TableHead>
+                  <TableHead className="py-4 font-normal text-app-text-muted">Tipo de consulta</TableHead>
+                  <TableHead className="py-4 text-center font-normal text-app-text-muted">Status</TableHead>
+                  <TableHead className="py-4 text-center font-normal text-app-text-muted">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredData.map((item) => (
+                  <TableRow
+                    key={item.id}
+                    className="border-b border-app-border transition-colors hover:bg-app-bg-secondary dark:border-app-border-dark dark:hover:bg-app-bg-dark/50"
+                  >
+                    <TableCell className="px-6 font-normal text-app-text-primary dark:text-white">{item.paciente}</TableCell>
+                    <TableCell className="text-app-text-secondary dark:text-white/80">{item.data}</TableCell>
+                    <TableCell className="text-app-text-muted dark:text-app-text-muted">{item.tipo}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        className={`rounded-lg border-0 px-2.5 py-1 text-xs font-normal tracking-wider shadow-sm ${
+                          item.status === 'Fechado'
+                            ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
+                            : 'bg-app-primary text-white dark:bg-blue-900/40 dark:text-[var(--app-info-text)]'
+                        }`}
+                      >
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        {renderAcoes(item)}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -317,6 +346,7 @@ function ProntuarioViewList() {
               </TableBody>
             </Table>
           </div>
+          </>
         )}
       </div>
 

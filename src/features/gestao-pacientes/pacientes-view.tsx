@@ -36,6 +36,8 @@ import { toast } from 'sonner'
 import { DocumentoCadastro } from '@/features/gestao-pacientes/components/documento-cadastro'
 import { gerarCadastroPdf } from '@/features/gestao-pacientes/utils/documento-pdf'
 import { DataTable } from '@/components/shared/data-table'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
+import { formatarMoeda } from '@/lib/moeda'
 import { RegistrarEvolucaoModal } from '@/features/gestao-pacientes/modals'
 import { AjustePosologiaModal } from '@/features/gestao-pacientes/modals'
 import { PrescricaoComplementarModal } from '@/features/gestao-pacientes/modals'
@@ -369,6 +371,61 @@ export function PacientesView() {
     setIsComplementarOpen(true)
   }
 
+  const celulaNome = (p: (typeof patients)[number]) => (
+    <div className="py-1 flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-full overflow-hidden border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-hover shrink-0 relative">
+                          {p.photoUrl ? <Image src={p.photoUrl} alt={p.name || 'Paciente'} fill unoptimized className="object-cover" /> : <div className="h-full w-full flex items-center justify-center text-xs text-app-text-muted font-semibold">{(p.name || 'Paciente').split(' ').map((part) => part[0]).slice(0, 2).join('')}</div>}
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="font-normal text-app-text-primary dark:text-white text-sm">{p.name}</p>
+                          <p className="text-xs text-app-text-muted font-normal">{String(p.age || '-')} • {(p.vinculoTipos && p.vinculoTipos.length > 0 ? p.vinculoTipos : ['cliente']).join(', ')}</p>
+                        </div>
+                      </div>
+  )
+  const celulaContato = (p: (typeof patients)[number]) => (
+    <div className="space-y-1.5 py-1">
+                        <div className="flex items-center gap-2 text-app-text-secondary dark:text-white/60"><Phone size={14} className="text-app-text-muted/80" /><span className="text-sm font-normal tracking-tight">{p.phone || '-'}</span></div>
+                        <div className="flex items-center gap-2 text-app-text-secondary dark:text-white/60"><Mail size={14} className="text-app-text-muted/80" /><span className="break-all text-sm font-normal tracking-tight">{p.email || '-'}</span></div>
+                      </div>
+  )
+  const celulaPlano = (p: (typeof patients)[number]) => (
+    <Badge variant="outline" className="px-4 py-1.5 rounded-[12px] border-app-border dark:border-app-border-dark text-xs text-app-text-secondary dark:text-white/80 font-normal bg-app-card dark:bg-transparent shadow-sm">{String(p.plan || 'Particular')}</Badge>
+  )
+  const celulaStatus = (p: (typeof patients)[number]) => (
+    <div className="flex flex-col gap-1.5 py-1">
+                        <Badge className={`w-fit text-xs tracking-wider font-normal px-4 py-1 rounded-full border-none shadow-sm text-white ${p.status === 'complete' ? 'bg-app-primary dark:bg-blue-900/60 dark:text-[var(--app-info-text)]' : 'bg-[var(--app-warning-text)] dark:bg-amber-900/60 dark:text-[var(--app-warning-text)]'}`}>{p.status === 'complete' ? 'Cadastro completo' : 'Cadastro incompleto'}</Badge>
+                        <Badge className={`w-fit text-xs tracking-wider font-normal px-4 py-1 rounded-full border-none transition-all shadow-sm text-white ${['Obito', 'Óbito'].includes(String(p.activeStatus || 'Ativo')) ? 'bg-purple-800 dark:bg-purple-900 dark:text-purple-100' : String(p.activeStatus || 'Ativo') === 'Inativo' ? 'bg-slate-500 dark:bg-slate-800 dark:text-slate-300' : 'bg-[var(--app-success-text)] dark:bg-emerald-900/60 dark:text-[var(--app-success-text)]'}`}>{String(p.activeStatus || 'Ativo')}</Badge>
+                        {pacientesComRetornoPendente.has(String(p.id)) && <RetornoPendenteBadge />}
+                      </div>
+  )
+  const celulaAcoes = (p: (typeof patients)[number]) => (
+    <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Visualizar cadastro"
+                          title="Visualizar cadastro"
+                          onClick={() => { setSelectedPaciente(p); setViewInitialTab('dados'); setIsViewOpen(true) }}
+                        >
+                          <Eye className="h-4 w-4 text-app-text-secondary dark:text-white/60" />
+                        </Button>
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Mais ações" className="h-8 w-8"><MoreVertical className="h-4 w-4 text-app-text-secondary dark:text-white/60" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 rounded-[12px]">
+                          <DropdownMenuItem onClick={() => { setSelectedPaciente(p); setViewInitialTab('dados'); setIsViewOpen(true) }} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><FileText size={14} className="text-app-text-muted" />Visualizar cadastro</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setSelectedPaciente(p); setIsEditOpen(true) }} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><Edit size={14} className="text-app-text-muted" />Editar cadastro</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setSelectedPaciente(p); setIsManualOpen(true) }} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><FileText size={14} className="text-[var(--app-primary)]" />Manual de Serviços</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleGenerateDocumento(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><FileText size={14} className="text-[var(--app-success-text)]" />📄 Gerar Documento</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleRegistrarEvolucao(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><ClipboardList size={14} className="text-app-text-muted" />Registrar evolução</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAjustePosologia(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><Pill size={14} className="text-app-text-muted" />Ajuste de posologia</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePrescricaoComplementar(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><Plus size={14} className="text-app-text-muted" />Prescrição complementar</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { void handleOpenExcluir(p) }} className="gap-2 focus:bg-[var(--app-danger-bg)] dark:focus:bg-red-900/10 text-[var(--app-danger-text)] dark:text-[var(--app-danger-text)] cursor-pointer py-2.5 font-normal"><Trash2 size={14} />Excluir paciente</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      </div>
+  )
+
   return (
     <div className="app-page">
       <NovoPacienteModal isOpen={isNewPatientOpen} onClose={() => setIsNewPatientOpen(false)} unitOptions={units} onSave={handleCreatePatient} />
@@ -438,119 +495,56 @@ export function PacientesView() {
             <h2 className="text-lg font-normal text-app-text-primary dark:text-white">Lista de pacientes ({filteredPatients.length})</h2>
           </div>
           {isLoading ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[200px] pl-8 font-normal">Nome</TableHead>
-                      <TableHead className="min-w-[200px] font-normal">Contato</TableHead>
-                      <TableHead className="min-w-[150px] font-normal">Plano de saúde</TableHead>
-                      <TableHead className="min-w-[200px] font-normal">Status</TableHead>
-                      <TableHead className="min-w-[150px] font-normal">Última consulta</TableHead>
-                      <TableHead className="text-center min-w-[100px] font-normal">Ações</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow><TableCell colSpan={6} className="py-12 text-center text-app-text-secondary dark:text-white/60">Carregando pacientes...</TableCell></TableRow>
-                </TableBody>
-              </Table>
-            </div>
+            <p className="py-12 text-center text-app-text-secondary dark:text-white/60">Carregando pacientes...</p>
           ) : filteredPatients.length === 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[200px] pl-8 font-normal">Nome</TableHead>
-                    <TableHead className="min-w-[200px] font-normal">Contato</TableHead>
-                    <TableHead className="min-w-[150px] font-normal">Plano de saúde</TableHead>
-                    <TableHead className="min-w-[200px] font-normal">Status</TableHead>
-                    <TableHead className="min-w-[150px] font-normal">Última consulta</TableHead>
-                    <TableHead className="text-center min-w-[100px] font-normal">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow><TableCell colSpan={6} className="py-12 text-center text-app-text-secondary dark:text-white/60">Nenhum paciente encontrado com os filtros aplicados.</TableCell></TableRow>
-                </TableBody>
-              </Table>
-            </div>
+            <p className="py-12 text-center text-app-text-secondary dark:text-white/60">Nenhum paciente encontrado com os filtros aplicados.</p>
           ) : (
             <DataTable data={filteredPatients}>
               {(pageData) => (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[200px] pl-8 font-normal">Nome</TableHead>
-                        <TableHead className="min-w-[200px] font-normal">Contato</TableHead>
-                        <TableHead className="min-w-[150px] font-normal">Plano de saúde</TableHead>
-                        <TableHead className="min-w-[200px] font-normal">Status</TableHead>
-                        <TableHead className="min-w-[150px] font-normal">Última consulta</TableHead>
-                        <TableHead className="text-center min-w-[100px] font-normal">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pageData.map((p) => (
-                        <TableRow key={String(p.id)} className={p.status === 'complete' ? undefined : 'bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'} data-cadastro={p.status}>
-                    <TableCell className="pl-8">
-                      <div className="py-1 flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full overflow-hidden border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-hover shrink-0 relative">
-                          {p.photoUrl ? <Image src={p.photoUrl} alt={p.name || 'Paciente'} fill unoptimized className="object-cover" /> : <div className="h-full w-full flex items-center justify-center text-xs text-app-text-muted font-semibold">{(p.name || 'Paciente').split(' ').map((part) => part[0]).slice(0, 2).join('')}</div>}
-                        </div>
-                        <div className="space-y-0.5">
-                          <p className="font-normal text-app-text-primary dark:text-white text-sm">{p.name}</p>
-                          <p className="text-xs text-app-text-muted font-normal">{String(p.age || '-')} • {(p.vinculoTipos && p.vinculoTipos.length > 0 ? p.vinculoTipos : ['cliente']).join(', ')}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1.5 py-1">
-                        <div className="flex items-center gap-2 text-app-text-secondary dark:text-white/60"><Phone size={14} className="text-app-text-muted/80" /><span className="text-sm font-normal tracking-tight">{p.phone || '-'}</span></div>
-                        <div className="flex items-center gap-2 text-app-text-secondary dark:text-white/60"><Mail size={14} className="text-app-text-muted/80" /><span className="text-sm font-normal tracking-tight">{p.email || '-'}</span></div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="px-4 py-1.5 rounded-[12px] border-app-border dark:border-app-border-dark text-xs text-app-text-secondary dark:text-white/80 font-normal bg-app-card dark:bg-transparent shadow-sm">{String(p.plan || 'Particular')}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1.5 py-1">
-                        <Badge className={`w-fit text-xs tracking-wider font-normal px-4 py-1 rounded-full border-none shadow-sm text-white ${p.status === 'complete' ? 'bg-app-primary dark:bg-blue-900/60 dark:text-[var(--app-info-text)]' : 'bg-[var(--app-warning-text)] dark:bg-amber-900/60 dark:text-[var(--app-warning-text)]'}`}>{p.status === 'complete' ? 'Cadastro completo' : 'Cadastro incompleto'}</Badge>
-                        <Badge className={`w-fit text-xs tracking-wider font-normal px-4 py-1 rounded-full border-none transition-all shadow-sm text-white ${['Obito', 'Óbito'].includes(String(p.activeStatus || 'Ativo')) ? 'bg-purple-800 dark:bg-purple-900 dark:text-purple-100' : String(p.activeStatus || 'Ativo') === 'Inativo' ? 'bg-slate-500 dark:bg-slate-800 dark:text-slate-300' : 'bg-[var(--app-success-text)] dark:bg-emerald-900/60 dark:text-[var(--app-success-text)]'}`}>{String(p.activeStatus || 'Ativo')}</Badge>
-                        {pacientesComRetornoPendente.has(String(p.id)) && <RetornoPendenteBadge />}
-                      </div>
-                    </TableCell>
-                    <TableCell><span className="text-sm text-app-text-secondary dark:text-white/60 font-normal">---</span></TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label="Visualizar cadastro"
-                          title="Visualizar cadastro"
-                          onClick={() => { setSelectedPaciente(p); setViewInitialTab('dados'); setIsViewOpen(true) }}
-                        >
-                          <Eye className="h-4 w-4 text-app-text-secondary dark:text-white/60" />
-                        </Button>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Mais ações" className="h-8 w-8"><MoreVertical className="h-4 w-4 text-app-text-secondary dark:text-white/60" /></Button></DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 rounded-[12px]">
-                          <DropdownMenuItem onClick={() => { setSelectedPaciente(p); setViewInitialTab('dados'); setIsViewOpen(true) }} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><FileText size={14} className="text-app-text-muted" />Visualizar cadastro</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setSelectedPaciente(p); setIsEditOpen(true) }} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><Edit size={14} className="text-app-text-muted" />Editar cadastro</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setSelectedPaciente(p); setIsManualOpen(true) }} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><FileText size={14} className="text-[var(--app-primary)]" />Manual de Serviços</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleGenerateDocumento(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><FileText size={14} className="text-[var(--app-success-text)]" />📄 Gerar Documento</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleRegistrarEvolucao(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><ClipboardList size={14} className="text-app-text-muted" />Registrar evolução</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAjustePosologia(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><Pill size={14} className="text-app-text-muted" />Ajuste de posologia</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePrescricaoComplementar(p)} className="gap-2 focus:bg-app-bg-secondary dark:focus:bg-app-hover cursor-pointer py-2.5 font-normal"><Plus size={14} className="text-app-text-muted" />Prescrição complementar</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { void handleOpenExcluir(p) }} className="gap-2 focus:bg-[var(--app-danger-bg)] dark:focus:bg-red-900/10 text-[var(--app-danger-text)] dark:text-[var(--app-danger-text)] cursor-pointer py-2.5 font-normal"><Trash2 size={14} />Excluir paciente</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <>
+                  <ListaCartoesMobile>
+                    {pageData.map((p) => (
+                      <CartaoMobile
+                        key={String(p.id)}
+                        className={p.status === 'complete' ? undefined : 'border-amber-300 bg-amber-50/70 dark:bg-amber-900/10'}
+                        titulo={celulaNome(p)}
+                        selo={celulaStatus(p)}
+                        acoes={celulaAcoes(p)}
+                        campos={[
+                          { rotulo: 'Telefone', valor: p.phone || '-' },
+                          { rotulo: 'E-mail', valor: p.email || '-' },
+                          { rotulo: 'Plano de saúde', valor: String(p.plan || 'Particular') },
+                        ]}
+                      />
+                    ))}
+                  </ListaCartoesMobile>
+                  <div className="hidden w-full md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="pl-4 font-normal">Nome</TableHead>
+                          <TableHead className="font-normal">Contato</TableHead>
+                          <TableHead className="font-normal">Plano de saúde</TableHead>
+                          <TableHead className="font-normal">Status</TableHead>
+                          <TableHead className="font-normal">Última consulta</TableHead>
+                          <TableHead className="pr-4 text-center font-normal">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pageData.map((p) => (
+                          <TableRow key={String(p.id)} className={p.status === 'complete' ? undefined : 'bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'} data-cadastro={p.status}>
+                            <TableCell className="pl-4">{celulaNome(p)}</TableCell>
+                            <TableCell>{celulaContato(p)}</TableCell>
+                            <TableCell>{celulaPlano(p)}</TableCell>
+                            <TableCell>{celulaStatus(p)}</TableCell>
+                            <TableCell><span className="text-sm text-app-text-secondary dark:text-white/60 font-normal">---</span></TableCell>
+                            <TableCell className="pr-4 text-center">{celulaAcoes(p)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </DataTable>
           )}
@@ -696,7 +690,7 @@ export function PacientesView() {
                           </TableCell>
                           <TableCell>{row.status}</TableCell>
                           <TableCell className="text-right">
-                            {row.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            {formatarMoeda(row.valor)}
                           </TableCell>
                         </TableRow>
                       ))

@@ -22,6 +22,7 @@ import { calcularDinheiroNaGaveta, sugerirTransferenciaCofre, validarTransferenc
 import { DetalheFormaModal } from '@/features/caixa/modals/detalhe-forma-modal'
 import { usePaymentConfig } from '@/features/prescricoes/hooks/use-payment-config'
 import { toast } from 'sonner'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -334,6 +335,52 @@ export function CaixaView() {
     }
   }
 
+  type Movimento = (typeof data)[number]
+  const formaTexto = (item: Movimento) => {
+                        const parts: string[] = [formaCaixaLabel(item.forma)]
+                        if (item.bandeira) parts.push(item.bandeira)
+                        if (item.parcelas && item.parcelas > 1) {
+                          const valorParcela = item.valorParcela
+                          parts.push(
+                            valorParcela != null
+                              ? `${item.parcelas}× de R$ ${valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                              : `${item.parcelas}×`,
+                          )
+                        }
+                        return parts.join(' · ')
+                      }
+
+  const renderAcoes = (item: Movimento) => (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()} className="h-8 w-8 text-app-text-muted hover:text-app-text-primary mx-auto transition-colors">
+                            <MoreVertical size={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => toast.info(`Movimentação: ${item.descricao} — R$ ${formatBRL(item.valor)}`)}>
+                            <Eye className="h-4 w-4 mr-2 text-app-text-secondary" />
+                            <span>Visualizar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openModal('edit_caixa', item.id)}>
+                            <Edit className="h-4 w-4 mr-2 text-app-text-secondary" />
+                            <span>Editar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toast.info('Comprovante disponível em breve.')}>
+                            <FileText className="h-4 w-4 mr-2 text-app-text-secondary" />
+                            <span>Comprovante</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => { void deleteMovimentacao(item.id).then(() => toast.success('Movimentação estornada.')) }}
+                            className="text-[var(--app-danger-text)]"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            <span>Estornar</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+  )
+
   return (
     <div className="app-page">
       {/* UI-18: banner de status sempre visível ao chegar no turno.
@@ -441,7 +488,35 @@ export function CaixaView() {
           <div className="p-6 border-b border-app-border dark:border-app-border-dark">
             <h3 className="text-lg font-normal text-app-text-primary dark:text-white">Movimentações da sessão</h3>
           </div>
-          <div className="overflow-x-auto">
+          <ListaCartoesMobile>
+            {isLoading && <p className="py-6 text-center text-sm text-app-text-secondary">Carregando movimentações...</p>}
+            {!isLoading && error && <p className="py-6 text-center text-sm text-[var(--app-danger-text)]">{error}</p>}
+            {!isLoading && !error && data.length === 0 && <p className="py-6 text-center text-sm text-app-text-secondary">Sem movimentações no período.</p>}
+            {!isLoading &&
+              data.map((item) => (
+                <CartaoMobile
+                  key={item.id}
+                  titulo={item.descricao}
+                  subtitulo={`${diaDoMovimento(item)} · ${item.hora || '--:--'}`}
+                  valor={
+                    <span className={item.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}>
+                      R$ {formatBRL(item.valor)}
+                    </span>
+                  }
+                  selo={
+                    <Badge className={`${item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} font-normal border-none`}>
+                      {item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                    </Badge>
+                  }
+                  acoes={renderAcoes(item)}
+                  campos={[
+                    { rotulo: 'Forma', valor: formaTexto(item) },
+                    { rotulo: 'Operador', valor: item.operador || '—' },
+                  ]}
+                />
+              ))}
+          </ListaCartoesMobile>
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow className="bg-app-bg-secondary/50 dark:bg-app-hover/20 border-none">
@@ -488,53 +563,14 @@ export function CaixaView() {
                     </TableCell>
                     <TableCell className="text-app-text-primary dark:text-white font-normal">{item.descricao}</TableCell>
                     <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">
-                      {(() => {
-                        const parts: string[] = [formaCaixaLabel(item.forma)]
-                        if (item.bandeira) parts.push(item.bandeira)
-                        if (item.parcelas && item.parcelas > 1) {
-                          const valorParcela = item.valorParcela
-                          parts.push(
-                            valorParcela != null
-                              ? `${item.parcelas}× de R$ ${valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                              : `${item.parcelas}×`,
-                          )
-                        }
-                        return parts.join(' · ')
-                      })()}
+                      {formaTexto(item)}
                     </TableCell>
                     <TableCell className={`text-right font-normal ${item.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}`}>
                       R$ {formatBRL(item.valor)}
                     </TableCell>
                     <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">{item.operador || '—'}</TableCell>
                     <TableCell className="text-center">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()} className="h-8 w-8 text-app-text-muted hover:text-app-text-primary mx-auto transition-colors">
-                            <MoreVertical size={16} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toast.info(`Movimentação: ${item.descricao} — R$ ${formatBRL(item.valor)}`)}>
-                            <Eye className="h-4 w-4 mr-2 text-app-text-secondary" />
-                            <span>Visualizar</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openModal('edit_caixa', item.id)}>
-                            <Edit className="h-4 w-4 mr-2 text-app-text-secondary" />
-                            <span>Editar</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toast.info('Comprovante disponível em breve.')}>
-                            <FileText className="h-4 w-4 mr-2 text-app-text-secondary" />
-                            <span>Comprovante</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => { void deleteMovimentacao(item.id).then(() => toast.success('Movimentação estornada.')) }}
-                            className="text-[var(--app-danger-text)]"
-                          >
-                            <RotateCcw className="h-4 w-4 mr-2" />
-                            <span>Estornar</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {renderAcoes(item)}
                     </TableCell>
                   </TableRow>
                 ))}

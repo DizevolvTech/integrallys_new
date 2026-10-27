@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { stripRelatorioPrescricaoValor } from '@/lib/financial-sanitize'
+import { classificarPrescricao, type ClassePrescricao } from '@/lib/prescricao-status'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
 export type PrescricaoSituacao = 'no_prazo' | 'limite_prazo' | 'vencido' | 'sem_validade'
@@ -15,6 +16,8 @@ export interface PrescricaoRelatorioItem {
   dataPrescricao: string | null
   validade: string | null
   situacao: PrescricaoSituacao
+  /** Regra única dos cards (ativa/vencida/concluída), igual à tela Prescrição/Vendas. */
+  classe: ClassePrescricao
   pacienteId: string | null
   pacienteNome: string
   profissionalId: string | null
@@ -31,6 +34,12 @@ export interface PrescricoesMeta {
   valorNoPrazo: number
   valorLimitePrazo: number
   valorVencido: number
+  ativas: number
+  valorAtivas: number
+  ativasLimitePrazo: number
+  valorAtivasLimitePrazo: number
+  vencidas: number
+  valorVencidas: number
 }
 
 interface PrescricaoRow {
@@ -74,6 +83,12 @@ function emptyMeta(): PrescricoesMeta {
     valorNoPrazo: 0,
     valorLimitePrazo: 0,
     valorVencido: 0,
+    ativas: 0,
+    valorAtivas: 0,
+    ativasLimitePrazo: 0,
+    valorAtivasLimitePrazo: 0,
+    vencidas: 0,
+    valorVencidas: 0,
   }
 }
 
@@ -194,6 +209,7 @@ export async function GET(request: NextRequest) {
       dataPrescricao: row.data_prescricao ?? null,
       validade,
       situacao: calcularSituacao(validade, hojeIso, limiteIso),
+      classe: classificarPrescricao(row.status, validade, hojeIso),
       pacienteId: row.paciente_id ?? null,
       pacienteNome: pacientesResult.map[String(row.paciente_id ?? '')] ?? '',
       profissionalId: row.profissional_id ?? null,
@@ -201,11 +217,21 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  const validSituacoes: PrescricaoSituacao[] = ['no_prazo', 'limite_prazo', 'vencido', 'sem_validade']
-  const filteredBySituacao =
-    situacaoFilter === 'todos' || !situacaoFilter || !validSituacoes.includes(situacaoFilter as PrescricaoSituacao)
-      ? itens
-      : itens.filter((item) => item.situacao === (situacaoFilter as PrescricaoSituacao))
+  const ativas = itens.filter((i) => i.classe === 'ativa')
+  const ativasLimite = ativas.filter((i) => i.situacao === 'limite_prazo')
+  const vencidas = itens.filter((i) => i.classe === 'vencida')
+  const soma = (lista: PrescricaoRelatorioItem[]) => lista.reduce((sum, i) => sum + i.valorTotal, 0)
+
+  // Filtros dos cards usam a mesma regra (classe); os demais filtram pela validade da linha.
+  const filteredBySituacao = (() => {
+    if (situacaoFilter === 'ativa') return ativas
+    if (situacaoFilter === 'limite_prazo') return ativasLimite
+    if (situacaoFilter === 'vencido') return vencidas
+    if (situacaoFilter === 'no_prazo' || situacaoFilter === 'sem_validade') {
+      return itens.filter((item) => item.situacao === situacaoFilter)
+    }
+    return itens
+  })()
 
   const meta: PrescricoesMeta = {
     total: itens.length,
@@ -223,6 +249,12 @@ export async function GET(request: NextRequest) {
     valorVencido: itens
       .filter((i) => i.situacao === 'vencido')
       .reduce((sum, i) => sum + i.valorTotal, 0),
+    ativas: ativas.length,
+    valorAtivas: soma(ativas),
+    ativasLimitePrazo: ativasLimite.length,
+    valorAtivasLimitePrazo: soma(ativasLimite),
+    vencidas: vencidas.length,
+    valorVencidas: soma(vencidas),
   }
 
   return NextResponse.json({

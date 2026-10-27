@@ -7,7 +7,7 @@ import type {
   PrescricoesMeta,
 } from '@/app/api/relatorios/prescricoes/route'
 
-export type PrescricaoSituacaoFilter = 'todos' | 'no_prazo' | 'limite_prazo' | 'vencido'
+export type PrescricaoSituacaoFilter = 'todos' | 'ativa' | 'no_prazo' | 'limite_prazo' | 'vencido'
 
 export interface PrescricoesRelatorioFiltros {
   situacao: PrescricaoSituacaoFilter
@@ -33,6 +33,12 @@ const DEFAULT_META: PrescricoesMeta = {
   valorNoPrazo: 0,
   valorLimitePrazo: 0,
   valorVencido: 0,
+  ativas: 0,
+  valorAtivas: 0,
+  ativasLimitePrazo: 0,
+  valorAtivasLimitePrazo: 0,
+  vencidas: 0,
+  valorVencidas: 0,
 }
 
 const DEFAULT_FILTROS: PrescricoesRelatorioFiltros = {
@@ -98,6 +104,12 @@ export function usePrescricoesRelatorio() {
         valorNoPrazo: response.meta.valorNoPrazo ?? 0,
         valorLimitePrazo: response.meta.valorLimitePrazo ?? 0,
         valorVencido: response.meta.valorVencido ?? 0,
+        ativas: response.meta.ativas ?? 0,
+        valorAtivas: response.meta.valorAtivas ?? 0,
+        ativasLimitePrazo: response.meta.ativasLimitePrazo ?? 0,
+        valorAtivasLimitePrazo: response.meta.valorAtivasLimitePrazo ?? 0,
+        vencidas: response.meta.vencidas ?? 0,
+        valorVencidas: response.meta.valorVencidas ?? 0,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar prescrições')
