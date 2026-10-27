@@ -9,9 +9,20 @@ import { EstoqueRelatorio } from '@/features/relatorios/components/estoque-relat
 import { PrescricoesTab } from '@/features/relatorios/components/prescricoes-tab'
 import { RankingTab } from '@/features/relatorios/components/ranking-tab'
 import { RelatorioTabela } from '@/features/relatorios/components/relatorio-tabela'
-import { RetornosAtalho } from '@/features/relatorios/components/retornos-atalho'
 import { useRelatorios } from '@/features/relatorios/hooks/use-relatorios'
 import { CONFIG_RELATORIOS } from '@/features/relatorios/relatorio-config'
+import { RetornosRelatorio } from '@/features/retornos'
+
+/** Lê ?aba= e ?situacao= da URL (atalhos do Início abrem a aba certa). */
+function parametroDaUrl(nome: string) {
+  if (typeof window === 'undefined') return ''
+  return new URLSearchParams(window.location.search).get(nome) ?? ''
+}
+
+function situacaoDaUrl() {
+  const s = parametroDaUrl('situacao')
+  return s === 'no_prazo' || s === 'limite' || s === 'vencido' ? s : ''
+}
 
 function ConteudoDaAba({ id, proprio }: { id: string; proprio: boolean }) {
   switch (id) {
@@ -28,7 +39,7 @@ function ConteudoDaAba({ id, proprio }: { id: string; proprio: boolean }) {
     case 'comparativo':
       return <ComparativoTab />
     case 'retornos':
-      return <RetornosAtalho />
+      return <RetornosRelatorio situacaoInicial={situacaoDaUrl()} />
     default:
       return id in CONFIG_RELATORIOS ? <RelatorioTabela key={id} tipo={id} proprio={proprio} /> : null
   }
@@ -39,7 +50,10 @@ export function RelatoriosView() {
   const [activeTab, setActiveTab] = useState('')
 
   useEffect(() => {
-    if (tabs.length > 0 && !tabs.some((tab) => tab.id === activeTab)) setActiveTab(tabs[0].id)
+    if (tabs.length > 0 && !tabs.some((tab) => tab.id === activeTab)) {
+      const pedida = parametroDaUrl('aba')
+      setActiveTab(tabs.some((tab) => tab.id === pedida) ? pedida : tabs[0].id)
+    }
   }, [activeTab, tabs])
 
   const abaAtual = tabs.find((tab) => tab.id === activeTab)

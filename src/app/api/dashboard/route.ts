@@ -5,7 +5,7 @@ import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/reques
 import type { AgendamentoStatus } from '@/types/agenda'
 import { carregarCaixasPorUnidade, type CaixaUnidade } from './caixas'
 import { calcularPerformance, classificarFaturamento, type TipoFaturamento } from './performance'
-import { agendamentoConta, contarRetornos } from './retornos'
+import { agendamentoConta, contarSituacoes } from './retornos'
 
 type DashboardVariant = 'admin' | 'gestor' | 'recepcao' | 'especialista' | 'master'
 
@@ -159,25 +159,17 @@ export async function GET(request: NextRequest) {
     financeiroQuery = financeiroQuery.eq('unidade_id', adminUnidadeId)
   }
 
-  // Retorno previsto = último atendimento + prazo gravado (regra em ./retornos.ts).
+  // Retornos em aberto: mesma fonte e regra da tela /retornos (view retornos_em_aberto).
   let retornosQuery = supabase
-    .from('evolucoes')
-    .select('paciente_id,data_evolucao,retorno_recepcao')
-    .not('retorno_recepcao', 'is', null)
-    .order('data_evolucao', { ascending: false })
+    .from('retornos_em_aberto')
+    .select('situacao')
+    .in('situacao', ['limite', 'vencido'])
     .limit(5000)
-
   if (variant === 'especialista') {
     retornosQuery = retornosQuery.eq('profissional_id', session.userId)
+  } else if (isAdmin ? adminUnidadeId : unidadeId) {
+    retornosQuery = retornosQuery.eq('unidade_id', String(isAdmin ? adminUnidadeId : unidadeId))
   }
-
-  // Pacientes com consulta marcada daqui para frente: não contam como retorno vencido.
-  const agendamentosFuturosQuery = supabase
-    .from('agendamentos')
-    .select('paciente_id,status')
-    .gte('data_agendamento', todayIso)
-    .not('paciente_id', 'is', null)
-    .limit(5000)
 
   // Performance (especialista = só os próprios; admin = clínica/unidade no período).
   const isEspecialista = variant === 'especialista'
@@ -224,7 +216,6 @@ export async function GET(request: NextRequest) {
     auditResult,
     birthdaysResult,
     retornosResult,
-    agendamentosFuturosResult,
     perfAgendaResult,
     perfPrescricoesResult,
     caixasResult,
@@ -245,7 +236,6 @@ export async function GET(request: NextRequest) {
     supabase.from('audit_log').select('acao,recurso,created_at').order('created_at', { ascending: false }).limit(3),
     supabase.from('pacientes').select('id,nome,data_nascimento,unidade_id'),
     retornosQuery,
-    agendamentosFuturosQuery,
     needsPerformance ? perfAgendaQuery : emptyPerf,
     needsPerformance ? perfPrescricoesQuery : emptyPerf,
     caixasPromise,
@@ -264,7 +254,6 @@ export async function GET(request: NextRequest) {
     auditResult.error,
     birthdaysResult.error,
     retornosResult.error,
-    agendamentosFuturosResult.error,
     perfAgendaResult.error,
     perfPrescricoesResult.error,
     caixasResult.error,
@@ -390,18 +379,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  const pacientesComAgendamentoFuturo = new Set(
-    (agendamentosFuturosResult.data ?? [])
-      .filter((row) => agendamentoConta(row.status as string | null))
-      .map((row) => String(row.paciente_id)),
-  )
-  const escopoPacientes = isAdmin ? adminUnidadeId : isEspecialista ? null : unidadeId
-  const retornosContagem = contarRetornos({
-    evolucoes: retornosResult.data ?? [],
-    pacientesComAgendamentoFuturo,
-    hojeIso: todayIso,
-    pacienteVisivel: escopoPacientes ? (id) => pacienteIdsVisiveis.has(id) : null,
-  })
+  const retornosContagem = contarSituacoes(retornosResult.data ?? [])
   const retornosLimitePrazo = retornosContagem.limitePrazo
   const retornosVencidos = retornosContagem.vencidos
 
