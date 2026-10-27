@@ -45,6 +45,7 @@ const EMPTY_PROFILE: PatientPerfilData = {
   promocoesNovidades: false,
   indicacao: '',
   origemDetalhe: '',
+  convenio: '',
   precisaNf: false,
   notaFiscal: { ...NOTA_FISCAL_VAZIA },
   specialNeeds: { ...NECESSIDADE_ESPECIAL_VAZIA },
@@ -391,7 +392,7 @@ export function ConfiguracoesView() {
                   <h4 className="mb-4 text-sm font-semibold text-app-text-primary dark:text-white">Origem e nota fiscal</h4>
                   <div className="grid grid-cols-1 gap-5 md:grid-cols-6">
                     <OrigemNfFields
-                      value={{ indicacao: formData.indicacao, origemDetalhe: formData.origemDetalhe, indicadoPorId: null, precisaNf: formData.precisaNf, notaFiscal: formData.notaFiscal }}
+                      value={{ indicacao: formData.indicacao, origemDetalhe: formData.origemDetalhe, convenio: formData.convenio, indicadoPorId: null, precisaNf: formData.precisaNf, notaFiscal: formData.notaFiscal }}
                       onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
                       buscarIndicador={false}
                     />

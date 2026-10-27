@@ -20,6 +20,7 @@ export interface PacienteItem {
   gender?: string
   source?: string
   origemDetalhe?: string
+  convenio?: string
   indicadoPorId?: string | null
   vinculoTipos?: string[]
   precisaNf?: boolean
@@ -52,6 +53,7 @@ export interface PacienteInput {
   status?: string
   indicacao?: string
   origemDetalhe?: string
+  convenio?: string
   indicadoPorId?: string | null
   vinculoTipos?: string[]
   precisaNf?: boolean

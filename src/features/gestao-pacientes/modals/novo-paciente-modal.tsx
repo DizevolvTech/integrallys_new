@@ -13,8 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Patient } from '@/types/patient'
 import { useClinicaConfig } from '@/features/configuracoes/hooks/use-clinica-config'
-import { NotaFiscalFields } from '../components/nota-fiscal-fields'
-import { QuemIndicouField } from '../components/quem-indicou-field'
+import { OrigemNfFields } from '../components/origem-nf-fields'
 import { camposFaltandoCadastro, mensagemCamposFaltando } from '../utils/cadastro-validacao'
 import { NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal, type NotaFiscalForm } from '../utils/nota-fiscal'
 import { DocumentoCadastro } from '../components/documento-cadastro'
@@ -80,6 +79,7 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
         status: 'Ativo',
         vinculoTipos: ['cliente'] as string[],
         origemDetalhe: '',
+        convenio: '',
         precisaNf: false,
         notaFiscal: { ...NOTA_FISCAL_VAZIA } as NotaFiscalForm,
         photoUrl: '',
@@ -363,11 +363,12 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
             photoUrl: formData.photoUrl || undefined,
             vinculoTipos: formData.vinculoTipos,
             origemDetalhe: formData.origemDetalhe || undefined,
+            convenio: formData.convenio.trim() || undefined,
             indicadoPorId: formData.indicacao === 'indicacao' ? formData.indicadoPorId : null,
             precisaNf: formData.precisaNf,
             financial: notaFiscalToFinancial(formData.precisaNf, formData.notaFiscal),
             age: patientAge != null ? `${patientAge} anos` : undefined,
-            plan: 'Particular',
+            plan: formData.convenio.trim() || 'Particular',
             address: [
                 formData.addressDetails.street,
                 formData.addressDetails.number,
@@ -500,36 +501,10 @@ export function NovoPacienteModal({ isOpen, onClose, unitOptions, lockUnitSelect
                                             <SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Óbito">Óbito</SelectItem></SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="md:col-span-2 space-y-2">
-                                        <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Origem <span className="text-[var(--app-danger-text)]" aria-hidden="true">*</span></Label>
-                                        <Select value={formData.indicacao} onValueChange={(v) => setFormData({ ...formData, indicacao: v })}>
-                                            <SelectTrigger className="h-11 rounded-xl border-app-border dark:border-app-border-dark" aria-required="true"><SelectValue preferPlaceholder placeholder="Como nos achou?" /></SelectTrigger>
-                                            <SelectContent><SelectItem value="instagram">Instagram</SelectItem><SelectItem value="google">Google</SelectItem><SelectItem value="indicacao">Indicação</SelectItem><SelectItem value="outros">Outros</SelectItem></SelectContent>
-                                        </Select>
-                                    </div>
-                                    {formData.indicacao === 'indicacao' && (
-                                        <QuemIndicouField
-                                            nome={formData.origemDetalhe}
-                                            indicadoPorId={formData.indicadoPorId}
-                                            onChange={({ nome, indicadoPorId }) => setFormData((prev) => ({ ...prev, origemDetalhe: nome, indicadoPorId }))}
-                                        />
-                                    )}
-                                    {formData.indicacao === 'outros' && (
-                                        <div className="md:col-span-2 space-y-2">
-                                            <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Qual a origem?</Label>
-                                            <Input value={formData.origemDetalhe} onChange={(e) => setFormData({ ...formData, origemDetalhe: e.target.value })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="Detalhe da origem" />
-                                        </div>
-                                    )}
-                                    <div className="md:col-span-2 space-y-2">
-                                        <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Precisa de Nota Fiscal?</Label>
-                                        <label className="flex items-center gap-2 h-11 px-3 rounded-xl border border-app-border dark:border-app-border-dark cursor-pointer">
-                                            <input type="checkbox" checked={formData.precisaNf} onChange={(e) => setFormData({ ...formData, precisaNf: e.target.checked })} className="h-4 w-4 accent-[var(--app-primary)]" />
-                                            <span className="text-xs font-bold uppercase tracking-tight text-app-text-secondary dark:text-white/60">{formData.precisaNf ? 'Sim' : 'Não'}</span>
-                                        </label>
-                                    </div>
-                                    {formData.precisaNf && (
-                                        <NotaFiscalFields value={formData.notaFiscal} onChange={(notaFiscal) => setFormData((prev) => ({ ...prev, notaFiscal }))} />
-                                    )}
+                                    <OrigemNfFields
+                                        value={{ indicacao: formData.indicacao, convenio: formData.convenio, origemDetalhe: formData.origemDetalhe, indicadoPorId: formData.indicadoPorId, precisaNf: formData.precisaNf, notaFiscal: formData.notaFiscal }}
+                                        onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+                                    />
                                     <div className="md:col-span-6 space-y-2">
                                         <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Tipo de vínculo <span className="normal-case font-normal text-app-text-muted">(pode marcar mais de um)</span></Label>
                                         <div className="flex flex-wrap gap-2">
