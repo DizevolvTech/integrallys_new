@@ -215,7 +215,7 @@ export function NovoProdutoModal({ isOpen, onClose, onSave, categorias = [] }: N
           </div>
 
           <div className="rounded-xl border border-app-border bg-app-bg-secondary/50 px-4 py-3 dark:border-app-border-dark dark:bg-app-bg-dark">
-            <p className="text-xs text-app-text-muted">Margem (calculada)</p>
+            <p className="text-xs text-app-text-muted">Margem (% sobre o custo)</p>
             <p className="text-lg font-semibold text-app-text-primary dark:text-white">
               {margem == null ? '—' : `${margem.toFixed(1)}%`}
             </p>

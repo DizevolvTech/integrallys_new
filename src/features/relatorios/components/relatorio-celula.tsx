@@ -8,7 +8,7 @@ const TOM_BADGE: Array<[RegExp, string]> = [
   [/^(em aberto|parcial|pendente|a_receber|em and|agendado|confirmado)/i, 'app-status-warning'],
 ]
 
-const ROTULO_BADGE: Record<string, string> = { a_receber: 'A receber', liquidado: 'Liquidado', entrada: 'Entrada', saida: 'Saída' }
+const ROTULO_BADGE: Record<string, string> = { a_receber: 'A receber', atrasado: 'Atrasado', liquidado: 'Liquidado', entrada: 'Entrada', saida: 'Saída' }
 
 export function RelatorioCelula({ coluna, valor }: { coluna: ColunaRelatorio; valor: unknown }) {
   const vazio = valor === null || valor === undefined || valor === ''

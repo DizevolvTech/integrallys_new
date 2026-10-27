@@ -58,7 +58,7 @@ export function ComparativoTab() {
                         { rotulo: 'Despesa', valor: formatMoney(row.despesa) },
                         { rotulo: 'Ticket médio', valor: formatMoney(row.ticketMedio) },
                         { rotulo: 'Margem R$', valor: formatMoney(row.margem) },
-                        { rotulo: 'Margem %', valor: formatarMargemPct(row.margemPct) },
+                        { rotulo: 'Margem (% sobre o custo)', valor: formatarMargemPct(row.margemPct) },
                       ]
                     : []),
                 ]}
@@ -77,7 +77,7 @@ export function ComparativoTab() {
                     <TableHead className="text-right">Despesa</TableHead>
                     <TableHead className="text-right">Ticket médio</TableHead>
                     <TableHead className="text-right">Margem R$</TableHead>
-                    <TableHead className="text-right">Margem %</TableHead>
+                    <TableHead className="text-right">Margem (% sobre o custo)</TableHead>
                   </>
                 )}
               </TableRow>

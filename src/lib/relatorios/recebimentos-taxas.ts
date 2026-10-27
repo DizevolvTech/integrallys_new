@@ -111,20 +111,21 @@ export interface GrupoRecebimento {
 export interface TotaisRecebimentos {
   liquidado: { bruto: number; desconto: number; liquido: number }
   aReceber: { bruto: number; desconto: number; liquido: number }
+  atrasado: { bruto: number; desconto: number; liquido: number }
 }
 
 export function totalizarRecebimentos(grupos: GrupoRecebimento[], cfg: ConfigTaxas): TotaisRecebimentos {
   const zero = () => ({ bruto: 0, desconto: 0, liquido: 0 })
-  const totais: TotaisRecebimentos = { liquidado: zero(), aReceber: zero() }
+  const totais: TotaisRecebimentos = { liquidado: zero(), aReceber: zero(), atrasado: zero() }
   for (const g of grupos) {
-    const alvo = g.situacao === 'liquidado' ? totais.liquidado : totais.aReceber
+    const alvo = g.situacao === 'liquidado' ? totais.liquidado : g.situacao === 'atrasado' ? totais.atrasado : totais.aReceber
     // Taxa é por transação; o grupo soma transações da mesma faixa, então a taxa sobre a soma é igual.
     const t = calcularTaxa(g.forma, g.parcelas, Number(g.bruto), cfg)
     alvo.bruto += Number(g.bruto)
     alvo.desconto += t.desconto
     alvo.liquido += t.liquido
   }
-  for (const alvo of [totais.liquidado, totais.aReceber]) {
+  for (const alvo of [totais.liquidado, totais.aReceber, totais.atrasado]) {
     alvo.bruto = Math.round(alvo.bruto * 100) / 100
     alvo.desconto = Math.round(alvo.desconto * 100) / 100
     alvo.liquido = Math.round(alvo.liquido * 100) / 100

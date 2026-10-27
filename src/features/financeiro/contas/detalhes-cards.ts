@@ -32,8 +32,8 @@ function linhaLancamento(item: FinanceiroItem, grupo: string): LinhaAgrupavel {
 }
 
 export function detalheLancamentos(tipo: TipoDetalheFinanceiro, data: FinanceiroItem[]): DetalheCard {
-  const receitas = data.filter((item) => item.tipo === 'receita')
-  const despesas = data.filter((item) => item.tipo === 'despesa')
+  const receitas = data.filter((item) => item.tipo === 'receita' && isLiquidado(item.status))
+  const despesas = data.filter((item) => item.tipo === 'despesa' && isLiquidado(item.status))
   const porForma = (itens: FinanceiroItem[]) =>
     montarGrupos(itens.map((item) => linhaLancamento(item, formaDoLancamento(item))))
 
@@ -46,8 +46,8 @@ export function detalheLancamentos(tipo: TipoDetalheFinanceiro, data: Financeiro
     return { titulo: 'Total de saídas', total: totalDosGrupos(grupos), grupos }
   }
   if (tipo === 'a-vencer') {
-    const grupos = porForma(data.filter((item) => !isLiquidado(item.status)))
-    return { titulo: 'Pendências em aberto', total: totalDosGrupos(grupos), grupos }
+    const grupos = porForma(data.filter((item) => item.tipo === 'receita' && !isLiquidado(item.status)))
+    return { titulo: 'Recebimentos a vencer', total: totalDosGrupos(grupos), grupos }
   }
   if (tipo === 'centros') {
     const grupos = montarGrupos(data.map((item) => linhaLancamento(item, item.categoria || 'Sem categoria')))

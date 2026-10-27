@@ -1,7 +1,9 @@
-/** Margem de lucro sobre o preço de venda (receita), em %; null quando não há receita. */
+import { calcularMargem } from '@/lib/margem'
+
+/** Margem % sobre o CUSTO (regra da cliente: custo 50 / venda 150 => 200%); null sem custo. Uma casa decimal. */
 export function margemPercentual(receita: number, custo: number): number | null {
-  if (!Number.isFinite(receita) || receita <= 0) return null
-  return Math.round(((receita - custo) / receita) * 1000) / 10
+  const pct = calcularMargem(custo, receita)?.percentual
+  return pct == null ? null : Math.round(pct * 10) / 10
 }
 
 export function formatarMargemPct(valor: number | null): string {
