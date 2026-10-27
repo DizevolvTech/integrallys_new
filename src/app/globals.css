@@ -454,3 +454,18 @@ table th {
     color: black !important;
   }
 }
+
+/*
+ * Celular: em tabela que rola na horizontal, a coluna de ações (botão/link na última célula)
+ * fica fixa na borda direita, para o botão essencial nunca ficar fora da tela.
+ */
+@media (max-width: 767px) {
+  table td:last-child:has(button, a[href]),
+  table:has(td:last-child button, td:last-child a[href]) th:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: var(--app-card);
+    box-shadow: -10px 0 10px -10px rgb(0 0 0 / 0.18);
+  }
+}

@@ -321,7 +321,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
               <div className="relative w-full lg:w-[400px]">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-app-text-muted" />
                 <Input
-                  placeholder="Buscar por produto, operador ou vínculo..."
+                  placeholder="Produto, operador ou vínculo..."
                   value={movBusca}
                   onChange={(event) => setMovBusca(event.target.value)}
                   className="pl-12 h-12 rounded-integrallys-lg border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-bg-dark focus-visible:ring-[var(--app-primary)] transition-all w-full"
