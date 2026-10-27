@@ -23,6 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar, CheckCircle, Clock, Edit2, Moon, MoreVertical, Phone, Plus, Search, Sun, Sunset, Trash2, Users } from 'lucide-react'
 import { useListaEspera } from '@/hooks/use-lista-espera'
@@ -238,6 +239,57 @@ export function ListaEsperaView() {
     resetForm()
   }
 
+  const renderAcoes = (patient: (typeof filteredPatients)[number]) => (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" aria-label="Ações" className="p-2 hover:bg-app-bg-secondary dark:hover:bg-app-hover rounded-lg transition-all text-app-text-muted">
+                            <MoreVertical size={20} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 p-1 rounded-xl shadow-xl border-app-border dark:border-app-border-dark dark:bg-app-bg-dark">
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-app-bg-secondary dark:hover:bg-app-hover"
+                            onClick={async () => {
+                              toast.success(`Abrindo agenda para atendimento de ${patient.name}.`)
+                              const params = new URLSearchParams({
+                                modal: 'novo',
+                                patientId: patient.pacienteId || '',
+                              })
+                              if (patient.specialistId) {
+                                params.set('profissionalId', patient.specialistId)
+                              } else if (patient.specialist) {
+                                params.set('profissional', patient.specialist)
+                              }
+                              if (patient.procedureId) params.set('procedimentoId', patient.procedureId)
+                              try {
+                                await deleteItem(patient.id)
+                              } catch {
+                                // segue para agenda mesmo se a remoção da fila falhar
+                              }
+                              router.push(`/agenda?${params.toString()}`)
+                            }}
+                          >
+                            <CheckCircle size={16} className="text-[var(--app-success-text)]" />
+                            <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Agendar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-app-bg-secondary dark:hover:bg-app-hover"
+                            onClick={() => handleEdit(patient.id)}
+                          >
+                            <Edit2 size={16} className="text-app-text-secondary dark:text-white/60" />
+                            <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Editar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:app-status-danger dark:hover:bg-red-900/10 text-[var(--app-danger-text)]"
+                            onClick={() => handleDelete(patient.id)}
+                          >
+                            <Trash2 size={16} />
+                            <span className="text-sm font-normal">Remover</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+  )
+
   return (
     <div className="app-page max-w-full mx-auto pb-10">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -391,7 +443,25 @@ export function ListaEsperaView() {
             </Table>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ListaCartoesMobile>
+            {filteredPatients.map((patient) => (
+              <CartaoMobile
+                key={patient.id}
+                titulo={patient.name}
+                subtitulo={[patient.procedure, patient.specialist].filter(Boolean).join(' · ')}
+                selo={<div className="flex flex-wrap items-center gap-2">{getPriorityBadge(patient.priority)}{getPreferenciaHorarioBadge(patient.preferenciaHorario)}</div>}
+                acoes={renderAcoes(patient)}
+                campos={[
+                  { rotulo: 'Contato', valor: patient.phone || '—' },
+                  { rotulo: 'E-mail', valor: patient.email || '—' },
+                  { rotulo: 'Tempo de espera', valor: patient.waitTime },
+                  { rotulo: 'Unidade', valor: patient.unit || '—' },
+                ]}
+              />
+            ))}
+          </ListaCartoesMobile>
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow className="bg-transparent hover:bg-transparent border-b border-app-border dark:border-app-border-dark">
@@ -446,60 +516,14 @@ export function ListaEsperaView() {
                       {getPriorityBadge(patient.priority)}
                     </TableCell>
                     <TableCell className="px-6 py-5 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="p-2 hover:bg-app-bg-secondary dark:hover:bg-app-hover rounded-lg transition-all text-app-text-muted">
-                            <MoreVertical size={20} />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40 p-1 rounded-xl shadow-xl border-app-border dark:border-app-border-dark dark:bg-app-bg-dark">
-                          <DropdownMenuItem
-                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-app-bg-secondary dark:hover:bg-app-hover"
-                            onClick={async () => {
-                              toast.success(`Abrindo agenda para atendimento de ${patient.name}.`)
-                              const params = new URLSearchParams({
-                                modal: 'novo',
-                                patientId: patient.pacienteId || '',
-                              })
-                              if (patient.specialistId) {
-                                params.set('profissionalId', patient.specialistId)
-                              } else if (patient.specialist) {
-                                params.set('profissional', patient.specialist)
-                              }
-                              if (patient.procedureId) params.set('procedimentoId', patient.procedureId)
-                              try {
-                                await deleteItem(patient.id)
-                              } catch {
-                                // segue para agenda mesmo se a remoção da fila falhar
-                              }
-                              router.push(`/agenda?${params.toString()}`)
-                            }}
-                          >
-                            <CheckCircle size={16} className="text-[var(--app-success-text)]" />
-                            <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Agendar</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-app-bg-secondary dark:hover:bg-app-hover"
-                            onClick={() => handleEdit(patient.id)}
-                          >
-                            <Edit2 size={16} className="text-app-text-secondary dark:text-white/60" />
-                            <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Editar</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:app-status-danger dark:hover:bg-red-900/10 text-[var(--app-danger-text)]"
-                            onClick={() => handleDelete(patient.id)}
-                          >
-                            <Trash2 size={16} />
-                            <span className="text-sm font-normal">Remover</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {renderAcoes(patient)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
+          </>
         )}
       </div>
 

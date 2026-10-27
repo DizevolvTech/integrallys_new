@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export type CampoCadastro = {
@@ -109,7 +110,36 @@ export function CadastroSecao({ titulo, descricao, textoNovo, campos, linhas, ca
       </div>
 
       {erro && <p className="text-sm text-[var(--app-danger-text)]">{erro}</p>}
-      <div className="overflow-x-auto rounded-[18px] border border-app-border dark:border-app-border-dark">
+      <div className="rounded-[18px] border border-app-border dark:border-app-border-dark md:hidden">
+        <ListaCartoesMobile>
+          {carregando ? (
+            <p className="py-6 text-center text-sm text-app-text-muted">Carregando...</p>
+          ) : linhas.length === 0 ? (
+            <p className="py-6 text-center text-sm text-app-text-muted">Nada cadastrado ainda.</p>
+          ) : (
+            linhas.map((linha) => (
+              <CartaoMobile
+                key={linha.id}
+                className={linha.ativo ? '' : 'opacity-60'}
+                titulo={linha.nome}
+                selo={<Badge variant="outline" className="rounded-full">{linha.ativo ? 'Ativo' : 'Inativo'}</Badge>}
+                acoes={
+                  podeEditar && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="rounded-lg" onClick={() => abrir(linha)}>Editar</Button>
+                      <Button size="sm" variant="outline" className="rounded-lg" onClick={() => void alternarAtivo(linha)}>
+                        {linha.ativo ? 'Inativar' : 'Reativar'}
+                      </Button>
+                    </div>
+                  )
+                }
+                campos={campos.map((campo) => ({ rotulo: campo.rotulo, valor: texto(campo, linha) }))}
+              />
+            ))
+          )}
+        </ListaCartoesMobile>
+      </div>
+      <div className="hidden overflow-x-auto rounded-[18px] border border-app-border dark:border-app-border-dark md:block">
         <Table>
           <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
             <TableRow>

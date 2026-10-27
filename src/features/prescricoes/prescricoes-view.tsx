@@ -540,7 +540,7 @@ export function PrescricoesView() {
 
       <Card className="rounded-[20px] border border-app-border dark:border-app-border-dark/50 bg-app-card dark:bg-app-card-dark shadow-sm overflow-hidden">
         <div className="p-6 md:p-8 space-y-8">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-app-bg-secondary dark:bg-app-table-header-dark flex items-center justify-center border border-app-border dark:border-app-border-dark">
                 <FileText className="h-5 w-5 text-app-text-primary dark:text-white" />
@@ -550,7 +550,7 @@ export function PrescricoesView() {
               </h2>
             </div>
 
-            <div className="flex flex-col gap-3 w-full lg:flex-row lg:items-center lg:w-auto">
+            <div className="flex flex-col gap-3 w-full lg:flex-row lg:items-center lg:flex-wrap 2xl:w-auto">
               <div className="relative w-full lg:w-[320px]">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-app-text-muted" />
                 <Input
@@ -560,7 +560,7 @@ export function PrescricoesView() {
                   className="pl-12 h-12 rounded-integrallys-lg border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-bg-dark focus-visible:ring-[var(--app-primary)] transition-all w-full"
                 />
               </div>
-              <div className="grid grid-cols-3 gap-2 lg:flex lg:items-center lg:gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:flex lg:items-center lg:gap-2">
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
                   <SelectTrigger className="h-12 rounded-integrallys-lg border-app-border bg-app-bg-secondary/50 dark:border-app-border-dark dark:bg-app-bg-dark text-sm w-full lg:w-[140px]">
                     <SelectValue placeholder="Status" />
@@ -642,7 +642,7 @@ export function PrescricoesView() {
                       ))}
                     </ListaCartoesMobile>
                     <div className="hidden w-full md:block">
-                      <Table>
+                      <Table className="[&_td]:px-2 [&_th]:px-2">
                         <TableHeader>
                           <TableRow className="hover:bg-transparent border-app-border dark:border-app-border-dark">
                             <TableHead className={`${CABECALHO} pl-4 h-14`}>Número</TableHead>
