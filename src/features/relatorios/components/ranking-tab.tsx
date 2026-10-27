@@ -64,7 +64,7 @@ export function RankingTab() {
                       <TableHead>Produto</TableHead>
                       <TableHead className="text-right">Qtd</TableHead>
                       {ranking.valoresVisiveis && <TableHead className="text-right">Margem R$</TableHead>}
-                      {ranking.valoresVisiveis && <TableHead className="text-right">Margem %</TableHead>}
+                      {ranking.valoresVisiveis && <TableHead className="text-right">Margem (% sobre o custo)</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -92,8 +92,8 @@ export function RankingTab() {
                 </Table>
                 {ranking.valoresVisiveis && ranking.totais && (
                   <p className="text-sm text-app-text-secondary dark:text-white/70">
-                    Margem total: {formatMoney(ranking.totais.margem)} ({formatarMargemPct(ranking.totais.margemPct)} sobre{' '}
-                    {formatMoney(ranking.totais.receita)} vendidos)
+                    Margem total: {formatMoney(ranking.totais.margem)} ({formatarMargemPct(ranking.totais.margemPct)} sobre o custo; {formatMoney(ranking.totais.receita)}{' '}
+                    vendidos)
                   </p>
                 )}
               </CardContent>

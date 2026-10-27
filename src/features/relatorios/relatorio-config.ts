@@ -1,4 +1,5 @@
 import { formatMoeda, ROTULO_FORMA } from '@/features/relatorios/format'
+import { formatarMargemPct } from '@/lib/relatorios/margem'
 import type { FonteOpcoes } from '@/features/relatorios/hooks/use-opcoes-filtro'
 
 export type TipoColuna = 'texto' | 'data' | 'dataHora' | 'dinheiro' | 'pct' | 'numero' | 'badge' | 'forma' | 'dias'
@@ -48,6 +49,7 @@ export interface ConfigRelatorio {
 }
 
 const num = (v: unknown) => Number(v ?? 0)
+const pctMargem = (v: unknown) => formatarMargemPct(v == null ? null : num(v))
 const obj = (v: unknown) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {})
 const lista = (v: unknown) => (Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [])
 
@@ -326,7 +328,8 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
         opcoes: [
           { value: 'todos', label: 'Liquidado e a receber' },
           { value: 'liquidado', label: 'Liquidado' },
-          { value: 'a_receber', label: 'A receber' },
+          { value: 'a_receber', label: 'A receber (a vencer)' },
+          { value: 'atrasado', label: 'Atrasado' },
         ],
       },
     ],
@@ -334,12 +337,14 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     cartoes: (t) => {
       const l = obj(t.liquidado)
       const a = obj(t.aReceber)
+      const z = obj(t.atrasado)
       return [
         { label: 'Liquidado · bruto', valor: formatMoeda(l.bruto), tom: 'neutro' },
         { label: 'Liquidado · descontos', valor: formatMoeda(l.desconto), tom: 'alerta' },
         { label: 'Liquidado · líquido', valor: formatMoeda(l.liquido), tom: 'sucesso' },
         { label: 'A receber · bruto', valor: formatMoeda(a.bruto), tom: 'neutro' },
         { label: 'A receber · líquido', valor: formatMoeda(a.liquido), tom: 'alerta' },
+        { label: 'Atrasado · bruto', valor: formatMoeda(z.bruto), tom: 'perigo' },
       ]
     },
   },
@@ -357,7 +362,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { key: 'custo', label: 'Custo', tipo: 'dinheiro', direita: true },
       { key: 'venda', label: 'Venda', tipo: 'dinheiro', direita: true },
       { key: 'margem', label: 'Margem R$', tipo: 'dinheiro', direita: true },
-      { key: 'margemPct', label: 'Margem %', tipo: 'pct', direita: true },
+      { key: 'margemPct', label: 'Margem (% sobre o custo)', tipo: 'pct', direita: true },
     ],
     filtros: [
       { key: 'q', label: 'Produto ou lote', tipo: 'busca' },
@@ -379,7 +384,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { label: 'Quantidade total', valor: num(t.quantidade).toLocaleString('pt-BR'), tom: 'neutro' },
       { label: 'Custo total', valor: formatMoeda(t.custo), tom: 'neutro' },
       { label: 'Venda total', valor: formatMoeda(t.venda), tom: 'neutro' },
-      { label: 'Margem total', valor: `${formatMoeda(t.margem)} (${num(t.margemPct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`, tom: 'sucesso' },
+      { label: 'Margem total (% sobre o custo)', valor: `${formatMoeda(t.margem)} (${pctMargem(t.margemPct)})`, tom: 'sucesso' },
     ],
   },
   'estoque-movimentacao': {
@@ -396,7 +401,8 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { key: 'quantidade', label: 'Qtd', tipo: 'numero', direita: true },
       { key: 'custo', label: 'Custo unit.', tipo: 'dinheiro', direita: true },
       { key: 'venda', label: 'Venda unit.', tipo: 'dinheiro', direita: true },
-      { key: 'margem', label: 'Margem', tipo: 'dinheiro', direita: true },
+      { key: 'margem', label: 'Margem R$', tipo: 'dinheiro', direita: true },
+      { key: 'margemPct', label: 'Margem (% sobre o custo)', tipo: 'pct', direita: true },
     ],
     filtros: [
       { key: 'q', label: 'Produto ou fornecedor/cliente', tipo: 'busca' },
@@ -419,9 +425,9 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       const s = obj(t.saidas)
       return [
         { label: `Entradas · ${num(e.quantidade)} un.`, valor: `Custo ${formatMoeda(e.custo)}`, tom: 'sucesso' },
-        { label: 'Entradas · venda / margem', valor: `${formatMoeda(e.venda)} / ${formatMoeda(e.margem)}`, tom: 'neutro' },
+        { label: 'Entradas · venda / margem', valor: `${formatMoeda(e.venda)} / ${formatMoeda(e.margem)} (${pctMargem(e.margemPct)})`, tom: 'neutro' },
         { label: `Saídas · ${num(s.quantidade)} un.`, valor: `Custo ${formatMoeda(s.custo)}`, tom: 'perigo' },
-        { label: 'Saídas · venda / margem', valor: `${formatMoeda(s.venda)} / ${formatMoeda(s.margem)}`, tom: 'neutro' },
+        { label: 'Saídas · venda / margem', valor: `${formatMoeda(s.venda)} / ${formatMoeda(s.margem)} (${pctMargem(s.margemPct)})`, tom: 'neutro' },
       ]
     },
     resumos: (t) => [

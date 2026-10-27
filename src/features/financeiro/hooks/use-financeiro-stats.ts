@@ -8,6 +8,7 @@ import {
   FINANCEIRO_STAT_ICONS,
   formatCurrency,
   isLiquidado,
+  totaisLiquidados,
   type FinanceiroStatCard,
 } from '../financeiro.utils'
 
@@ -17,30 +18,28 @@ export function useFinanceiroStats(
   caixaSession: CaixaSessionState,
 ) {
   const cards = useMemo<FinanceiroStatCard[]>(() => {
-    const receitas = data.filter((item) => item.tipo === 'receita').reduce((acc, item) => acc + item.valor, 0)
-    const despesas = data.filter((item) => item.tipo === 'despesa').reduce((acc, item) => acc + item.valor, 0)
-    const saldo = receitas - despesas
+    const { entradas: receitas, saidas: despesas, saldo } = totaisLiquidados(data)
     const centrosAtivos = new Set(data.map((item) => item.categoria)).size
 
     return [
       {
         title: 'Total de entradas',
         value: formatCurrency(receitas),
-        subtitle: 'Receitas acumuladas nas movimentações disponíveis',
+        subtitle: 'Somente o que já foi recebido; o a receber fica em Recebimentos',
         icon: FINANCEIRO_STAT_ICONS.receitas,
         tone: 'text-[var(--app-success-text)]',
       },
       {
         title: 'Total de saídas',
         value: formatCurrency(despesas),
-        subtitle: 'Despesas administrativas e operacionais',
+        subtitle: 'Somente o que já foi pago; o a pagar fica em Pagamentos',
         icon: FINANCEIRO_STAT_ICONS.despesas,
         tone: 'text-[var(--app-danger-text)]',
       },
       {
         title: 'Saldo consolidado',
         value: formatCurrency(saldo),
-        subtitle: 'Diferença entre receitas e despesas do período',
+        subtitle: 'Diferença entre o recebido e o pago',
         icon: FINANCEIRO_STAT_ICONS.saldo,
         tone: 'text-app-text-primary dark:text-white',
       },
@@ -55,8 +54,7 @@ export function useFinanceiroStats(
   }, [data])
 
   const dreSummary = useMemo(() => {
-    const receitas = data.filter((item) => item.tipo === 'receita').reduce((acc, item) => acc + item.valor, 0)
-    const despesas = data.filter((item) => item.tipo === 'despesa').reduce((acc, item) => acc + item.valor, 0)
+    const { entradas: receitas, saidas: despesas } = totaisLiquidados(data)
     return [
       { label: 'Receita operacional', value: formatCurrency(receitas), tone: 'text-[var(--app-success-text)]' },
       { label: 'Despesas operacionais', value: formatCurrency(despesas), tone: 'text-[var(--app-danger-text)]' },
@@ -98,13 +96,9 @@ export function useFinanceiroStats(
   }, [data])
 
   const lancamentosSummary = useMemo(() => {
-    const entradas = data.filter((item) => item.tipo === 'receita')
-    const saidas = data.filter((item) => item.tipo === 'despesa')
     return {
-      entradas: entradas.reduce((acc, item) => acc + item.valor, 0),
-      saidas: saidas.reduce((acc, item) => acc + item.valor, 0),
-      saldo: entradas.reduce((acc, item) => acc + item.valor, 0) - saidas.reduce((acc, item) => acc + item.valor, 0),
-      pendente: data.reduce((acc, item) => (isLiquidado(item.status) ? acc : acc + item.valor), 0),
+      ...totaisLiquidados(data),
+      pendente: data.reduce((acc, item) => (item.tipo === 'receita' && !isLiquidado(item.status) ? acc + item.valor : acc), 0),
     }
   }, [data])
 

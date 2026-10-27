@@ -74,11 +74,13 @@ describe('totalizarRecebimentos', () => {
         { situacao: 'liquidado', forma: 'pix', parcelas: 1, bruto: 100 },
         { situacao: 'liquidado', forma: 'credito', parcelas: 2, bruto: 240 },
         { situacao: 'a_receber', forma: 'nao_informado', parcelas: 1, bruto: 90 },
+        { situacao: 'atrasado', forma: 'nao_informado', parcelas: 1, bruto: 250 },
       ],
       cfg,
     )
     expect(totais.liquidado).toEqual({ bruto: 340, desconto: 8.4, liquido: 331.6 })
     expect(totais.aReceber).toEqual({ bruto: 90, desconto: 0, liquido: 90 })
+    expect(totais.atrasado).toEqual({ bruto: 250, desconto: 0, liquido: 250 })
   })
 })
 

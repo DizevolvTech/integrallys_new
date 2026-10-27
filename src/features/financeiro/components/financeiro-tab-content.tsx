@@ -386,7 +386,7 @@ export function FinanceiroTabContent({
               {formatCurrency(lancamentosSummary.entradas)}
             </p>
             <p className="mt-1 text-xs text-app-text-muted">
-              {data.filter((item) => item.tipo === 'receita').length} lançamentos
+              {data.filter((item) => item.tipo === 'receita' && isLiquidado(item.status)).length} recebidos
             </p>
           </CardClicavel>
           <CardClicavel onOpen={() => onDetalheLancamentos('saidas')} className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
@@ -395,7 +395,7 @@ export function FinanceiroTabContent({
               {formatCurrency(lancamentosSummary.saidas)}
             </p>
             <p className="mt-1 text-xs text-app-text-muted">
-              {data.filter((item) => item.tipo === 'despesa').length} lançamentos
+              {data.filter((item) => item.tipo === 'despesa' && isLiquidado(item.status)).length} pagos
             </p>
           </CardClicavel>
           <CardClicavel onOpen={() => onDetalheLancamentos('saldo')} className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">

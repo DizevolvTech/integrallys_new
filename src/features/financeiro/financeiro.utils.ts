@@ -57,3 +57,12 @@ export const isLiquidado = (status?: string) => {
   const s = (status ?? '').toLowerCase()
   return s.includes('pago') || s.includes('quitado')
 }
+
+/** Entradas/saídas efetivas: só o que foi de fato recebido/pago; o pendente fica nos cards de a receber/a pagar. */
+export function totaisLiquidados(data: Array<{ tipo: 'receita' | 'despesa'; valor: number; status?: string }>) {
+  const soma = (tipo: 'receita' | 'despesa') =>
+    Math.round(data.reduce((acc, item) => (item.tipo === tipo && isLiquidado(item.status) ? acc + item.valor : acc), 0) * 100) / 100
+  const entradas = soma('receita')
+  const saidas = soma('despesa')
+  return { entradas, saidas, saldo: Math.round((entradas - saidas) * 100) / 100 }
+}
