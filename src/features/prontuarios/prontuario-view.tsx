@@ -102,9 +102,9 @@ function ProntuarioViewList() {
     setIsDeleteOpen(true)
   }
 
-  /** Marca o prontuário como Finalizado (o prazo, quando definido, já foi gravado antes). */
+  /** Marca o prontuário como Fechado (o prazo, quando definido, já foi gravado antes). */
   const concluirFinalizacao = async () => {
-    if (!selectedItem || !selectedItem.pacienteId) return
+    if (!selectedItem?.pacienteId) return
     setIsFinalizing(true)
     try {
       const atual = await updateProntuario({
@@ -112,9 +112,9 @@ function ProntuarioViewList() {
         pacienteId: selectedItem.pacienteId,
         data: selectedItem.data,
         tipo: selectedItem.tipo,
-        status: 'Finalizado',
+        status: 'Fechado',
       })
-      setSelectedItem(atual.find((item) => item.id === selectedItem.id) ?? { ...selectedItem, status: 'Finalizado' })
+      setSelectedItem(atual.find((item) => item.id === selectedItem.id) ?? { ...selectedItem, status: 'Fechado' })
       toast.success('Atendimento finalizado com sucesso.')
       setIsReturnOpen(false)
       setIsFinalizeOpen(false)
@@ -197,8 +197,8 @@ function ProntuarioViewList() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-[200px] rounded-integrallys-lg border-app-border bg-app-card p-2 dark:border-app-border-dark dark:bg-app-card-dark">
                   <DropdownMenuItem onClick={() => setStatusFilter('Todos os Status')}>Todos os status</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter('Em Andamento')}>Em andamento</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter('Finalizado')}>Finalizado</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter('Aberto')}>Em andamento</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter('Fechado')}>Finalizado</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -261,7 +261,7 @@ function ProntuarioViewList() {
                     <TableCell className="text-center">
                       <Badge
                         className={`rounded-lg border-0 px-2.5 py-1 text-xs font-normal tracking-wider shadow-sm ${
-                          item.status === 'Finalizado'
+                          item.status === 'Fechado'
                             ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
                             : 'bg-app-primary text-white dark:bg-blue-900/40 dark:text-[var(--app-info-text)]'
                         }`}
@@ -350,7 +350,7 @@ function ProntuarioViewList() {
                   </div>
                   <Badge
                     className={`order-first w-fit shrink-0 rounded-lg border-none px-3 py-1.5 text-xs font-normal tracking-wider shadow-sm ${
-                      selectedItem.status === 'Finalizado'
+                      selectedItem.status === 'Fechado'
                         ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
                         : 'app-status-info text-white'
                     }`}
@@ -371,7 +371,7 @@ function ProntuarioViewList() {
                   </Button>
                   <Button
                     onClick={() => setIsFinalizeOpen(true)}
-                    disabled={['Finalizado', 'Fechado'].includes(selectedItem.status)}
+                    disabled={selectedItem.status === 'Fechado'}
                     className="h-10 px-4 rounded-integrallys bg-app-primary hover:bg-app-primary-hover text-white font-normal flex items-center gap-2 shadow-sm"
                   >
                     <CheckCircle className="h-4 w-4 shrink-0" />
