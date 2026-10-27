@@ -1488,13 +1488,13 @@ function ConclusaoSection({
         />
       </div>
 
-      <div className="flex items-center justify-between pt-6 border-t border-app-border dark:border-app-border-dark">
-        <Button variant="outline" onClick={onBack} className="h-12 px-6 rounded-integrallys font-normal flex items-center gap-2">
+      <div className="flex flex-col-reverse gap-3 pt-6 border-t border-app-border dark:border-app-border-dark sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="outline" onClick={onBack} className="h-12 w-full px-6 rounded-integrallys font-normal flex items-center justify-center gap-2 sm:w-auto">
           <ChevronLeft className="h-4 w-4" /> Voltar: Documentos
         </Button>
         <Button
           onClick={onFinalize}
-          className="h-12 px-8 bg-app-primary hover:bg-app-primary-hover border border-app-border-dark text-white rounded-integrallys font-normal flex items-center gap-2"
+          className="h-12 w-full justify-center px-8 sm:w-auto bg-app-primary hover:bg-app-primary-hover border border-app-border-dark text-white rounded-integrallys font-normal flex items-center gap-2"
         >
           <Check className="h-4 w-4" /> Finalizar Atendimento
         </Button>

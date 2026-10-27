@@ -60,6 +60,10 @@ interface RetornosRelatorioProps {
 export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioProps) {
   const role = useAuth((s) => s.user?.role)
   const isEspecialista = role === 'especialista'
+  // Agendar o retorno exige agenda:create (decidido pelo servidor); sem ela o botão some.
+  const podeAgendar = useAuth((s) =>
+    s.permissions.some((p) => p.resource === 'agenda' && p.actions.includes('create')),
+  )
   const { data: usuarios } = useUsuarios()
   const { data: procedimentos } = useProcedimentos()
   const [filtros, setFiltros] = useState<RetornosFiltros>({
@@ -206,12 +210,14 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                     </StatusBadge>
                   }
                   acoes={
-                    <Button asChild size="sm" className="bg-app-primary text-white">
-                      <Link href={hrefAgendarRetorno(item)}>
-                        <CalendarPlus className="mr-1.5 h-4 w-4" />
-                        Agendar
-                      </Link>
-                    </Button>
+                    podeAgendar ? (
+                      <Button asChild size="sm" className="bg-app-primary text-white">
+                        <Link href={hrefAgendarRetorno(item)}>
+                          <CalendarPlus className="mr-1.5 h-4 w-4" />
+                          Agendar
+                        </Link>
+                      </Button>
+                    ) : undefined
                   }
                   campos={[
                     { rotulo: 'Retorno previsto', valor: item.dataPrevista || item.prazo },
@@ -269,12 +275,14 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                         </StatusBadge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" className="bg-app-primary text-white">
-                          <Link href={hrefAgendarRetorno(item)}>
-                            <CalendarPlus className="mr-1.5 h-4 w-4" />
-                            Agendar retorno
-                          </Link>
-                        </Button>
+                        {podeAgendar && (
+                          <Button asChild size="sm" className="bg-app-primary text-white">
+                            <Link href={hrefAgendarRetorno(item)}>
+                              <CalendarPlus className="mr-1.5 h-4 w-4" />
+                              Agendar retorno
+                            </Link>
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

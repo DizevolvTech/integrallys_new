@@ -46,13 +46,13 @@ interface PrazoRetornoSelectorProps {
 export function PrazoRetornoSelector({ value, onChange, idPrefix = 'prazo-retorno' }: PrazoRetornoSelectorProps) {
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Prazo de retorno">
+      <fieldset className="flex flex-wrap gap-2">
+        <legend className="sr-only">Prazo de retorno</legend>
         {PRAZOS_RETORNO.map((item) => (
           <button
             key={item.id}
             type="button"
-            role="radio"
-            aria-checked={value.tipo === item.id}
+            aria-pressed={value.tipo === item.id}
             onClick={() => onChange({ ...value, tipo: item.id })}
             className={`px-3 py-1.5 rounded-full text-xs font-normal border transition-all ${
               value.tipo === item.id
@@ -63,7 +63,7 @@ export function PrazoRetornoSelector({ value, onChange, idPrefix = 'prazo-retorn
             {item.label}
           </button>
         ))}
-      </div>
+      </fieldset>
       {value.tipo === 'custom' && (
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-dias`} className="text-xs font-normal text-app-text-muted uppercase tracking-wider">
