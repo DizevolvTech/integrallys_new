@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCaixa } from '@/hooks/use-caixa'
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { FinanceiroItem } from '@/hooks/use-financeiro'
 import { FinanceiroStatsCards } from './components/financeiro-stats-cards'
 import { FinanceiroTabContent } from './components/financeiro-tab-content'
 import { useCaixaForm } from './hooks/use-caixa-form'
@@ -37,6 +38,11 @@ import {
 import { NovoLancamentoModal } from './modals/novo-lancamento-modal'
 import { ComprovanteLancamentoModal, RegistrarRecebimentoModal } from './modals'
 import { FINANCEIRO_TABS, TAB_DESCRIPTIONS } from './financeiro.utils'
+import { ContasTab, type AcaoConta } from './contas/contas-tab'
+import { DetalheGruposModal } from './contas/detalhe-grupos-modal'
+import { detalheCaixa, detalheLancamentos, type DetalheCard, type TipoDetalheFinanceiro } from './contas/detalhes-cards'
+
+const TIPOS_STAT: TipoDetalheFinanceiro[] = ['entradas', 'saidas', 'saldo', 'centros']
 
 export function FinanceiroView() {
   const financeiro = useFinanceiro()
@@ -59,9 +65,34 @@ export function FinanceiroView() {
   const [categoryFilter, setCategoryFilter] = useState('todas')
   const [comprovanteOpen, setComprovanteOpen] = useState(false)
   const [recebimentoOpen, setRecebimentoOpen] = useState(false)
+  const [detalhe, setDetalhe] = useState<DetalheCard | null>(null)
+  const [novaContaOpen, setNovaContaOpen] = useState(false)
+  const [refreshSignal, setRefreshSignal] = useState(0)
   const [cardFilter, setCardFilter] = useState<'todos' | 'liquidado' | 'pendente' | 'atrasado'>(
     'todos',
   )
+
+  const contasTab = tab === 'recebimentos' || tab === 'pagamentos'
+  // biome-ignore lint/correctness/useExhaustiveDependencies: recarrega as contas sempre que a lista de lançamentos muda
+  useEffect(() => setRefreshSignal((atual) => atual + 1), [financeiro.data])
+  const recarregarContas = () => setRefreshSignal((atual) => atual + 1)
+
+  const handleAcaoConta = (acao: AcaoConta, item: FinanceiroItem) => {
+    lancamentoForm.setSelectedLancamento(item)
+    if (acao === 'ver') lancamentoForm.handleOpenLancamentoView(item)
+    else if (acao === 'editar') lancamentoForm.handleOpenLancamentoEdit(item)
+    else if (acao === 'excluir') lancamentoForm.setIsLancamentoDeleteOpen(true)
+    else if (item.tipo === 'receita') setRecebimentoOpen(true)
+    else {
+      void financeiro
+        .updateLancamento({ ...item, data: item.data, status: 'Pago' })
+        .then(() => {
+          toast.success('Despesa marcada como paga.')
+          recarregarContas()
+        })
+        .catch((err) => toast.error(err instanceof Error ? err.message : 'Não foi possível marcar como pago.'))
+    }
+  }
 
   const categories = useMemo(
     () =>
@@ -106,16 +137,19 @@ export function FinanceiroView() {
         description={TAB_DESCRIPTIONS[tab]}
         actions={
           <Button
-            onClick={() => lancamentoForm.setIsNewOpen(true)}
+            onClick={() => (contasTab ? setNovaContaOpen(true) : lancamentoForm.setIsNewOpen(true))}
             className="h-11 shrink-0 rounded-xl bg-app-primary px-6 font-normal text-white shadow-sm"
           >
             <Plus className="mr-2 h-4 w-4" />
-            Novo lançamento
+            {tab === 'recebimentos' ? 'Novo recebimento' : tab === 'pagamentos' ? 'Nova despesa' : 'Novo lançamento'}
           </Button>
         }
       />
 
-      <FinanceiroStatsCards cards={stats.cards} />
+      <FinanceiroStatsCards
+        cards={stats.cards}
+        onSelect={(index) => setDetalhe(detalheLancamentos(TIPOS_STAT[index], financeiro.data))}
+      />
 
       <div className="rounded-[24px] border border-app-border bg-app-card p-5 shadow-sm dark:border-app-border-dark dark:bg-app-card-dark md:p-6">
         <div className="space-y-5">
@@ -128,6 +162,7 @@ export function FinanceiroView() {
             }}
           />
 
+          {tab === 'lancamentos' && (
           <FilterBar>
             <div className="relative w-full lg:max-w-[420px]">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-app-text-muted" />
@@ -179,6 +214,7 @@ export function FinanceiroView() {
               Limpar filtros
             </Button>
           </FilterBar>
+          )}
         </div>
       </div>
 
@@ -187,6 +223,19 @@ export function FinanceiroView() {
           {financeiro.error ?? caixa.error}
         </Card>
       )}
+      {contasTab && (
+        <ContasTab
+          key={tab}
+          tipo={tab === 'recebimentos' ? 'receita' : 'despesa'}
+          lancamentos={financeiro.data}
+          refreshSignal={refreshSignal}
+          novaContaOpen={novaContaOpen}
+          onNovaContaClose={() => setNovaContaOpen(false)}
+          onChanged={() => void financeiro.load()}
+          onAcao={handleAcaoConta}
+        />
+      )}
+      {!contasTab && (
       <FinanceiroTabContent
         tab={tab}
         filteredData={filteredData}
@@ -217,8 +266,20 @@ export function FinanceiroView() {
           caixaForm.setIsCaixaDeleteOpen(true)
         }}
         onCaixaAction={caixaForm.setActiveCaixaModal}
-        cardFilter={cardFilter}
-        onCardFilterChange={setCardFilter}
+        onDetalheCaixa={(tipo) =>
+          setDetalhe(detalheCaixa(tipo, stats.caixaTodayData, stats.caixaStatus))
+        }
+        onDetalheLancamentos={(tipo) => setDetalhe(detalheLancamentos(tipo, financeiro.data))}
+      />
+      )}
+      <DetalheGruposModal
+        open={detalhe !== null}
+        onClose={() => setDetalhe(null)}
+        titulo={detalhe?.titulo ?? ''}
+        descricao={detalhe?.descricao}
+        total={detalhe?.total ?? 0}
+        grupos={detalhe?.grupos ?? []}
+        agrupadoPor={detalhe?.agrupadoPor}
       />
       <NovoLancamentoModal
         open={lancamentoForm.isNewOpen}

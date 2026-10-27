@@ -33,7 +33,7 @@ export async function criarContas(session: Session, body: Record<string, unknown
     .eq('id', dados.categoriaDreId)
     .maybeSingle()
   if (categoriaError) return supabaseErrorResponse(categoriaError, 'Falha ao validar categoria')
-  if (!categoria || !categoria.ativo || categoria.tipo !== tipo) {
+  if (!categoria?.ativo || categoria.tipo !== tipo) {
     return serverErrorResponse('Categoria de DRE inválida para este lançamento', 'DRE_CATEGORIA_INVALID', 400)
   }
 
