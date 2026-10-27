@@ -26,7 +26,13 @@ import type { GeneratedDoc, HistoricoItem, PatientDetails } from '@/contexts/ate
 import { useAtendimentoHistorico } from '@/hooks/use-atendimento-historico'
 import { useProntuarioLivePublish } from '@/hooks/use-prontuario-live-sync'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
-import { PrazoRetornoModal, type PrazoRetornoEscolhido } from '@/features/retornos/prazo-retorno-modal'
+import {
+  PRAZO_RETORNO_INICIAL,
+  PrazoRetornoSelector,
+  prazoEscolhido,
+  resumoPrazoRetorno,
+  type PrazoRetornoValor,
+} from '@/features/retornos/prazo-retorno-selector'
 import { useApi } from '@/hooks/use-api'
 import { usePacientes } from '@/hooks/use-pacientes'
 import {
@@ -1349,7 +1355,26 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
 
 // ─── Conclusão Section ───────────────────────────────────────────────────────
 
-function ConclusaoSection({ onBack, onFinalize }: { onBack: () => void; onFinalize: () => void }) {
+interface PrazoRetornoState {
+  valor: PrazoRetornoValor
+  semPrazo: boolean
+  onChange: (valor: PrazoRetornoValor) => void
+  onSemPrazoChange: (semPrazo: boolean) => void
+}
+
+function hojeIsoSaoPaulo() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+}
+
+function ConclusaoSection({
+  onBack,
+  onFinalize,
+  prazo,
+}: {
+  onBack: () => void
+  onFinalize: () => void
+  prazo: PrazoRetornoState
+}) {
   const { patientName, anamneseData, prescritos, isSigned, observacoesFinais, setObservacoesFinais, generatedDocuments } =
     useAtendimento()
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
@@ -1433,6 +1458,25 @@ function ConclusaoSection({ onBack, onFinalize }: { onBack: () => void; onFinali
         </div>
       </div>
 
+      {/* Prazo de retorno: escolhido aqui, antes de confirmar a finalização */}
+      <section className="space-y-3 rounded-integrallys-lg border border-app-border p-6 dark:border-app-border-dark" aria-labelledby="prazo-retorno-titulo">
+        <div className="space-y-1">
+          <h3 id="prazo-retorno-titulo" className="font-normal text-app-text-primary dark:text-white">Prazo de retorno</h3>
+          <p className="text-sm text-app-text-muted">
+            Em quanto tempo o paciente deve voltar. O prazo alimenta a lista de retornos da recepção.
+          </p>
+        </div>
+        {!prazo.semPrazo && <PrazoRetornoSelector value={prazo.valor} onChange={prazo.onChange} idPrefix="conclusao-prazo" />}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-app-text-secondary dark:text-white/70" data-testid="resumo-prazo-retorno">
+            {prazo.semPrazo ? 'Nenhum prazo de retorno será registrado.' : resumoPrazoRetorno(prazo.valor, hojeIsoSaoPaulo())}
+          </p>
+          <Button type="button" variant="ghost" size="sm" className="font-normal" onClick={() => prazo.onSemPrazoChange(!prazo.semPrazo)}>
+            {prazo.semPrazo ? 'Definir prazo de retorno' : 'Finalizar sem definir prazo'}
+          </Button>
+        </div>
+      </section>
+
       {/* Final observations */}
       <div className="space-y-2">
         <Label className="font-normal text-app-text-primary dark:text-white">Observações Finais (Opcional)</Label>
@@ -1480,7 +1524,9 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
   const api = useApi()
   useProntuarioLivePublish(pacienteId, evolucaoAtual)
   const [showFinalizeModal, setShowFinalizeModal] = useState(false)
-  const [showReturnModal, setShowReturnModal] = useState(false)
+  const [prazoValor, setPrazoValor] = useState<PrazoRetornoValor>(PRAZO_RETORNO_INICIAL)
+  const [semPrazo, setSemPrazo] = useState(false)
+  const [isFinalizing, setIsFinalizing] = useState(false)
 
   const handleNext = () => {
     if (currentStep < 5) setCurrentStep(currentStep + 1)
@@ -1492,11 +1538,6 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     else onBack()
   }
 
-  const handleFinalize = () => {
-    setShowFinalizeModal(false)
-    setShowReturnModal(true)
-  }
-
   const doFinalize = async () => {
     await onFinalize?.()
     finalizeAtendimento()
@@ -1504,13 +1545,26 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     onBack()
   }
 
-  const handleConfirmReturn = async (prazo: PrazoRetornoEscolhido) => {
-    if (pacienteId) {
-      // O prazo é gravado antes de finalizar: se falhar, o atendimento continua aberto.
-      await api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo })
+  // O prazo é gravado antes de finalizar: se falhar, o atendimento continua aberto.
+  const handleFinalize = async () => {
+    const escolhido = semPrazo ? null : prazoEscolhido(prazoValor)
+    if (escolhido && 'erro' in escolhido) {
+      setShowFinalizeModal(false)
+      toast.error(escolhido.erro)
+      return
     }
-    setShowReturnModal(false)
-    await doFinalize()
+    setIsFinalizing(true)
+    try {
+      if (escolhido && pacienteId) {
+        await api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo: escolhido })
+      }
+      setShowFinalizeModal(false)
+      await doFinalize()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível salvar o prazo de retorno.')
+    } finally {
+      setIsFinalizing(false)
+    }
   }
 
   return (
@@ -1560,7 +1614,11 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
         {currentStep === 2 && <ProntuarioSection onBack={handleBack} onNext={handleNext} />}
         {currentStep === 3 && <PrescricaoSection onBack={handleBack} onNext={handleNext} />}
         {currentStep === 4 && <DocumentosSection onBack={handleBack} onNext={handleNext} />}
-        {currentStep === 5 && <ConclusaoSection onBack={handleBack} onFinalize={() => setShowFinalizeModal(true)} />}
+        {currentStep === 5 && <ConclusaoSection
+            onBack={handleBack}
+            onFinalize={() => setShowFinalizeModal(true)}
+            prazo={{ valor: prazoValor, semPrazo, onChange: setPrazoValor, onSemPrazoChange: setSemPrazo }}
+          />}
       </div>
 
       {/* Finalize modal */}
@@ -1575,24 +1633,20 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
               O prontuário permanece editável após a finalização (com auditoria). A orçamentação automática será
               disparada normalmente.
             </p>
+            <p className="text-sm font-normal text-app-text-primary dark:text-white" data-testid="dialogo-prazo-retorno">
+              {semPrazo ? 'Prazo de retorno: não definido.' : `Prazo de retorno: ${resumoPrazoRetorno(prazoValor, hojeIsoSaoPaulo())}`}
+            </p>
             <div className="flex gap-4 pt-4">
               <Button variant="outline" className="flex-1 font-normal" onClick={() => setShowFinalizeModal(false)}>
                 Revisar
               </Button>
-              <Button className="flex-1 bg-app-primary font-normal" onClick={handleFinalize}>
-                Sim, finalizar
+              <Button className="flex-1 bg-app-primary font-normal" disabled={isFinalizing} onClick={() => void handleFinalize()}>
+                {isFinalizing ? 'Finalizando…' : 'Sim, finalizar'}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-
-      <PrazoRetornoModal
-        open={showReturnModal}
-        onOpenChange={setShowReturnModal}
-        onConfirm={handleConfirmReturn}
-        onSkip={() => { setShowReturnModal(false); void doFinalize() }}
-      />
     </div>
   )
 }
