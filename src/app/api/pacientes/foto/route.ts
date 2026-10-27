@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { urlDaFotoPaciente } from '@/lib/storage-urls'
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -62,8 +63,7 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Falha ao enviar a foto', 'UPLOAD_FAILED', 500)
   }
 
-  const { data: publicData } = supabase.storage.from('pacientes-fotos').getPublicUrl(path)
-  const photoUrl = publicData.publicUrl
+  const photoUrl = urlDaFotoPaciente(path)
 
   if (pacienteId) {
     const { error: updateError } = await supabase

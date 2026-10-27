@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildSidebarForRole } from "@/lib/sidebar-builder";
 import type { MeResponse, Permission, UserRole } from "@/types/auth";
+import { urlParaNavegador } from "@/lib/storage-urls";
 
 interface UsuarioBaseRow {
   id: string;
@@ -142,7 +143,7 @@ export async function buildAuthPayloadFromUserRecord(
       unidadeNome:
         typeof userRow.unidade_nome === "string" ? userRow.unidade_nome : null,
       avatarUrl:
-        typeof userRow.avatar_url === "string" ? userRow.avatar_url : undefined,
+        typeof userRow.avatar_url === "string" ? urlParaNavegador(userRow.avatar_url) : undefined,
       mustDefinePassword,
     },
     sidebarItems: buildSidebarForRole(role, permissions),
@@ -215,7 +216,7 @@ export async function buildAuthPayloadFromUserId(
     email: String(raw.email ?? ""),
     perfil: String(raw.perfil ?? ""),
     status: String(raw.status ?? ""),
-    avatar_url: typeof raw.avatar_url === "string" ? raw.avatar_url : null,
+    avatar_url: typeof raw.avatar_url === "string" ? urlParaNavegador(raw.avatar_url) : null,
     unidade_id: typeof raw.unidade_id === "string" ? raw.unidade_id : null,
     unidade_nome: unidadeNome,
   };

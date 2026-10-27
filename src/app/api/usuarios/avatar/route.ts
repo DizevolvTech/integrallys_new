@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse } from '@/lib/app-api'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { urlArquivoPublico } from '@/lib/storage-urls'
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Falha ao enviar a foto', 'UPLOAD_FAILED', 500)
   }
 
-  const { data: publicData } = supabase.storage.from('avatares').getPublicUrl(path)
+  const { data: publicData } = { data: { publicUrl: urlArquivoPublico('avatares', path) } }
   const avatarUrl = publicData.publicUrl
 
   const { error: updateError } = await supabase

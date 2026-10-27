@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/authz'
 import { getPasswordSetupRequiredKey } from '@/lib/auth-payload'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import { validarFinancialNotaFiscal } from '@/features/gestao-pacientes/utils/nota-fiscal'
+import { urlParaNavegador } from '@/lib/storage-urls'
 
 function pickString(...values: Array<unknown>) {
   for (const value of values) {
@@ -174,7 +175,7 @@ async function fetchPatientContext(unidadeId: string | null) {
           ? paciente.vinculo_tipos.map(String)
           : ['cliente'],
         precisaNf: paciente.precisa_nf === true,
-        photoUrl: paciente.photo_url ? String(paciente.photo_url) : '',
+        photoUrl: urlParaNavegador(paciente.photo_url ? String(paciente.photo_url) : ''),
         addressDetails: {
           zipCode: paciente.cep ? String(paciente.cep) : '',
           street: paciente.logradouro ? String(paciente.logradouro) : '',

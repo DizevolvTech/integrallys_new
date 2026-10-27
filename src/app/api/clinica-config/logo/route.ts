@@ -3,6 +3,7 @@ import { getAppSupabase, serverErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, forbidPatientRole, getRequestAuth } from '@/lib/request-auth'
 import { resolverUnidade, respostaResolucaoInvalida } from '../resolver-unidade'
+import { urlArquivoPublico } from '@/lib/storage-urls'
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'])
 const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Falha ao enviar logo', 'UPLOAD_FAILED', 500)
   }
 
-  const { data: publicData } = supabase.storage.from('clinica-logos').getPublicUrl(path)
+  const { data: publicData } = { data: { publicUrl: urlArquivoPublico('clinica-logos', path) } }
   const logoUrl = publicData.publicUrl
 
   const { data: existing } = await supabase

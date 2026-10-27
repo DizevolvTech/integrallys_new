@@ -5,7 +5,6 @@ import { ANEXO_BUCKET, ANEXO_TIPOS, caminhoAnexo, validarAnexo } from '@/lib/fin
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
 const UUID = /^[0-9a-f-]{36}$/i
-const URL_VALIDADE_S = 60 * 10
 
 type Supabase = ReturnType<typeof getAppSupabase>
 
@@ -41,22 +40,16 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
   if (error) return supabaseErrorResponse(error, 'Falha ao carregar anexos')
 
-  const anexos = await Promise.all(
-    (data ?? []).map(async (row) => {
-      const { data: assinada } = await supabase.storage
-        .from(ANEXO_BUCKET)
-        .createSignedUrl(String(row.storage_path), URL_VALIDADE_S)
-      return {
-        id: String(row.id),
-        nome: String(row.nome),
-        tipoDocumento: row.tipo_documento ? String(row.tipo_documento) : null,
-        mime: String(row.mime),
-        tamanho: Number(row.tamanho ?? 0),
-        criadoEm: String(row.created_at),
-        url: assinada?.signedUrl ?? null,
-      }
-    }),
-  )
+  // O arquivo abre pela rota do próprio app (bucket privado; nenhum link do storage sai para o navegador).
+  const anexos = (data ?? []).map((row) => ({
+    id: String(row.id),
+    nome: String(row.nome),
+    tipoDocumento: row.tipo_documento ? String(row.tipo_documento) : null,
+    mime: String(row.mime),
+    tamanho: Number(row.tamanho ?? 0),
+    criadoEm: String(row.created_at),
+    url: `/api/financeiro/anexos/${row.id}/arquivo`,
+  }))
   return NextResponse.json({ data: anexos })
 }
 

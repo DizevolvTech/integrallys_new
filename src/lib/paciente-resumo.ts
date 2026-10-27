@@ -1,4 +1,5 @@
 import { formatarCPF, formatarTelefone } from '@/lib/validacao-br'
+import { urlParaNavegador } from '@/lib/storage-urls'
 
 export interface PacienteResumo {
   id: string
@@ -39,7 +40,7 @@ export function montarPacienteResumo(row: Row, hojeIso: string): PacienteResumo 
   const nascimento = txt(row.data_nascimento).slice(0, 10)
   const cpf = txt(row.cpf)
   const telefone = txt(row.telefone)
-  const foto = txt(row.photo_url)
+  const foto = urlParaNavegador(txt(row.photo_url))
   return {
     id: String(row.id ?? ''),
     nome: txt(row.nome),
