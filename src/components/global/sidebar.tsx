@@ -19,6 +19,7 @@ import {
   CreditCard,
   DollarSign,
   FileCheck,
+  RotateCcw,
   FileText,
   History,
   Home,
@@ -80,6 +81,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Activity,
   Building2,
   FileCheck,
+  RotateCcw,
 }
 
 export function Sidebar({ isOpen, onClose, items }: SidebarProps) {

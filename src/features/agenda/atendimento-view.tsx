@@ -11,12 +11,8 @@ import {
   ChevronRight,
   ChevronUp,
   ClipboardList,
-  CreditCard,
   Eye,
   FileText,
-  Mail,
-  MapPin,
-  Phone,
   Plus,
   Search,
   ShieldCheck,
@@ -30,6 +26,8 @@ import type { GeneratedDoc, HistoricoItem, PatientDetails } from '@/contexts/ate
 import { useAtendimentoHistorico } from '@/hooks/use-atendimento-historico'
 import { useProntuarioLivePublish } from '@/hooks/use-prontuario-live-sync'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
+import { PRAZOS_RETORNO } from '@/lib/retorno-prazo'
+import { useApi } from '@/hooks/use-api'
 import { usePacientes } from '@/hooks/use-pacientes'
 import {
   loadDocumentTemplatesAsync,
@@ -51,6 +49,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import { SignaturePad } from '@/components/shared/signature-pad'
+import { PacienteCadastroCard } from '@/components/shared/paciente-cadastro-card'
 import { AnatomyPanel } from '@/components/shared/anatomy-panel'
 import { DocumentPreviewModal } from './components/document-preview-modal'
 import { LabelEditorModal } from './components/label-editor-modal'
@@ -88,16 +87,6 @@ const MEDICAMENTOS = [
   'Medicação para tireoide',
 ]
 
-const RETURN_OPTIONS = [
-  { id: '30', label: '30 dias' },
-  { id: '60', label: '60 dias' },
-  { id: '90', label: '90 dias' },
-  { id: '120', label: '120 dias' },
-  { id: '6m', label: '6 meses' },
-  { id: 'liberado', label: 'Liberado' },
-  { id: 'custom', label: 'Personalizado' },
-]
-
 interface DocumentTemplate {
   id: string
   title: string
@@ -107,18 +96,6 @@ interface DocumentTemplate {
 }
 
 const today = new Date().toLocaleDateString('pt-BR')
-
-function getAgeFromBirthDate(dateStr?: string): string {
-  if (!dateStr || dateStr === '--') return '--'
-  const [day, month, year] = dateStr.split('/').map(Number)
-  if (!day || !month || !year) return '--'
-  const birth = new Date(year, month - 1, day)
-  const now = new Date()
-  let age = now.getFullYear() - birth.getFullYear()
-  const m = now.getMonth() - birth.getMonth()
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age -= 1
-  return String(age)
-}
 
 const DOCUMENT_TYPES: DocumentTemplate[] = [
   {
@@ -637,6 +614,14 @@ function ProntuarioSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                     {consulta.anamneseType === 'reconsulta' ? 'Reconsulta' : 'Consulta'} — {consulta.date}
                   </p>
                   <p className="text-app-text-muted text-sm">{consulta.doctor}</p>
+                  {consulta.prescricoes.length > 0 && (
+                    <p className="text-app-text-muted text-xs mt-1">
+                      Produtos:{' '}
+                      {consulta.prescricoes
+                        .map((item) => (item.posologia ? `${item.produto} (${item.posologia})` : item.produto))
+                        .join(' · ')}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-app-text-muted text-sm">
                   Ver detalhes
@@ -1486,24 +1471,19 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     currentStep,
     setCurrentStep,
     patientName,
-    patientDetails,
     finalizeAtendimento,
     pacienteId,
+    appointmentId,
     evolucaoAtual,
   } = useAtendimento()
+  const api = useApi()
+  const [isSavingReturn, setIsSavingReturn] = useState(false)
   useProntuarioLivePublish(pacienteId, evolucaoAtual)
   const [showFinalizeModal, setShowFinalizeModal] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [returnOption, setReturnOption] = useState('30')
   const [returnCustomDays, setReturnCustomDays] = useState('')
   const [returnError, setReturnError] = useState('')
-
-  const initials = patientName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase())
-    .join('')
 
   const handleNext = () => {
     if (currentStep < 5) setCurrentStep(currentStep + 1)
@@ -1535,6 +1515,29 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
         return
       }
     }
+    if (!pacienteId) {
+      setShowReturnModal(false)
+      await doFinalize()
+      return
+    }
+    // O prazo é gravado antes de finalizar: se falhar, o atendimento continua aberto.
+    setIsSavingReturn(true)
+    try {
+      await api.post('/api/retornos', {
+        origem: 'atendimento',
+        pacienteId,
+        agendamentoId: appointmentId,
+        prazo: {
+          tipo: returnOption,
+          dias: returnOption === 'custom' ? Number(returnCustomDays) : undefined,
+        },
+      })
+    } catch (err) {
+      setReturnError(err instanceof Error ? err.message : 'Não foi possível salvar o prazo de retorno.')
+      return
+    } finally {
+      setIsSavingReturn(false)
+    }
     setShowReturnModal(false)
     await doFinalize()
   }
@@ -1564,48 +1567,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
       {/* Patient header */}
       <div className="bg-app-card dark:bg-app-card-dark p-6 rounded-integrallys-lg shadow-sm border border-app-border dark:border-app-border-dark">
         <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl app-status-info text-[var(--app-primary)] dark:text-white dark:bg-app-primary/30 flex items-center justify-center text-xl font-normal shrink-0">
-              {initials || 'P'}
-            </div>
-            <div>
-              <p className="text-xs text-app-text-muted uppercase tracking-wider">Paciente</p>
-              <p className="text-lg font-normal text-app-text-primary dark:text-white">{patientDetails.nome}</p>
-              <p className="text-xs text-app-text-muted">
-                Nascimento: {patientDetails.dataNascimento} • Idade: {getAgeFromBirthDate(patientDetails.dataNascimento)} anos
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
-            <div className="flex items-center gap-3">
-              <CreditCard className="h-4 w-4 text-app-text-muted shrink-0" />
-              <div>
-                <p className="text-xs text-app-text-muted uppercase tracking-wider">CPF</p>
-                <p className="text-sm text-app-text-primary dark:text-white">{patientDetails.cpf}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Phone className="h-4 w-4 text-app-text-muted shrink-0" />
-              <div>
-                <p className="text-xs text-app-text-muted uppercase tracking-wider">Telefone</p>
-                <p className="text-sm text-app-text-primary dark:text-white">{patientDetails.telefone}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-app-text-muted shrink-0" />
-              <div>
-                <p className="text-xs text-app-text-muted uppercase tracking-wider">Email</p>
-                <p className="text-sm text-app-text-primary dark:text-white">{patientDetails.email}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <MapPin className="h-4 w-4 text-app-text-muted shrink-0" />
-              <div>
-                <p className="text-xs text-app-text-muted uppercase tracking-wider">Endereço</p>
-                <p className="text-sm text-app-text-primary dark:text-white">{patientDetails.endereco}</p>
-              </div>
-            </div>
-          </div>
+          <PacienteCadastroCard pacienteId={pacienteId} nomeFallback={patientName} className="flex-1" />
           <div className="lg:self-start">
             <Button
               variant="outline"
@@ -1660,10 +1622,10 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
           <div className="space-y-4">
             <div>
               <h2 className="text-xl font-normal text-app-text-primary dark:text-white">Definir prazo de retorno</h2>
-              <p className="text-sm text-app-text-muted font-normal">Informe o prazo sugerido para retorno do paciente.</p>
+              <p className="text-sm text-app-text-muted font-normal">Informe em quanto tempo o paciente deve voltar. O prazo alimenta a lista de retornos da recepção.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {RETURN_OPTIONS.map((option) => (
+              {PRAZOS_RETORNO.map((option) => (
                 <button
                   key={option.id}
                   type="button"
@@ -1692,12 +1654,15 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
                 {returnError && <p className="text-xs text-[var(--app-danger-text)]">{returnError}</p>}
               </div>
             )}
+            {returnOption !== 'custom' && returnError && (
+              <p className="text-xs text-[var(--app-danger-text)]">{returnError}</p>
+            )}
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1 font-normal" onClick={() => { setShowReturnModal(false); void doFinalize() }}>
-                Cancelar
+                Finalizar sem prazo
               </Button>
-              <Button className="flex-1 bg-app-primary font-normal" onClick={handleConfirmReturn}>
-                Salvar retorno
+              <Button className="flex-1 bg-app-primary font-normal" onClick={handleConfirmReturn} disabled={isSavingReturn}>
+                {isSavingReturn ? 'Salvando...' : 'Salvar retorno'}
               </Button>
             </div>
           </div>

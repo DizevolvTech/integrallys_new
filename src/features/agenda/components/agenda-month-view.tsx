@@ -2,13 +2,28 @@
 
 import type { useAgendaCalendar } from '../hooks/use-agenda-calendar'
 import { getStatusBadgeTone } from '../agenda.utils'
+import { bloqueiosDoDia, isoDateLocal } from '../bloqueios.utils'
+import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
+import { BloqueioChip } from './bloqueio-chip'
 
 interface AgendaMonthViewProps {
   monthAgendaSummary: ReturnType<typeof useAgendaCalendar>['monthAgendaSummary']
   onSelectDay: (date: Date) => void
+  bloqueios?: AgendaBloqueio[]
+  bloqueiosProfissionais?: Array<{ id: string; nome: string }>
+  selectedProfessional?: string
 }
 
-export function AgendaMonthView({ monthAgendaSummary, onSelectDay }: AgendaMonthViewProps) {
+const MAX_BLOQUEIOS_POR_DIA = 2
+
+export function AgendaMonthView({
+  monthAgendaSummary,
+  onSelectDay,
+  bloqueios = [],
+  bloqueiosProfissionais = [],
+  selectedProfessional = 'todos',
+}: AgendaMonthViewProps) {
+  const profIdToNome = new Map(bloqueiosProfissionais.map((p) => [p.id, p.nome]))
   return (
     <div className="border border-app-border dark:border-app-border-dark rounded-integrallys overflow-hidden">
       <div className="grid grid-cols-7 bg-app-bg-secondary dark:bg-app-bg-dark/50 border-b border-app-border dark:border-app-border-dark">
@@ -23,7 +38,11 @@ export function AgendaMonthView({ monthAgendaSummary, onSelectDay }: AgendaMonth
       </div>
 
       <div className="grid grid-cols-7">
-        {monthAgendaSummary.map((day, index) => (
+        {monthAgendaSummary.map((day, index) => {
+          const bloqueiosDia = day.date
+            ? bloqueiosDoDia(bloqueios, isoDateLocal(day.date), selectedProfessional, profIdToNome)
+            : []
+          return (
           <button
             key={day.key}
             type="button"
@@ -58,6 +77,19 @@ export function AgendaMonthView({ monthAgendaSummary, onSelectDay }: AgendaMonth
                 </div>
 
                 <div className="mt-3 space-y-1.5">
+                  {bloqueiosDia.slice(0, MAX_BLOQUEIOS_POR_DIA).map((b) => (
+                    <BloqueioChip
+                      key={`bloq-${b.id}`}
+                      bloqueio={b}
+                      profissionalNome={b.profissionalId ? profIdToNome.get(b.profissionalId) : null}
+                      compacto
+                    />
+                  ))}
+                  {bloqueiosDia.length > MAX_BLOQUEIOS_POR_DIA && (
+                    <div className="text-xs text-app-text-muted">
+                      +{bloqueiosDia.length - MAX_BLOQUEIOS_POR_DIA} bloqueio(s)
+                    </div>
+                  )}
                   {day.count > 0 ? (
                     <>
                       {day.confirmed > 0 && (
@@ -88,7 +120,8 @@ export function AgendaMonthView({ monthAgendaSummary, onSelectDay }: AgendaMonth
               </>
             )}
           </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

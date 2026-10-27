@@ -14,6 +14,7 @@ import { resolveAgendamentoProcedimento } from '@/lib/agendamento-procedimento'
 import {
   resolvePagamentoAgendamentoInput,
 } from '@/lib/agendamento-pagamento'
+import { limparTagRetornoPendente } from '@/lib/retornos-server'
 import { addDaysIso, isTipoRetorno } from '@/lib/procedimento-retorno'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import {
@@ -886,6 +887,7 @@ export async function POST(request: NextRequest) {
       intervaloFallback: procResolved.data.intervaloRecorrenciaDias,
     })
 
+    if (isTipoRetorno(body.tipo)) await limparTagRetornoPendente(supabase, pacienteId)
     return listAgenda(session)
   }
 
@@ -941,6 +943,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
+  if (pacienteId && isTipoRetorno(body.tipo)) await limparTagRetornoPendente(supabase, pacienteId)
   return listAgenda(session)
 }
 
