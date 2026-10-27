@@ -45,6 +45,12 @@ export interface MovimentacaoEstoqueInput {
   numeroNf?: string
   cnpjEmitente?: string
   force?: boolean
+  /** Entrada manual (item 30): fornecedor do cadastro e dados da compra. */
+  fornecedorId?: string
+  dataNf?: string
+  precoCusto?: number
+  lote?: string
+  validade?: string
 }
 
 export interface MovimentacaoItem {

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/hooks/use-auth'
+import { useFornecedores } from '@/features/fornecedores/hooks/use-fornecedores'
 import type { EstoqueItem, MovimentacaoEstoqueInput } from '../hooks/use-estoque'
 import { EntradaXmlBody } from './importar-nf-xml-modal'
 
@@ -30,7 +31,7 @@ interface BodyProps {
 
 interface EntradaFormState {
   nf: string
-  fornecedor: string
+  fornecedorId: string
   data: string
   produtoId: string
   quantidade: number
@@ -41,7 +42,7 @@ interface EntradaFormState {
 
 const initialState: EntradaFormState = {
   nf: '',
-  fornecedor: '',
+  fornecedorId: '',
   data: new Date().toISOString().split('T')[0],
   produtoId: '',
   quantidade: 0,
@@ -53,6 +54,7 @@ const initialState: EntradaFormState = {
 function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
   const [form, setForm] = useState<EntradaFormState>(initialState)
   const [isSaving, setIsSaving] = useState(false)
+  const { data: fornecedores } = useFornecedores()
 
   const submit = async () => {
     if (!form.produtoId || form.quantidade <= 0) {
@@ -62,19 +64,15 @@ function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
 
     setIsSaving(true)
     try {
-      const observacoes = [
-        form.nf ? `Compra: ${form.nf}` : null,
-        form.fornecedor ? `Fornecedor: ${form.fornecedor}` : null,
-        form.data ? `Data: ${form.data}` : null,
-        form.precoCusto > 0 ? `Custo: R$ ${form.precoCusto.toFixed(2)}` : null,
-        form.lote ? `Lote: ${form.lote}` : null,
-        form.validade ? `Validade: ${form.validade}` : null,
-      ].filter(Boolean).join(' • ')
-
       await onConfirm({
         produtoId: form.produtoId,
         quantidade: form.quantidade,
-        observacoes: observacoes || undefined,
+        numeroNf: form.nf.trim() || undefined,
+        fornecedorId: form.fornecedorId || undefined,
+        dataNf: form.data || undefined,
+        precoCusto: form.precoCusto > 0 ? form.precoCusto : undefined,
+        lote: form.lote.trim() || undefined,
+        validade: form.validade || undefined,
       })
       onClose(false)
     } catch (err) {
@@ -89,15 +87,24 @@ function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="entrada-nf">Nº da compra</Label>
-            <Input id="entrada-nf" autoFocus value={form.nf} onChange={(event) => setForm((current) => ({ ...current, nf: event.target.value }))} placeholder="Número do documento" />
+            <Label htmlFor="entrada-nf">Nota fiscal</Label>
+            <Input id="entrada-nf" autoFocus value={form.nf} onChange={(event) => setForm((current) => ({ ...current, nf: event.target.value }))} placeholder="Número da nota fiscal" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entrada-fornecedor">Fornecedor</Label>
-            <Input id="entrada-fornecedor" value={form.fornecedor} onChange={(event) => setForm((current) => ({ ...current, fornecedor: event.target.value }))} placeholder="Fornecedor" />
+            <Select value={form.fornecedorId} onValueChange={(value) => setForm((current) => ({ ...current, fornecedorId: value }))}>
+              <SelectTrigger id="entrada-fornecedor">
+                <SelectValue preferPlaceholder placeholder={fornecedores.length ? 'Selecione o fornecedor' : 'Nenhum fornecedor cadastrado'} />
+              </SelectTrigger>
+              <SelectContent>
+                {fornecedores.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="entrada-data">Data</Label>
+            <Label htmlFor="entrada-data">Data da nota</Label>
             <DateInput id="entrada-data" value={form.data} onChange={(value) => setForm((current) => ({ ...current, data: value }))} />
           </div>
           <div className="space-y-1.5">

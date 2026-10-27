@@ -56,6 +56,45 @@ export async function estoqueAplicarMovimentacao(
   return asRpcResult(data, error)
 }
 
+export type EntradaEstoqueParams = {
+  produtoId: string
+  usuarioId: string
+  quantidade: number
+  numeroNf?: string | null
+  cnpjEmitente?: string | null
+  fornecedorId?: string | null
+  fornecedorNome?: string | null
+  dataNf?: string | null
+  precoCusto?: number | null
+  lote?: string | null
+  validade?: string | null
+  observacoes?: string | null
+  forceNf?: boolean
+}
+
+/** Entrada com NF/fornecedor/custo/lote/validade; atualiza o produto na mesma transação (migração 121). */
+export async function estoqueRegistrarEntrada(
+  supabase: SupabaseClient,
+  params: EntradaEstoqueParams,
+): Promise<EstoqueRpcResult> {
+  const { data, error } = await supabase.rpc('estoque_registrar_entrada', {
+    p_produto_id: params.produtoId,
+    p_usuario_id: params.usuarioId,
+    p_quantidade: params.quantidade,
+    p_numero_nf: params.numeroNf ?? null,
+    p_cnpj_emitente: params.cnpjEmitente ?? null,
+    p_fornecedor_id: params.fornecedorId ?? null,
+    p_fornecedor_nome: params.fornecedorNome ?? null,
+    p_data_nf: params.dataNf ?? null,
+    p_preco_custo: params.precoCusto ?? null,
+    p_lote: params.lote ?? null,
+    p_validade: params.validade ?? null,
+    p_observacoes: params.observacoes ?? null,
+    p_force_nf: params.forceNf === true,
+  })
+  return asRpcResult(data, error)
+}
+
 export async function estoqueEstornarMovimentacao(
   supabase: SupabaseClient,
   params: { movimentacaoId: string; usuarioId: string; motivo: string },
@@ -72,6 +111,7 @@ export function estoqueRpcHttpStatus(code: string): number {
   switch (code) {
     case 'PRODUCT_NOT_FOUND':
     case 'MOV_NOT_FOUND':
+    case 'SUPRIMENTO_NOT_FOUND':
       return 404
     case 'MOV_ALREADY_REVERSED':
     case 'NF_DUPLICADA':
