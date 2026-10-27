@@ -12,6 +12,7 @@ export interface ContaInputValue {
   nome: string
   tipo: ContaTipo
   banco: string | null
+  bancoId?: string
   agencia: string | null
   conta: string | null
   saldoInicial: number
@@ -48,6 +49,10 @@ export function validateContaInput(body: Record<string, unknown>): ContaInputRes
       tipo,
       // 'dinheiro' nunca persiste dados bancários, mesmo se vierem no body.
       banco: isDinheiro ? null : banco || null,
+      // Banco escolhido no cadastro de bancos (o nome é resolvido no servidor).
+      ...(!isDinheiro && typeof body.bancoId === 'string' && /^[0-9a-f-]{36}$/i.test(body.bancoId)
+        ? { bancoId: body.bancoId }
+        : {}),
       agencia: isDinheiro ? null : agencia || null,
       conta: isDinheiro ? null : conta || null,
       saldoInicial,

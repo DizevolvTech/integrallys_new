@@ -95,6 +95,7 @@ export function useDocumentTemplates() {
       slug: string
       nome: string
       tipo: DocumentoTipo
+      tipoDocumentoId?: string
       conteudo: TemplateConteudo
       /** Obrigatório pra master/admin (sem unidade no JWT); escopado ignora no backend. */
       unidadeId?: string

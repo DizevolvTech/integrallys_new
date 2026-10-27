@@ -130,12 +130,21 @@ export async function POST(request: NextRequest) {
   const scopedUnit = await getScopedUnitId(session)
   const unidadeId = scopedUnit.error ? null : scopedUnit.unidadeId
 
+  // Banco do cadastro: grava o vínculo e mantém o nome na conta (usado nas telas e no OFX).
+  let bancoNome = conta.banco
+  if (conta.bancoId) {
+    const { data: banco } = await supabase.from('bancos').select('nome').eq('id', conta.bancoId).maybeSingle()
+    if (!banco) return serverErrorResponse('Banco não encontrado no cadastro', 'BANCO_NOT_FOUND', 400)
+    bancoNome = String(banco.nome)
+  }
+
   const { data, error } = await supabase
     .from('contas_bancarias')
     .insert({
       unidade_id: unidadeId,
       nome: conta.nome,
-      banco: conta.banco,
+      banco: bancoNome,
+      banco_id: conta.bancoId ?? null,
       agencia: conta.agencia,
       conta: conta.conta,
       tipo: conta.tipo,

@@ -15,7 +15,7 @@ const TIPOS_VALIDOS = new Set([
 const SLUG_REGEX = /^[a-z0-9_]+$/
 
 const TEMPLATE_SELECT =
-  'id,unidade_id,slug,nome,tipo,conteudo,ativo,editavel_pelo_especialista,disponivel_portal_paciente,created_at,updated_at'
+  'id,unidade_id,slug,nome,tipo,tipo_documento_id,conteudo,ativo,editavel_pelo_especialista,disponivel_portal_paciente,created_at,updated_at'
 
 /**
  * Resolve a unidade de escrita:
@@ -145,7 +145,11 @@ export async function POST(request: NextRequest) {
 
   const slug = typeof body.slug === 'string' ? body.slug.trim().toLowerCase() : ''
   const nome = typeof body.nome === 'string' ? body.nome.trim() : ''
-  const tipo = typeof body.tipo === 'string' ? body.tipo : ''
+  let tipo = typeof body.tipo === 'string' ? body.tipo : ''
+  const tipoDocumentoId =
+    typeof body.tipoDocumentoId === 'string' && /^[0-9a-f-]{36}$/i.test(body.tipoDocumentoId)
+      ? body.tipoDocumentoId
+      : null
   const conteudo = body.conteudo && typeof body.conteudo === 'object' ? body.conteudo : null
 
   if (!slug || !SLUG_REGEX.test(slug)) {
@@ -170,9 +174,20 @@ export async function POST(request: NextRequest) {
   const { unidadeId } = resolved
 
   const supabase = getAppSupabase()
+  // Tipo escolhido no cadastro: o modelo base do tipo define como o documento é gerado.
+  if (tipoDocumentoId) {
+    const { data: tipoCadastro } = await supabase
+      .from('documento_tipos')
+      .select('base,ativo')
+      .eq('id', tipoDocumentoId)
+      .maybeSingle()
+    if (!tipoCadastro?.ativo) return serverErrorResponse('Tipo de documento inválido', 'INVALID_TIPO', 400)
+    tipo = String(tipoCadastro.base)
+  }
   const { data, error } = await supabase
     .from('documento_templates')
     .insert({
+      tipo_documento_id: tipoDocumentoId,
       unidade_id: unidadeId,
       slug,
       nome,
