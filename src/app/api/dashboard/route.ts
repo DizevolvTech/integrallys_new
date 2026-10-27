@@ -751,7 +751,7 @@ export async function GET(request: NextRequest) {
     ? {
         periodo: { de: perfFrom, ate: perfTo },
         ...calcularPerformance(perfAgendaResult.data ?? [], prescricoesPerf),
-        retornos: { limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
+        retornos: { noPrazo: retornosContagem.noPrazo, limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
       }
     : undefined
 
@@ -841,7 +841,7 @@ export async function GET(request: NextRequest) {
       notasEmitidas: { registrado: true, ...pedidosNf, aviso: '' },
       unidadesComparativo,
       prescricoesPendentes,
-      retornosPendentes: { limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
+      retornosPendentes: { noPrazo: retornosContagem.noPrazo, limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
       listaEsperaCount,
       estoqueCritico,
       topProcedimentos,
