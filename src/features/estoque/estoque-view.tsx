@@ -523,7 +523,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                       <p className="text-xl font-normal text-[var(--app-success-text)] mt-1">R$ {totalVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                     </Card>
                     <Card className="rounded-[16px] border-app-border dark:border-app-border-dark p-4">
-                      <p className="text-xs text-app-text-muted uppercase tracking-wider">Margem Total</p>
+                      <p className="text-xs text-app-text-muted uppercase tracking-wider">Margem Total (% sobre o custo)</p>
                       <p className="text-xl font-normal text-[var(--app-success-text)] mt-1">{formatarMargem(margem)}</p>
                     </Card>
                   </div>
@@ -568,7 +568,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="h-10 w-10 rounded-xl flex items-center justify-center text-app-text-muted hover:text-app-text-secondary hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors">
+                          <button type="button" className="h-10 w-10 rounded-xl flex items-center justify-center text-app-text-muted hover:text-app-text-secondary hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors">
                             <MoreVertical size={20} />
                           </button>
                         </DropdownMenuTrigger>
