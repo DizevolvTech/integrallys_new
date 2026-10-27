@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
 import type { ApiListResponse } from '@/types/api'
 
@@ -92,6 +92,9 @@ export function useEstoque() {
   const [isLoadingMovimentacoes, setIsLoadingMovimentacoes] = useState(false)
   const [movimentacoesError, setMovimentacoesError] = useState<string | null>(null)
 
+  const ultimosFiltros = useRef<MovimentacaoFiltros | undefined>(undefined)
+  const movimentacoesCarregadas = useRef(false)
+
   const load = async () => {
     setIsLoading(true)
     setError(null)
@@ -130,32 +133,27 @@ export function useEstoque() {
 
   const createProduto = async (payload: EstoqueInput) => {
     const response = await api.post<ApiListResponse<EstoqueItem>>('/api/estoque', payload)
-    setData(response.data)
-    return response.data
+    return aplicar(response.data)
   }
 
   const updateProduto = async (payload: EstoqueInput) => {
     const response = await api.put<ApiListResponse<EstoqueItem>>('/api/estoque', payload)
-    setData(response.data)
-    return response.data
+    return aplicar(response.data)
   }
 
   const deleteProduto = async (id: string) => {
     const response = await api.delete<ApiListResponse<EstoqueItem>>('/api/estoque', { id })
-    setData(response.data)
-    return response.data
+    return aplicar(response.data)
   }
 
   const registrarEntrada = async (payload: MovimentacaoEstoqueInput) => {
     const response = await api.post<ApiListResponse<EstoqueItem>>('/api/estoque', { action: 'entrada', ...payload })
-    setData(response.data)
-    return response.data
+    return aplicar(response.data)
   }
 
   const registrarSaida = async (payload: MovimentacaoEstoqueInput) => {
     const response = await api.post<ApiListResponse<EstoqueItem>>('/api/estoque', { action: 'saida', ...payload })
-    setData(response.data)
-    return response.data
+    return aplicar(response.data)
   }
 
   const estornarMovimentacao = async (movimentacaoId: string, motivo: string) => {
@@ -164,8 +162,7 @@ export function useEstoque() {
       movimentacaoId,
       motivo,
     })
-    setData(response.data)
-    return response.data
+    return aplicar(response.data)
   }
 
   const registrarAjuste = async (payload: {
@@ -177,12 +174,13 @@ export function useEstoque() {
       action: 'ajuste',
       ...payload,
     })
-    setData(response.data)
-    return response.data
+    return aplicar(response.data)
   }
 
   const loadMovimentacoes = useCallback(
     async (filtros?: MovimentacaoFiltros) => {
+      ultimosFiltros.current = filtros
+      movimentacoesCarregadas.current = true
       setIsLoadingMovimentacoes(true)
       setMovimentacoesError(null)
       try {
@@ -207,6 +205,16 @@ export function useEstoque() {
     },
     [api],
   )
+
+  // Depois de qualquer escrita: atualiza saldos e, se o histórico já foi aberto, recarrega
+  // a lista de movimentações com os mesmos filtros/página (sem precisar recarregar a página).
+  async function aplicar(itens: EstoqueItem[]) {
+    setData(itens)
+    if (movimentacoesCarregadas.current) {
+      await loadMovimentacoes(ultimosFiltros.current).catch(() => undefined)
+    }
+    return itens
+  }
 
   return {
     data,
