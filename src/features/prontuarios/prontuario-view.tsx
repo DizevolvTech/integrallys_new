@@ -123,7 +123,7 @@ function ProntuarioViewList() {
       )}
 
       <div className="overflow-hidden rounded-integrallys-lg border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
-        <div className="space-y-8 p-8">
+        <div className="space-y-8 p-4 md:p-8">
           <div className="flex items-center gap-3">
             <FileText className="h-6 w-6 text-app-text-primary dark:text-white" />
             <h2 className="text-xl font-normal tracking-tight text-app-text-primary dark:text-white">
@@ -147,7 +147,7 @@ function ProntuarioViewList() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="flex h-12 min-w-[180px] justify-between gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
+                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
                   >
                     <div className="flex items-center gap-3">
                       <Filter className="h-4 w-4 text-app-text-muted" />
@@ -169,7 +169,7 @@ function ProntuarioViewList() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="flex h-12 min-w-[180px] justify-between gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
+                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
                   >
                     <div className="flex items-center gap-3">
                       <Filter className="h-4 w-4 text-app-text-muted" />
@@ -202,7 +202,7 @@ function ProntuarioViewList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="[&_td]:px-2 [&_th]:px-2">
               <TableHeader>
                 <TableRow className="border-b border-app-border hover:bg-transparent dark:border-app-border-dark">
                   <TableHead className="px-6 py-4 font-normal text-app-text-muted">Paciente</TableHead>

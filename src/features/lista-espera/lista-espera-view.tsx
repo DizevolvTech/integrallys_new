@@ -420,7 +420,7 @@ export function ListaEsperaView() {
         </div>
 
         {isLoading ? (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow className="bg-transparent hover:bg-transparent border-b border-app-border dark:border-app-border-dark">

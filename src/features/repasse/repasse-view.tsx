@@ -8,6 +8,7 @@ import {
   type RepasseRuleItem,
   useRepasse,
 } from '@/features/repasse/hooks/use-repasse'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { DataTable } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
 import { SegmentedControl } from '@/components/shared/segmented-control'
@@ -213,6 +214,36 @@ export function RepasseView() {
     }
   }
 
+  const renderAcoes = (item: (typeof data)[number]) => (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg">
+                              <MoreVertical className="h-4 w-4 text-app-text-secondary" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            {!item.status.toLowerCase().includes('pago') && !item.status.toLowerCase().includes('cancel') && (
+                              <DropdownMenuItem onClick={() => { setSelectedRepasse(item); setIsEfetuarPagamentoOpen(true) }}>Efetuar pagamento</DropdownMenuItem>
+                            )}
+                            {item.status.toLowerCase().includes('pago') && (
+                              <DropdownMenuItem onClick={() => {
+                                const content = `RECIBO DE REPASSE\n\nProfissional: ${item.profissional}\nPeríodo: ${item.periodo}\nValor: ${formatCurrency(item.valor)}\nPago em: ${item.pagoEm || '-'}\n\nAssinatura: ___________________________`
+                                const w = window.open('', '_blank', 'width=400,height=500')
+                                if (w) { w.document.write(`<pre style="font-family:monospace;padding:24px;white-space:pre-wrap">${content}</pre>`); w.document.close(); w.print() }
+                              }}>Imprimir recibo</DropdownMenuItem>
+                            )}
+                            {!item.status.toLowerCase().includes('cancel') && (
+                              <DropdownMenuItem
+                                onClick={() => void handleCancelRepasse(item)}
+                                className="text-[var(--app-danger-text)] focus:text-[var(--app-danger-text)]"
+                              >
+                                Cancelar repasse
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+  )
+
   return (
     <div className="app-page app-page-loose">
       <PageHeader
@@ -298,7 +329,36 @@ export function RepasseView() {
           ) : (
             <DataTable data={data}>
               {(pageData) => (
-                <div className="overflow-x-auto">
+                <>
+                <ListaCartoesMobile>
+                  {pageData.map((item) => (
+                    <CartaoMobile
+                      key={item.id}
+                      titulo={item.profissional}
+                      subtitulo={`${item.tipoVinculo === 'parceiro' ? 'Parceiro' : 'Interno'} · ${item.unidade || 'Global'}`}
+                      valor={formatCurrency(item.valor)}
+                      selo={
+                        <Badge
+                          className={`rounded-full px-3 py-1 text-xs font-medium ${
+                            item.status.toLowerCase().includes('pago')
+                              ? 'app-status-success text-white'
+                              : item.status.toLowerCase().includes('cancel')
+                                ? 'bg-rose-500 text-white'
+                                : 'app-status-warning text-white'
+                          }`}
+                        >
+                          {item.status}
+                        </Badge>
+                      }
+                      acoes={renderAcoes(item)}
+                      campos={[
+                        { rotulo: 'Período', valor: item.periodo },
+                        { rotulo: 'Pago em', valor: item.pagoEm || '--' },
+                      ]}
+                    />
+                  ))}
+                </ListaCartoesMobile>
+                <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
                   <TableRow>
@@ -345,39 +405,14 @@ export function RepasseView() {
                       </TableCell>
                       <TableCell className="text-center text-app-text-secondary dark:text-white/70">{item.pagoEm || '--'}</TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg">
-                              <MoreVertical className="h-4 w-4 text-app-text-secondary" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            {!item.status.toLowerCase().includes('pago') && !item.status.toLowerCase().includes('cancel') && (
-                              <DropdownMenuItem onClick={() => { setSelectedRepasse(item); setIsEfetuarPagamentoOpen(true) }}>Efetuar pagamento</DropdownMenuItem>
-                            )}
-                            {item.status.toLowerCase().includes('pago') && (
-                              <DropdownMenuItem onClick={() => {
-                                const content = `RECIBO DE REPASSE\n\nProfissional: ${item.profissional}\nPeríodo: ${item.periodo}\nValor: ${formatCurrency(item.valor)}\nPago em: ${item.pagoEm || '-'}\n\nAssinatura: ___________________________`
-                                const w = window.open('', '_blank', 'width=400,height=500')
-                                if (w) { w.document.write(`<pre style="font-family:monospace;padding:24px;white-space:pre-wrap">${content}</pre>`); w.document.close(); w.print() }
-                              }}>Imprimir recibo</DropdownMenuItem>
-                            )}
-                            {!item.status.toLowerCase().includes('cancel') && (
-                              <DropdownMenuItem
-                                onClick={() => void handleCancelRepasse(item)}
-                                className="text-[var(--app-danger-text)] focus:text-[var(--app-danger-text)]"
-                              >
-                                Cancelar repasse
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {renderAcoes(item)}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
+                </>
               )}
             </DataTable>
           )}
