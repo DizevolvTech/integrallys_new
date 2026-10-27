@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Clock, Edit, Eye, FileText, MoreVertical, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
+import { Clock, Edit, Eye, FileText, MoreVertical, Plus, Receipt, Search, ShoppingCart, Trash2 } from 'lucide-react'
 import { usePrescricoes, type PrescricaoInput, type PrescricaoItem } from '@/hooks/use-prescricoes'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useUsuarios } from '@/hooks/use-usuarios'
@@ -35,11 +35,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { PageHeader } from '@/components/shared/page-header'
+import { ReciboModal } from '@/features/recibos'
+import { normalizarStatusPrescricao, type StatusPrescricao } from '@/lib/prescricao-status'
+import { formatarMargem } from '@/lib/margem'
 import {
   AgendarRetornoModal,
   DetalhesVendaModal,
   EditarPrescricaoModal,
   ExcluirPrescricaoModal,
+  CardDetalheModal,
   GerarVendaModal,
   NovaVendaModal,
 } from './modals'
@@ -58,12 +62,16 @@ interface PrescriptionRow extends PrescricaoItem {
     posology?: string
     unitPrice: number
     total: number
+    custoUnitario?: number
+    margem?: number
+    margemPercentual?: number
   }>
 }
 
 function statusClass(status: string) {
   const normalized = status.toLowerCase()
-  if (normalized.includes('ativa')) return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300'
+  if (normalized.includes('pendent')) return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300'
+  if (normalized.includes('ativ')) return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300'
   if (normalized.includes('venc')) return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300'
   return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300'
 }
@@ -82,6 +90,9 @@ function normalizePrescription(item: PrescricaoItem): PrescriptionRow {
       posology: line.posology,
       unitPrice: line.unitPrice,
       total: line.total,
+      custoUnitario: line.custoUnitario,
+      margem: line.margem,
+      margemPercentual: line.margemPercentual,
     })),
   }
 }
@@ -93,7 +104,7 @@ export function PrescricoesView() {
   const { data: usuarios } = useUsuarios()
   const { data: estoque } = useEstoque()
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'Ativa' | 'Vencida' | 'Convertida' | 'Cancelada'>('todos')
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'Pendente' | 'Ativa' | 'Vencida' | 'Convertida' | 'Cancelada'>('todos')
   const [tipoFilter, setTipoFilter] = useState<'todos' | 'Prescrição' | 'Venda' | 'Consumo'>('todos')
   const [validadeFilter, setValidadeFilter] = useState<'todos' | 'no-prazo' | 'limite-prazo' | 'vencida'>('todos')
   const [selectedPrescription, setSelectedPrescription] = useState<PrescriptionRow | null>(null)
@@ -104,8 +115,12 @@ export function PrescricoesView() {
   const [isDetalhesModalOpen, setIsDetalhesModalOpen] = useState(false)
   const [isAgendarRetornoModalOpen, setIsAgendarRetornoModalOpen] = useState(false)
   const [pendingReturns, setPendingReturns] = useState<string[]>([])
+  const [cardDetalhe, setCardDetalhe] = useState<'Ativa' | 'Vencida' | 'Convertida' | null>(null)
+  const [reciboVendaId, setReciboVendaId] = useState<string | null>(null)
 
   const prescriptions = useMemo(() => data.map(normalizePrescription), [data])
+  const statusDe = (item: PrescriptionRow): StatusPrescricao => normalizarStatusPrescricao(item.status)
+  const temMargem = prescriptions.some((item) => item.margemTotal !== undefined)
   const patientOptions = useMemo(
     () => pacientes.map((patient) => ({ id: patient.id, nome: patient.nome })),
     [pacientes],
@@ -139,7 +154,7 @@ export function PrescricoesView() {
   // Status do registro tem prioridade sobre o cálculo: prescrição "Vencida" no banco
   // é vencida, mesmo que a data ainda esteja no futuro (caso raro de fix manual).
   const getValidadeBucket = (item: PrescriptionRow): 'no-prazo' | 'limite-prazo' | 'vencida' | null => {
-    if (item.status === 'Vencida') return 'vencida'
+    if (statusDe(item) === 'Vencida') return 'vencida'
     if (item.validity === '-' || !item.validity) return null
     const parts = item.validity.split('/')
     if (parts.length !== 3) return null
@@ -162,7 +177,7 @@ export function PrescricoesView() {
         .includes(searchTerm.toLowerCase())
       if (!matchesSearch) return false
 
-      if (statusFilter !== 'todos' && item.status !== statusFilter) return false
+      if (statusFilter !== 'todos' && statusDe(item) !== statusFilter) return false
       if (tipoFilter !== 'todos' && item.type !== tipoFilter) return false
       if (validadeFilter !== 'todos') {
         const bucket = getValidadeBucket(item)
@@ -173,9 +188,9 @@ export function PrescricoesView() {
   }, [prescriptions, searchTerm, statusFilter, tipoFilter, validadeFilter])
 
   // CR-074 · 3 cards: Ativas / Vencidas / Concluídas com count + valor total.
-  const ativasList = useMemo(() => prescriptions.filter((item) => item.status === 'Ativa'), [prescriptions])
-  const vencidasList = useMemo(() => prescriptions.filter((item) => item.status === 'Vencida'), [prescriptions])
-  const concluidasList = useMemo(() => prescriptions.filter((item) => item.status === 'Convertida'), [prescriptions])
+  const ativasList = useMemo(() => prescriptions.filter((item) => statusDe(item) === 'Ativa'), [prescriptions])
+  const vencidasList = useMemo(() => prescriptions.filter((item) => statusDe(item) === 'Vencida'), [prescriptions])
+  const concluidasList = useMemo(() => prescriptions.filter((item) => statusDe(item) === 'Convertida'), [prescriptions])
 
   const ativasCount = ativasList.length
   const ativasTotal = ativasList.reduce((sum, item) => sum + item.valorTotal, 0)
@@ -184,9 +199,10 @@ export function PrescricoesView() {
   const concluidasCount = concluidasList.length
   const concluidasTotal = concluidasList.reduce((sum, item) => sum + item.valorTotal, 0)
 
-  const handleCardClick = (status: 'Ativa' | 'Vencida' | 'Convertida') => {
-    setStatusFilter((current) => (current === status ? 'todos' : status))
-  }
+  const cardLista = cardDetalhe === 'Ativa' ? ativasList : cardDetalhe === 'Vencida' ? vencidasList : cardDetalhe === 'Convertida' ? concluidasList : []
+  const cardTitulo = cardDetalhe === 'Ativa' ? 'Prescrições ativas' : cardDetalhe === 'Vencida' ? 'Prescrições vencidas' : 'Vendas concluídas'
+
+  const handleCardClick = (status: 'Ativa' | 'Vencida' | 'Convertida') => setCardDetalhe(status)
 
   const handleOpenVenda = (item: PrescriptionRow) => {
     setSelectedPrescription(item)
@@ -321,8 +337,31 @@ export function PrescricoesView() {
           createdAt: selectedPrescription.createdAt,
           totalValue: selectedPrescription.valorTotal,
           items: selectedPrescription.items,
+          custoTotal: selectedPrescription.custoTotal,
+          margemTotal: selectedPrescription.margemTotal,
+          margemPercentual: selectedPrescription.margemPercentual,
         } : null}
+        onEmitirRecibo={selectedPrescription && statusDe(selectedPrescription) === 'Convertida' ? () => setReciboVendaId(selectedPrescription.id) : undefined}
       />
+
+      <CardDetalheModal
+        isOpen={cardDetalhe !== null}
+        onClose={() => setCardDetalhe(null)}
+        titulo={cardTitulo}
+        linhas={cardLista.map((item) => ({ id: item.id, numero: item.numero, paciente: item.paciente, data: item.createdAt, valorTotal: item.valorTotal, margemTotal: item.margemTotal }))}
+        onAbrir={(id) => {
+          const alvo = prescriptions.find((p) => p.id === id)
+          if (!alvo) return
+          setCardDetalhe(null)
+          handleOpenDetalhes(alvo)
+        }}
+        onFiltrar={() => {
+          setStatusFilter(cardDetalhe ?? 'todos')
+          setCardDetalhe(null)
+        }}
+      />
+
+      <ReciboModal isOpen={reciboVendaId !== null} onClose={() => setReciboVendaId(null)} tipo="prescricao" origemId={reciboVendaId} />
 
       <ExcluirPrescricaoModal
         isOpen={isDeleteModalOpen}
@@ -455,6 +494,7 @@ export function PrescricoesView() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos status</SelectItem>
+                    <SelectItem value="Pendente">Pendente</SelectItem>
                     <SelectItem value="Ativa">Ativa</SelectItem>
                     <SelectItem value="Vencida">Vencida</SelectItem>
                     <SelectItem value="Convertida">Convertida</SelectItem>
@@ -549,6 +589,8 @@ export function PrescricoesView() {
                           <TableHead className="pl-8 font-normal text-app-text-secondary dark:text-white/80 h-14">Número</TableHead>
                           <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Paciente</TableHead>
                           <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Valor total</TableHead>
+                          {temMargem && <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Custo</TableHead>}
+                          {temMargem && <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Margem</TableHead>}
                           <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Tipo</TableHead>
                           <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Status</TableHead>
                           <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Fato gerador</TableHead>
@@ -579,6 +621,16 @@ export function PrescricoesView() {
                             <TableCell className="text-right font-normal text-app-text-primary dark:text-white">
                               R$ {item.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </TableCell>
+                            {temMargem && (
+                              <TableCell className="text-right text-app-text-secondary dark:text-white/80">
+                                {item.custoTotal !== undefined ? `R$ ${item.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                              </TableCell>
+                            )}
+                            {temMargem && (
+                              <TableCell className="text-right text-[var(--app-success-text)]">
+                                {item.margemTotal !== undefined ? formatarMargem({ valor: item.margemTotal, percentual: item.margemPercentual ?? null }) : '—'}
+                              </TableCell>
+                            )}
                             <TableCell>
                               <Badge variant="outline" className="bg-app-bg-secondary dark:bg-app-hover border-app-border dark:border-app-border-dark text-app-text-secondary dark:text-white/80 font-normal rounded-lg px-3 py-1">
                                 {item.type}
@@ -604,7 +656,7 @@ export function PrescricoesView() {
                                   <Eye size={18} />
                                 </Button>
 
-                                {item.status !== 'Convertida' && (
+                                {statusDe(item) !== 'Convertida' && statusDe(item) !== 'Cancelada' && (
                                   <Button
                                     onClick={() => handleOpenVenda(item)}
                                     variant="ghost"
@@ -615,6 +667,19 @@ export function PrescricoesView() {
                                   </Button>
                                 )}
 
+                                {statusDe(item) === 'Convertida' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setReciboVendaId(item.id)}
+                                    className="h-9 w-9 text-app-text-muted hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors"
+                                    title="Emitir recibo ou NF"
+                                    aria-label="Emitir recibo ou NF"
+                                  >
+                                    <Receipt size={18} />
+                                  </Button>
+                                )}
+
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-9 w-9 text-app-text-muted hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors">
@@ -622,19 +687,19 @@ export function PrescricoesView() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" className="w-48 rounded-xl">
-                                    {item.status !== 'Convertida' && item.status !== 'Cancelada' && (
+                                    {statusDe(item) !== 'Convertida' && statusDe(item) !== 'Cancelada' && (
                                       <DropdownMenuItem onClick={() => handleOpenEdit(item)} className="flex items-center gap-2 cursor-pointer">
                                         <Edit size={16} />
                                         Editar Prescrição/Vendas
                                       </DropdownMenuItem>
                                     )}
-                                    {item.status !== 'Convertida' && item.status !== 'Cancelada' && (
+                                    {statusDe(item) !== 'Convertida' && statusDe(item) !== 'Cancelada' && (
                                       <DropdownMenuItem onClick={() => handleOpenDelete(item)} className="flex items-center gap-2 cursor-pointer text-[var(--app-danger-text)] focus:text-[var(--app-danger-text)]">
                                         <Trash2 size={16} />
                                         Excluir Prescrição/Vendas
                                       </DropdownMenuItem>
                                     )}
-                                    {(item.status === 'Convertida' || item.status === 'Cancelada') && (
+                                    {(statusDe(item) === 'Convertida' || statusDe(item) === 'Cancelada') && (
                                       <DropdownMenuItem onClick={() => handleOpenDetalhes(item)} className="flex items-center gap-2 cursor-pointer">
                                         <Eye size={16} />
                                         Ver detalhes

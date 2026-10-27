@@ -13,6 +13,11 @@ export interface PrescricaoItemLine {
   posology?: string
   unitPrice: number
   total: number
+  /** Só gestor/admin/master: a API omite estes campos para os demais perfis. */
+  custoUnitario?: number
+  custoTotal?: number
+  margem?: number
+  margemPercentual?: number
 }
 
 export interface PrescricaoItemInput {
@@ -49,6 +54,10 @@ export interface PrescricaoItem {
    * campos de valor vêm `undefined` — não exibir bloco de preço.
    */
   valoresOcultos?: boolean
+  /** Só gestor/admin/master (decidido no servidor). */
+  custoTotal?: number
+  margemTotal?: number
+  margemPercentual?: number
 }
 
 export interface PrescricaoInput {

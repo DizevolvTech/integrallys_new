@@ -6,6 +6,9 @@
 alter table public.prescricao_itens
   add column if not exists custo_unitario numeric(12,2) null check (custo_unitario is null or custo_unitario >= 0);
 
+-- Forma de pagamento da venda (o recibo mostra como foi paga).
+alter table public.prescricoes add column if not exists forma_pagamento text null;
+
 create table if not exists public.pedidos_nf (
   id uuid primary key default gen_random_uuid(),
   origem text not null check (origem in ('prescricao', 'agendamento')),

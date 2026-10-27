@@ -1,5 +1,6 @@
 'use client'
 
+import { ReciboModal } from '@/features/recibos'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -105,6 +106,7 @@ export function AgendaView() {
   const [selectedProfessional, setSelectedProfessional] = useState('todos')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPersonalSlot, setSelectedPersonalSlot] = useState<AgendaSlot | null>(null)
+  const [reciboAgendamentoId, setReciboAgendamentoId] = useState<string | null>(null)
   const [activeAtendimento, setActiveAtendimento] = useState<{
     patientName: string
     id: string
@@ -1074,6 +1076,7 @@ export function AgendaView() {
                 showDaySlots={showDaySlots}
                 onOpenSlotModal={actions.openSlotModal}
                 onOpenCharge={actions.handleOpenCharge}
+                onOpenRecibo={(slot) => setReciboAgendamentoId(slot.id)}
                 onCallSpecialist={(slot) => actions.openSlotModal('chamar-especialista', slot)}
                 onStatusChange={actions.handleStatusChange}
                 onRemoveBloqueio={async (bloqueio) => {
@@ -1683,6 +1686,8 @@ export function AgendaView() {
           actions.setActiveModal(null)
         }}
       />
+
+      <ReciboModal isOpen={reciboAgendamentoId !== null} onClose={() => setReciboAgendamentoId(null)} tipo="agendamento" origemId={reciboAgendamentoId} />
     </div>
   )
 }
