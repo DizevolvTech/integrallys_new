@@ -2,6 +2,7 @@
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { formatarMoeda } from '@/lib/moeda'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export interface CardDetalheLinha {
@@ -23,7 +24,7 @@ interface CardDetalheModalProps {
   onFiltrar: () => void
 }
 
-const reais = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const reais = formatarMoeda
 
 /** Detalhe do card (Ativas, Vencidas, Concluídas): lista os registros e abre cada um. */
 export function CardDetalheModal({ isOpen, onClose, titulo, linhas, onAbrir, onFiltrar }: CardDetalheModalProps) {

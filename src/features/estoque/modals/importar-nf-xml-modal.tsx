@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/table'
 import { ApiClientError } from '@/lib/api-client'
 import { useEstoque, type EstoqueItem, type MovimentacaoEstoqueInput } from '../hooks/use-estoque'
+import { formatarMoeda } from '@/lib/moeda'
 
 interface BodyProps {
   items: EstoqueItem[]
@@ -282,7 +283,7 @@ export function EntradaXmlBody({ items, onConfirm, onClose }: BodyProps) {
         header?.cnpjEmitente ? `CNPJ: ${header.cnpjEmitente}` : null,
         header?.dataEmissao ? `Data: ${header.dataEmissao}` : null,
         produto.unidade ? `Un: ${produto.unidade}` : null,
-        produto.valorUnitario > 0 ? `Custo: R$ ${produto.valorUnitario.toFixed(2)}` : null,
+        produto.valorUnitario > 0 ? `Custo: ${formatarMoeda(produto.valorUnitario)}` : null,
         produto.lote ? `Lote: ${produto.lote}` : null,
         produto.dataFabricacao ? `Fabricação: ${produto.dataFabricacao}` : null,
         produto.validade ? `Validade: ${produto.validade}` : null,

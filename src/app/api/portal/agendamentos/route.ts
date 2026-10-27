@@ -1,3 +1,4 @@
+import { formatarMoeda } from '@/lib/moeda'
 import { NextResponse, type NextRequest } from 'next/server'
 import { buildOccupyUpdate, ocuparSlotDisponivel } from '@/app/api/agenda/agenda-slot'
 import { getAppSupabase, getEntityNameMap, getPacienteIdByUserId, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
   const occupyBody: Record<string, unknown> = {
     tipo: procedureName ? String(procedureName) : 'Consulta',
     observacoes: procedureName
-      ? `${String(procedureName)}${procedurePrice > 0 ? ` • R$ ${procedurePrice.toFixed(2)}` : ''}`
+      ? `${String(procedureName)}${procedurePrice > 0 ? ` • ${formatarMoeda(procedurePrice)}` : ''}`
       : null,
     valorProcedimento: procedurePrice > 0 ? procedurePrice : null,
     modalidade: 'Presencial',

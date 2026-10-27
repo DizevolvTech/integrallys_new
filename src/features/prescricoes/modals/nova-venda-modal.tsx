@@ -36,6 +36,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import type { PrescricaoInput, PrescricaoItemInput } from '@/hooks/use-prescricoes'
 import { usePaymentConfig, DEFAULT_PAYMENT_DISCOUNTS } from '@/features/prescricoes/hooks/use-payment-config'
+import { formatarMoeda } from '@/lib/moeda'
 
 export interface NovaVendaModalProduct {
   id: string
@@ -415,7 +416,7 @@ export function NovaVendaModal({
                             <SelectItem key={p.id} value={p.id} className="cursor-pointer">
                               <span className="font-medium mr-2">{p.name}</span>
                               <span className="text-app-text-secondary dark:text-white/60 text-sm">
-                                (Estoque: {p.stock}) - R$ {(isConsumo ? p.costPrice : p.price).toFixed(2)}
+                                (Estoque: {p.stock}) - {formatarMoeda(isConsumo ? p.costPrice : p.price)}
                               </span>
                             </SelectItem>
                           ))}
@@ -441,7 +442,7 @@ export function NovaVendaModal({
                         Unitário
                       </Label>
                       <div className="h-12 flex items-center justify-center bg-app-bg-secondary dark:bg-app-hover rounded-xl text-base font-bold text-app-text-primary dark:text-white/70 whitespace-nowrap">
-                        R$ {(isConsumo ? selectedProductDetails?.costPrice : selectedProductDetails?.price)?.toFixed(2) || '0.00'}
+                        {formatarMoeda(isConsumo ? selectedProductDetails?.costPrice : selectedProductDetails?.price)}
                       </div>
                     </div>
 
@@ -529,7 +530,7 @@ export function NovaVendaModal({
                               {item.posology || '-'}
                             </TableCell>
                             <TableCell className="text-right py-5 text-app-text-secondary dark:text-white/60 font-medium">
-                              R$ {(isConsumo ? item.costPrice : item.salePrice).toFixed(2)}
+                              {formatarMoeda(isConsumo ? item.costPrice : item.salePrice)}
                             </TableCell>
                             <TableCell className="text-right pr-6 py-5 font-bold text-app-primary dark:text-[var(--app-info-text)] text-base">
                               R$ {((isConsumo ? item.costPrice : item.salePrice) * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

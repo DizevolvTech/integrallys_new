@@ -39,7 +39,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { PageHeader } from '@/components/shared/page-header'
 import { ReciboModal } from '@/features/recibos'
-import { normalizarStatusPrescricao, type StatusPrescricao } from '@/lib/prescricao-status'
+import { classificarPrescricao, normalizarStatusPrescricao, type StatusPrescricao } from '@/lib/prescricao-status'
+import { formatarMoeda } from '@/lib/moeda'
+import { hojeIso } from '@/features/relatorios/format'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { formatarMargem } from '@/lib/margem'
 import {
   AgendarRetornoModal,
@@ -102,6 +105,8 @@ function normalizePrescription(item: PrescricaoItem): PrescriptionRow {
 }
 
 const statusDe = (item: PrescriptionRow): StatusPrescricao => normalizarStatusPrescricao(item.status)
+const classeDe = (item: PrescriptionRow) => classificarPrescricao(item.status, item.validity, hojeIso())
+const CABECALHO = 'font-normal text-app-text-secondary dark:text-white/80'
 
 export function PrescricoesView() {
   const router = useRouter()
@@ -183,7 +188,9 @@ export function PrescricoesView() {
         .includes(searchTerm.toLowerCase())
       if (!matchesSearch) return false
 
-      if (statusFilter !== 'todos' && statusDe(item) !== statusFilter) return false
+      if (statusFilter === 'Ativa' || statusFilter === 'Vencida') {
+        if (classeDe(item) !== (statusFilter === 'Ativa' ? 'ativa' : 'vencida')) return false
+      } else if (statusFilter !== 'todos' && statusDe(item) !== statusFilter) return false
       if (tipoFilter !== 'todos' && item.type !== tipoFilter) return false
       if (validadeFilter !== 'todos') {
         const bucket = getValidadeBucket(item)
@@ -194,9 +201,10 @@ export function PrescricoesView() {
   }, [prescriptions, searchTerm, statusFilter, tipoFilter, validadeFilter])
 
   // CR-074 · 3 cards: Ativas / Vencidas / Concluídas com count + valor total.
-  const ativasList = useMemo(() => prescriptions.filter((item) => statusDe(item) === 'Ativa'), [prescriptions])
-  const vencidasList = useMemo(() => prescriptions.filter((item) => statusDe(item) === 'Vencida'), [prescriptions])
-  const concluidasList = useMemo(() => prescriptions.filter((item) => statusDe(item) === 'Convertida'), [prescriptions])
+  // Regra única (mesma dos Relatórios > Prescrição): ver classificarPrescricao.
+  const ativasList = useMemo(() => prescriptions.filter((item) => classeDe(item) === 'ativa'), [prescriptions])
+  const vencidasList = useMemo(() => prescriptions.filter((item) => classeDe(item) === 'vencida'), [prescriptions])
+  const concluidasList = useMemo(() => prescriptions.filter((item) => classeDe(item) === 'concluida'), [prescriptions])
 
   const ativasCount = ativasList.length
   const ativasTotal = ativasList.reduce((sum, item) => sum + item.valorTotal, 0)
@@ -265,6 +273,56 @@ export function PrescricoesView() {
     toast.success('Prescrição/Vendas convertida com sucesso.')
     setIsVendaModalOpen(false)
     setTimeout(() => setIsAgendarRetornoModalOpen(true), 200)
+  }
+
+  const renderAcoes = (item: PrescriptionRow) => {
+    const status = statusDe(item)
+    const aberta = status !== 'Convertida' && status !== 'Cancelada'
+    const botao = 'h-9 w-9 text-app-text-muted hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors'
+    return (
+      <div className="flex items-center justify-center gap-1">
+        <Button variant="ghost" size="icon" onClick={() => handleOpenDetalhes(item)} className={botao} aria-label="Ver detalhes">
+          <Eye size={18} />
+        </Button>
+        {aberta && (
+          <Button onClick={() => handleOpenVenda(item)} variant="ghost" size="icon" className={botao} aria-label="Gerar venda">
+            <ShoppingCart size={18} />
+          </Button>
+        )}
+        {status === 'Convertida' && (
+          <Button variant="ghost" size="icon" onClick={() => setReciboVendaId(item.id)} className={botao} title="Emitir recibo ou NF" aria-label="Emitir recibo ou NF">
+            <Receipt size={18} />
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className={botao} aria-label="Mais ações">
+              <MoreVertical size={18} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48 rounded-xl">
+            {aberta && (
+              <DropdownMenuItem onClick={() => handleOpenEdit(item)} className="flex items-center gap-2 cursor-pointer">
+                <Edit size={16} />
+                Editar Prescrição/Vendas
+              </DropdownMenuItem>
+            )}
+            {aberta && (
+              <DropdownMenuItem onClick={() => handleOpenDelete(item)} className="flex items-center gap-2 cursor-pointer text-[var(--app-danger-text)] focus:text-[var(--app-danger-text)]">
+                <Trash2 size={16} />
+                Excluir Prescrição/Vendas
+              </DropdownMenuItem>
+            )}
+            {!aberta && (
+              <DropdownMenuItem onClick={() => handleOpenDetalhes(item)} className="flex items-center gap-2 cursor-pointer">
+                <Eye size={16} />
+                Ver detalhes
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    )
   }
 
   return (
@@ -417,7 +475,7 @@ export function PrescricoesView() {
                 <p className="text-sm font-normal text-app-text-secondary dark:text-white/60">Ativas</p>
                 <h2 className="text-3xl md:text-4xl font-normal text-[var(--app-success-text)]">{ativasCount}</h2>
                 <p className="text-xs text-app-text-muted">
-                  R$ {ativasTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {formatarMoeda(ativasTotal)}
                 </p>
               </div>
               <FileText size={32} className="text-[var(--app-success-text)]" />
@@ -443,7 +501,7 @@ export function PrescricoesView() {
                 <p className="text-sm font-normal text-app-text-secondary dark:text-white/60">Vencidas</p>
                 <h2 className="text-3xl md:text-4xl font-normal text-[var(--app-warning-text)]">{vencidasCount}</h2>
                 <p className="text-xs text-app-text-muted">
-                  R$ {vencidasTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {formatarMoeda(vencidasTotal)}
                 </p>
               </div>
               <Clock size={32} className="text-[var(--app-warning-text)]" />
@@ -469,7 +527,7 @@ export function PrescricoesView() {
                 <p className="text-sm font-normal text-app-text-secondary dark:text-white/60">Concluídas</p>
                 <h2 className="text-3xl md:text-4xl font-normal text-[var(--app-info-text)]">{concluidasCount}</h2>
                 <p className="text-xs text-app-text-muted">
-                  R$ {concluidasTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {formatarMoeda(concluidasTotal)}
                 </p>
               </div>
               <FileText size={32} className="text-[var(--app-info-text)]" />
@@ -544,189 +602,113 @@ export function PrescricoesView() {
 
           <div className="rounded-[18px] border border-app-border/60 dark:border-app-border-dark/60 overflow-hidden">
             {isLoading ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent border-app-border dark:border-app-border-dark">
-                      <TableHead className="pl-8 font-normal text-app-text-secondary dark:text-white/80 h-14">Data de criação</TableHead>
-                      <TableHead className="pl-8 font-normal text-app-text-secondary dark:text-white/80 h-14">Número</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Paciente</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Valor total</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Tipo</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Status</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Fato gerador</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Validade</TableHead>
-                      <TableHead className="text-center pr-8 font-normal text-app-text-secondary dark:text-white/80">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={9} className="py-12 text-center text-app-text-secondary dark:text-white/60">
-                        Carregando prescrições...
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
+              <p className="py-12 text-center text-app-text-secondary dark:text-white/60">Carregando prescrições...</p>
             ) : filteredPrescriptions.length === 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent border-app-border dark:border-app-border-dark">
-                      <TableHead className="pl-8 font-normal text-app-text-secondary dark:text-white/80 h-14">Data de criação</TableHead>
-                      <TableHead className="pl-8 font-normal text-app-text-secondary dark:text-white/80 h-14">Número</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Paciente</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Valor total</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Tipo</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Status</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Fato gerador</TableHead>
-                      <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Validade</TableHead>
-                      <TableHead className="text-center pr-8 font-normal text-app-text-secondary dark:text-white/80">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={9} className="py-12 text-center text-app-text-secondary dark:text-white/60">
-                        Nenhuma prescrição encontrada.
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
+              <p className="py-12 text-center text-app-text-secondary dark:text-white/60">Nenhuma prescrição encontrada.</p>
             ) : (
               <DataTable data={filteredPrescriptions}>
                 {(pageData) => (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-app-border dark:border-app-border-dark">
-                          <TableHead className="pl-8 font-normal text-app-text-secondary dark:text-white/80 h-14">Data de criação</TableHead>
-                          <TableHead className="pl-8 font-normal text-app-text-secondary dark:text-white/80 h-14">Número</TableHead>
-                          <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Paciente</TableHead>
-                          <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Valor total</TableHead>
-                          {temMargem && <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Custo</TableHead>}
-                          {temMargem && <TableHead className="font-normal text-app-text-secondary dark:text-white/80 text-right">Margem</TableHead>}
-                          <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Tipo</TableHead>
-                          <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Status</TableHead>
-                          <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Fato gerador</TableHead>
-                          <TableHead className="font-normal text-app-text-secondary dark:text-white/80">Validade</TableHead>
-                          <TableHead className="text-center pr-8 font-normal text-app-text-secondary dark:text-white/80">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pageData.map((item) => (
-                          <TableRow key={item.id} className="hover:bg-app-bg-secondary/50 dark:hover:bg-app-hover transition-colors border-app-border dark:border-app-border-dark">
-                            <TableCell className="pl-8 py-4 text-app-text-secondary dark:text-white/80 font-normal">{item.createdAt}</TableCell>
-                            <TableCell className="pl-8 py-4">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDetalhes(item)}
-                                className="font-normal text-app-primary dark:text-[var(--app-info-text)] uppercase hover:underline"
-                                title="Abrir detalhamento"
-                              >
+                  <>
+                    <ListaCartoesMobile>
+                      {pageData.map((item) => (
+                        <CartaoMobile
+                          key={item.id}
+                          titulo={
+                            <>
+                              <button type="button" onClick={() => handleOpenDetalhes(item)} className="font-medium uppercase text-app-primary hover:underline dark:text-[var(--app-info-text)]">
                                 {item.numero}
-                              </button>
-                            </TableCell>
-                            <TableCell>
-                              <div className="space-y-0.5">
+                              </button>{' '}
+                              · {item.paciente}
+                            </>
+                          }
+                          subtitulo={`${item.type} · criada em ${item.createdAt}`}
+                          valor={formatarMoeda(item.valorTotal)}
+                          selo={
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`inline-flex min-h-7 items-center rounded-full border px-3 py-0.5 text-xs font-medium ${statusClass(item.status)}`}>{item.status}</span>
+                              {item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) && <RetornoPendenteBadge />}
+                            </div>
+                          }
+                          acoes={renderAcoes(item)}
+                          campos={[
+                            { rotulo: 'Validade', valor: item.validity },
+                            { rotulo: 'Fato gerador', valor: item.generator },
+                            ...(temMargem && item.custoTotal !== undefined ? [{ rotulo: 'Custo', valor: formatarMoeda(item.custoTotal) }] : []),
+                            ...(temMargem && item.margemTotal !== undefined
+                              ? [{ rotulo: 'Margem', valor: formatarMargem({ valor: item.margemTotal, percentual: item.margemPercentual ?? null }) }]
+                              : []),
+                          ]}
+                        />
+                      ))}
+                    </ListaCartoesMobile>
+                    <div className="hidden w-full md:block">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent border-app-border dark:border-app-border-dark">
+                            <TableHead className={`${CABECALHO} pl-4 h-14`}>Número</TableHead>
+                            <TableHead className={CABECALHO}>Paciente</TableHead>
+                            <TableHead className={`${CABECALHO} text-right`}>Valor total</TableHead>
+                            {temMargem && <TableHead className={`${CABECALHO} text-right`}>Custo</TableHead>}
+                            {temMargem && <TableHead className={`${CABECALHO} text-right`}>Margem</TableHead>}
+                            <TableHead className={CABECALHO}>Tipo</TableHead>
+                            <TableHead className={CABECALHO}>Status</TableHead>
+                            <TableHead className={CABECALHO}>Validade</TableHead>
+                            <TableHead className={`${CABECALHO} pr-4 text-center`}>Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pageData.map((item) => (
+                            <TableRow key={item.id} className="hover:bg-app-bg-secondary/50 dark:hover:bg-app-hover transition-colors border-app-border dark:border-app-border-dark">
+                              <TableCell className="pl-4 py-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDetalhes(item)}
+                                  className="font-normal text-app-primary dark:text-[var(--app-info-text)] uppercase hover:underline"
+                                  title="Abrir detalhamento"
+                                >
+                                  {item.numero}
+                                </button>
+                                <p className="text-xs text-app-text-secondary dark:text-white/60">{item.createdAt}</p>
+                              </TableCell>
+                              <TableCell>
                                 <p className="font-normal text-app-text-primary dark:text-white/90">{item.paciente}</p>
                                 <p className="text-xs text-app-text-secondary dark:text-white/60 font-normal">{item.specialistName}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-normal text-app-text-primary dark:text-white">
-                              R$ {item.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </TableCell>
-                            {temMargem && (
-                              <TableCell className="text-right text-app-text-secondary dark:text-white/80">
-                                {item.custoTotal !== undefined ? `R$ ${item.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
                               </TableCell>
-                            )}
-                            {temMargem && (
-                              <TableCell className="text-right text-[var(--app-success-text)]">
-                                {item.margemTotal !== undefined ? formatarMargem({ valor: item.margemTotal, percentual: item.margemPercentual ?? null }) : '—'}
+                              <TableCell className="whitespace-nowrap text-right font-normal text-app-text-primary dark:text-white">
+                                {formatarMoeda(item.valorTotal)}
                               </TableCell>
-                            )}
-                            <TableCell>
-                              <Badge variant="outline" className="bg-app-bg-secondary dark:bg-app-hover border-app-border dark:border-app-border-dark text-app-text-secondary dark:text-white/80 font-normal rounded-lg px-3 py-1">
-                                {item.type}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col gap-2 items-start">
-                                <span className={`inline-flex min-h-8 items-center rounded-full border px-3.5 py-1 text-xs font-medium shadow-sm ${statusClass(item.status)}`}>
-                                  {item.status}
-                                </span>
-                                {item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) && (
-                                  <RetornoPendenteBadge />
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">{item.generator}</TableCell>
-                            <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">{item.validity}</TableCell>
-                            <TableCell className="text-center pr-8">
-                              <div className="flex items-center justify-center gap-1">
-                                <Button variant="ghost" size="icon" onClick={() => handleOpenDetalhes(item)} className="h-9 w-9 text-app-text-muted hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors">
-                                  <Eye size={18} />
-                                </Button>
-
-                                {statusDe(item) !== 'Convertida' && statusDe(item) !== 'Cancelada' && (
-                                  <Button
-                                    onClick={() => handleOpenVenda(item)}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-9 w-9 text-app-text-muted hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors"
-                                  >
-                                    <ShoppingCart size={18} />
-                                  </Button>
-                                )}
-
-                                {statusDe(item) === 'Convertida' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setReciboVendaId(item.id)}
-                                    className="h-9 w-9 text-app-text-muted hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors"
-                                    title="Emitir recibo ou NF"
-                                    aria-label="Emitir recibo ou NF"
-                                  >
-                                    <Receipt size={18} />
-                                  </Button>
-                                )}
-
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-app-text-muted hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors">
-                                      <MoreVertical size={18} />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-48 rounded-xl">
-                                    {statusDe(item) !== 'Convertida' && statusDe(item) !== 'Cancelada' && (
-                                      <DropdownMenuItem onClick={() => handleOpenEdit(item)} className="flex items-center gap-2 cursor-pointer">
-                                        <Edit size={16} />
-                                        Editar Prescrição/Vendas
-                                      </DropdownMenuItem>
-                                    )}
-                                    {statusDe(item) !== 'Convertida' && statusDe(item) !== 'Cancelada' && (
-                                      <DropdownMenuItem onClick={() => handleOpenDelete(item)} className="flex items-center gap-2 cursor-pointer text-[var(--app-danger-text)] focus:text-[var(--app-danger-text)]">
-                                        <Trash2 size={16} />
-                                        Excluir Prescrição/Vendas
-                                      </DropdownMenuItem>
-                                    )}
-                                    {(statusDe(item) === 'Convertida' || statusDe(item) === 'Cancelada') && (
-                                      <DropdownMenuItem onClick={() => handleOpenDetalhes(item)} className="flex items-center gap-2 cursor-pointer">
-                                        <Eye size={16} />
-                                        Ver detalhes
-                                      </DropdownMenuItem>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                              {temMargem && (
+                                <TableCell className="whitespace-nowrap text-right text-app-text-secondary dark:text-white/80">
+                                  {item.custoTotal !== undefined ? formatarMoeda(item.custoTotal) : '—'}
+                                </TableCell>
+                              )}
+                              {temMargem && (
+                                <TableCell className="text-right text-[var(--app-success-text)]">
+                                  {item.margemTotal !== undefined ? formatarMargem({ valor: item.margemTotal, percentual: item.margemPercentual ?? null }) : '—'}
+                                </TableCell>
+                              )}
+                              <TableCell>
+                                <Badge variant="outline" className="bg-app-bg-secondary dark:bg-app-hover border-app-border dark:border-app-border-dark text-app-text-secondary dark:text-white/80 font-normal rounded-lg px-3 py-1">
+                                  {item.type}
+                                </Badge>
+                                <p className="mt-1 text-xs text-app-text-secondary dark:text-white/60">{item.generator}</p>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col gap-2 items-start">
+                                  <span className={`inline-flex min-h-8 items-center rounded-full border px-3.5 py-1 text-xs font-medium shadow-sm ${statusClass(item.status)}`}>
+                                    {item.status}
+                                  </span>
+                                  {item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) && <RetornoPendenteBadge />}
+                                </div>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-app-text-secondary dark:text-white/60 font-normal">{item.validity}</TableCell>
+                              <TableCell className="text-center pr-4">{renderAcoes(item)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
                 )}
               </DataTable>
             )}
