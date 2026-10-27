@@ -9,12 +9,30 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useAuth } from '@/hooks/use-auth'
 import { useUsuarios } from '@/hooks/use-usuarios'
 import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
-import { ROTULO_SITUACAO_RETORNO, SITUACOES_RETORNO, type SituacaoRetorno } from '@/lib/retorno-prazo'
+import {
+  ROTULO_SITUACAO_RETORNO,
+  SITUACOES_RETORNO,
+  type SituacaoRetorno,
+} from '@/lib/retorno-prazo'
 import type { RetornoItem } from '@/types/retorno'
 import { useRetornos, type RetornosFiltros } from './hooks/use-retornos'
 
@@ -175,59 +193,95 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
             description="Os retornos definidos no fim do atendimento aparecem aqui até serem agendados."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Últimos procedimentos</TableHead>
-                  <TableHead>Especialista</TableHead>
-                  <TableHead>Retorno previsto</TableHead>
-                  <TableHead>Situação</TableHead>
-                  <TableHead className="text-right">Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="whitespace-nowrap">{item.data}</TableCell>
-                    <TableCell>{item.paciente}</TableCell>
-                    <TableCell>
-                      {item.ultimosProcedimentos.length === 0 ? (
-                        <span className="text-app-text-muted">—</span>
-                      ) : (
-                        <ul className="space-y-0.5 text-xs">
-                          {item.ultimosProcedimentos.map((p) => (
-                            <li key={`${p.data}-${p.nome}`}>
-                              {p.nome} <span className="text-app-text-muted">({p.data})</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </TableCell>
-                    <TableCell>{item.especialista || '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {item.dataPrevista || <span className="text-app-text-muted">{item.prazo}</span>}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge tone={TOM_SITUACAO[item.situacao]}>
-                        {ROTULO_SITUACAO_RETORNO[item.situacao]}
-                      </StatusBadge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild size="sm" className="bg-app-primary text-white">
-                        <Link href={hrefAgendarRetorno(item)}>
-                          <CalendarPlus className="mr-1.5 h-4 w-4" />
-                          Agendar retorno
-                        </Link>
-                      </Button>
-                    </TableCell>
+          <>
+            <ListaCartoesMobile>
+              {data.map((item) => (
+                <CartaoMobile
+                  key={item.id}
+                  titulo={item.paciente}
+                  subtitulo={item.especialista || undefined}
+                  selo={
+                    <StatusBadge tone={TOM_SITUACAO[item.situacao]}>
+                      {ROTULO_SITUACAO_RETORNO[item.situacao]}
+                    </StatusBadge>
+                  }
+                  acoes={
+                    <Button asChild size="sm" className="bg-app-primary text-white">
+                      <Link href={hrefAgendarRetorno(item)}>
+                        <CalendarPlus className="mr-1.5 h-4 w-4" />
+                        Agendar
+                      </Link>
+                    </Button>
+                  }
+                  campos={[
+                    { rotulo: 'Retorno previsto', valor: item.dataPrevista || item.prazo },
+                    { rotulo: 'Atendimento', valor: item.data },
+                    {
+                      rotulo: 'Últimos procedimentos',
+                      valor: item.ultimosProcedimentos.length
+                        ? item.ultimosProcedimentos.map((p) => `${p.nome} (${p.data})`).join(', ')
+                        : '—',
+                    },
+                  ]}
+                />
+              ))}
+            </ListaCartoesMobile>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Últimos procedimentos</TableHead>
+                    <TableHead>Especialista</TableHead>
+                    <TableHead>Retorno previsto</TableHead>
+                    <TableHead>Situação</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {data.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="whitespace-nowrap">{item.data}</TableCell>
+                      <TableCell>{item.paciente}</TableCell>
+                      <TableCell>
+                        {item.ultimosProcedimentos.length === 0 ? (
+                          <span className="text-app-text-muted">—</span>
+                        ) : (
+                          <ul className="space-y-0.5 text-xs">
+                            {item.ultimosProcedimentos.map((p) => (
+                              <li key={`${p.data}-${p.nome}`}>
+                                {p.nome} <span className="text-app-text-muted">({p.data})</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </TableCell>
+                      <TableCell>{item.especialista || '—'}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {item.dataPrevista || (
+                          <span className="text-app-text-muted">{item.prazo}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tone={TOM_SITUACAO[item.situacao]}>
+                          {ROTULO_SITUACAO_RETORNO[item.situacao]}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" className="bg-app-primary text-white">
+                          <Link href={hrefAgendarRetorno(item)}>
+                            <CalendarPlus className="mr-1.5 h-4 w-4" />
+                            Agendar retorno
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </Card>
 
