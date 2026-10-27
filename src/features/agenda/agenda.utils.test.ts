@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  deslocarPeriodo,
   getPagamentoIconTone,
   isHorarioPassado,
   canIniciarAtendimento,
@@ -81,5 +82,22 @@ describe('getPagamentoIconTone', () => {
   it('pendente não usa verde', () => {
     expect(getPagamentoIconTone('Pendente')).not.toContain('success')
     expect(getPagamentoIconTone('Pago')).toContain('success')
+  })
+})
+
+describe('deslocarPeriodo', () => {
+  const base = new Date(2026, 9, 31, 10, 0)
+  it('dia anda 1 dia, semana 7 dias', () => {
+    expect(deslocarPeriodo(base, 'dia', 1).getDate()).toBe(1)
+    const sem = deslocarPeriodo(base, 'semana', -1)
+    expect([sem.getMonth(), sem.getDate()]).toEqual([9, 24])
+    const prox = deslocarPeriodo(base, 'semana', 1)
+    expect([prox.getMonth(), prox.getDate()]).toEqual([10, 7])
+  })
+  it('mês anda 1 mês sem estourar o fim do mês', () => {
+    const m = deslocarPeriodo(base, 'mes', 1)
+    expect([m.getMonth(), m.getDate()]).toEqual([10, 30])
+    const a = deslocarPeriodo(base, 'mes', -1)
+    expect([a.getMonth(), a.getDate()]).toEqual([8, 30])
   })
 })

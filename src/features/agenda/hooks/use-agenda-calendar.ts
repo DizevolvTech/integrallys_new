@@ -5,6 +5,7 @@ import type { ViewMode, AgendaSlot } from '../agenda.types'
 import {
   buildWeekDays,
   buildMonthDays,
+  deslocarPeriodo,
   filterAgendaItemsByStatus,
   normalizeAgendaStatus,
 } from '../agenda.utils'
@@ -85,19 +86,8 @@ export function useAgendaCalendar(agendaSlots: AgendaSlot[]) {
     [agendaSlots, monthDays],
   )
 
-  const goPrev = () => {
-    const next = new Date(currentDate)
-    if (viewMode === 'mes') next.setMonth(next.getMonth() - 1)
-    else next.setDate(next.getDate() - 1)
-    setCurrentDate(next)
-  }
-
-  const goNext = () => {
-    const next = new Date(currentDate)
-    if (viewMode === 'mes') next.setMonth(next.getMonth() + 1)
-    else next.setDate(next.getDate() + 1)
-    setCurrentDate(next)
-  }
+  const goPrev = () => setCurrentDate(deslocarPeriodo(currentDate, viewMode, -1))
+  const goNext = () => setCurrentDate(deslocarPeriodo(currentDate, viewMode, 1))
 
   return {
     viewMode,

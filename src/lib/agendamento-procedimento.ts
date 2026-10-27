@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  isProcedimentoRetornoNome,
   isTipoRetorno,
+  prazoDiasDoNomeRetorno,
   STATUS_CONTAM_PARA_RETORNO,
   validateRetornoAgendamento,
 } from '@/lib/procedimento-retorno'
@@ -11,6 +13,8 @@ export type AgendamentoProcedimentoResolved = {
   intervaloRecorrenciaDias: number | null
   quantidadeSugeridaPacote: number | null
   temPacote: boolean
+  /** Agendamento de retorno (tipo Retorno ou procedimento de retorno): ocupa a duração de retorno. */
+  ehRetorno: boolean
 }
 
 /**
@@ -26,6 +30,8 @@ export async function resolveAgendamentoProcedimento(
     tipo?: unknown
     pacienteId?: string | null
     dataAgendamento?: string | null
+    /** false = edição que não mexe em data/hora/procedimento/tipo: não revalida o prazo do retorno. */
+    validarRetorno?: boolean
   },
 ): Promise<
   | { ok: true; data: AgendamentoProcedimentoResolved }
@@ -49,6 +55,7 @@ export async function resolveAgendamentoProcedimento(
         intervaloRecorrenciaDias: null,
         quantidadeSugeridaPacote: null,
         temPacote: false,
+        ehRetorno: isTipoRetorno(params.tipo),
       },
     }
   }
@@ -56,7 +63,7 @@ export async function resolveAgendamentoProcedimento(
   const { data: proc, error: procError } = await supabase
     .from('procedimentos')
     .select(
-      'id,valor,ativo,tem_retorno,prazo_retorno_dias,valor_retorno,tem_pacote,intervalo_recorrencia_dias,quantidade_sugerida_pacote',
+      'id,nome,valor,ativo,tem_retorno,prazo_retorno_dias,valor_retorno,tem_pacote,intervalo_recorrencia_dias,quantidade_sugerida_pacote',
     )
     .eq('id', rawId)
     .maybeSingle()
@@ -116,9 +123,11 @@ export async function resolveAgendamentoProcedimento(
     intervaloRecorrenciaDias: intervalo != null && Number.isFinite(intervalo) ? intervalo : null,
     quantidadeSugeridaPacote: qtdPacote != null && Number.isFinite(qtdPacote) ? qtdPacote : null,
     temPacote,
+    ehRetorno: false,
   }
 
-  if (isTipoRetorno(params.tipo)) {
+  const procedimentoDeRetorno = isProcedimentoRetornoNome(proc.nome)
+  if (isTipoRetorno(params.tipo) || procedimentoDeRetorno) {
     const pacienteId =
       typeof params.pacienteId === 'string' && params.pacienteId.trim()
         ? params.pacienteId.trim()
@@ -128,6 +137,21 @@ export async function resolveAgendamentoProcedimento(
         ? params.dataAgendamento.trim()
         : null
 
+    if (params.validarRetorno === false) {
+      const salvo =
+        params.valorProcedimento != null && params.valorProcedimento !== ''
+          ? Number(params.valorProcedimento)
+          : valorFromProc
+      return {
+        ok: true,
+        data: {
+          ...baseMeta,
+          ehRetorno: true,
+          valorProcedimento: salvo != null && Number.isFinite(salvo) ? salvo : null,
+        },
+      }
+    }
+
     if (!pacienteId || !dataAgendamento) {
       return {
         ok: false,
@@ -136,12 +160,17 @@ export async function resolveAgendamentoProcedimento(
       }
     }
 
-    const { data: ultimo, error: ultimoError } = await supabase
+    // Procedimento de retorno genérico: vale qualquer atendimento concluído com o profissional.
+    // Procedimento comum: o último atendimento do mesmo procedimento.
+    let historico = supabase
       .from('agendamentos')
       .select('data_agendamento,status')
       .eq('paciente_id', pacienteId)
-      .eq('procedimento_id', String(proc.id))
-      .in('status', [...STATUS_CONTAM_PARA_RETORNO])
+    historico = procedimentoDeRetorno
+      ? historico.eq('profissional_id', params.profissionalId ?? '')
+      : historico.eq('procedimento_id', String(proc.id))
+    const { data: ultimo, error: ultimoError } = await historico
+      .in('status', procedimentoDeRetorno ? ['Check-out', 'Concluído'] : [...STATUS_CONTAM_PARA_RETORNO])
       .order('data_agendamento', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -155,8 +184,12 @@ export async function resolveAgendamentoProcedimento(
     }
 
     const validated = validateRetornoAgendamento({
-      temRetorno: Boolean(proc.tem_retorno),
-      prazoDias: proc.prazo_retorno_dias != null ? Number(proc.prazo_retorno_dias) : 35,
+      temRetorno: Boolean(proc.tem_retorno) || procedimentoDeRetorno,
+      prazoDias: procedimentoDeRetorno
+        ? (prazoDiasDoNomeRetorno(proc.nome) ?? 35)
+        : proc.prazo_retorno_dias != null
+          ? Number(proc.prazo_retorno_dias)
+          : 35,
       valorRetorno: proc.valor_retorno != null ? Number(proc.valor_retorno) : null,
       valorConsulta: valorFromProc,
       dataAgendamento,
@@ -171,6 +204,7 @@ export async function resolveAgendamentoProcedimento(
       ok: true,
       data: {
         ...baseMeta,
+        ehRetorno: true,
         valorProcedimento: validated.valor,
       },
     }

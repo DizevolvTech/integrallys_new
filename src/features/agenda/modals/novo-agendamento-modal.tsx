@@ -11,11 +11,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { isProcedimentoRetornoNome } from '@/lib/procedimento-retorno'
 import { Switch } from '@/components/ui/switch'
 import { isHorarioPassado } from '../agenda.utils'
+import { mensagemSemHorario, resolveModalidade, type TipoAtendimento } from './novo-agendamento.utils'
 import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
 import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
-import { resolveModalidade, type TipoAtendimento } from './novo-agendamento.utils'
 
 interface PacienteOption {
   id: string
@@ -80,7 +81,7 @@ interface NovoAgendamentoModalProps {
     valorProcedimento?: number
     serieQuantidade?: number
     serieIntervaloDias?: number
-    pagamentoInicial: {
+    pagamentoInicial?: {
       valor: number
       metodo: string
       bandeira?: string
@@ -158,6 +159,12 @@ export function NovoAgendamentoModal({
     () => procedimentosDisponiveis.find((item) => item.id === procedimentoId) ?? null,
     [procedimentosDisponiveis, procedimentoId],
   )
+
+  // Procedimento "Retorno…": sempre agenda como retorno (duração de retorno do profissional).
+  const procedimentoDeRetorno = isProcedimentoRetornoNome(procedimentoSelecionado?.nome)
+  useEffect(() => {
+    if (procedimentoDeRetorno) setTipo('retorno')
+  }, [procedimentoDeRetorno])
 
   const valorCobrado = useMemo(() => {
     if (!procedimentoSelecionado) return undefined
@@ -354,14 +361,44 @@ export function NovoAgendamentoModal({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isSubmitting || !pacienteId || !data || !horario) return
-
-    if (isHorarioPassado(data, horario)) {
-      toast.error('Não é possível agendar em horário já passado.')
+    if (isSubmitting) return
+    if (!pacienteId) {
+      toast.error('Selecione o paciente para agendar.')
+      return
+    }
+    if (!profissional) {
+      toast.error('Selecione o profissional.')
+      return
+    }
+    if (!data) {
+      toast.error('Informe a data do agendamento.')
+      return
+    }
+    if (!horario) {
+      toast.error(
+        mensagemSemHorario({
+          data,
+          hoje: toLocalISODate(new Date()),
+          encaixe: encaixeExtraHorario,
+          temHorarios: slotsForSelection.length > 0,
+        }),
+      )
       return
     }
 
-    if (tipo === 'retorno' && procedimentoSelecionado && !procedimentoSelecionado.temRetorno) {
+    if (isHorarioPassado(data, horario)) {
+      toast.error(
+        mensagemSemHorario({ data, hoje: toLocalISODate(new Date()), encaixe: encaixeExtraHorario, temHorarios: true, horarioPassado: true }),
+      )
+      return
+    }
+
+    if (
+      tipo === 'retorno' &&
+      procedimentoSelecionado &&
+      !procedimentoSelecionado.temRetorno &&
+      !procedimentoDeRetorno
+    ) {
       toast.error('Este procedimento não possui retorno cadastrado. Agende como consulta.')
       return
     }
@@ -382,11 +419,13 @@ export function NovoAgendamentoModal({
     }
 
     const valorPago = Number(String(pagamentoValor).replace(',', '.'))
-    if (!pagamentoMetodo) {
+    // Procedimento de R$ 0 (ex.: retorno sem cobrança): pagamento inicial opcional.
+    const semCobranca = valorCobrado === 0 && (!pagamentoMetodo || !(valorPago > 0))
+    if (!semCobranca && !pagamentoMetodo) {
       toast.error('Informe o método do pagamento inicial.')
       return
     }
-    if (!Number.isFinite(valorPago) || valorPago <= 0) {
+    if (!semCobranca && (!Number.isFinite(valorPago) || valorPago <= 0)) {
       toast.error('Informe um valor de pagamento inicial (pode ser parcial).')
       return
     }
@@ -442,13 +481,15 @@ export function NovoAgendamentoModal({
         serieIntervaloDias: gerarPacote
           ? procedimentoSelecionado?.intervaloRecorrenciaDias
           : undefined,
-        pagamentoInicial: {
-          valor: Number(valorPago.toFixed(2)),
-          metodo: pagamentoMetodo,
-          bandeira: isCartao ? pagamentoBandeira : undefined,
-          parcelas: isCredito ? Number(pagamentoParcelas) || 1 : undefined,
-          contaBancariaId: isPix ? pagamentoContaId : undefined,
-        },
+        pagamentoInicial: semCobranca
+          ? undefined
+          : {
+              valor: Number(valorPago.toFixed(2)),
+              metodo: pagamentoMetodo,
+              bandeira: isCartao ? pagamentoBandeira : undefined,
+              parcelas: isCredito ? Number(pagamentoParcelas) || 1 : undefined,
+              contaBancariaId: isPix ? pagamentoContaId : undefined,
+            },
       })
       onClose()
     } catch (err) {
@@ -781,9 +822,13 @@ export function NovoAgendamentoModal({
 
           <div className="space-y-3 rounded-integrallys border border-app-border p-4 dark:border-app-border-dark">
             <div>
-              <p className="text-sm font-medium text-app-text-primary dark:text-white">Pagamento inicial *</p>
+              <p className="text-sm font-medium text-app-text-primary dark:text-white">
+                Pagamento inicial{valorCobrado === 0 ? '' : ' *'}
+              </p>
               <p className="text-xs text-app-text-muted">
-                Obrigatório no agendamento. Pode ser parcial — o saldo fica em aberto.
+                {valorCobrado === 0
+                  ? 'Procedimento sem cobrança (R$ 0,00): o pagamento inicial é opcional.'
+                  : 'Obrigatório no agendamento. Pode ser parcial — o saldo fica em aberto.'}
               </p>
               {valorCobrado != null && (
                 <p className="mt-1 text-xs text-app-text-secondary dark:text-white/70">

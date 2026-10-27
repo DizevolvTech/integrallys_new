@@ -16,7 +16,7 @@ import {
 } from '@/lib/agendamento-pagamento'
 import { perfilPodeEmitirRecibo } from '@/lib/recibo-perfis'
 import { limparTagRetornoPendente } from '@/lib/retornos-server'
-import { addDaysIso, isTipoRetorno } from '@/lib/procedimento-retorno'
+import { addDaysIso } from '@/lib/procedimento-retorno'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import {
   type AgendaRowIntervalo,
@@ -492,11 +492,21 @@ function mensagemConflitoDuracao(conflito: AgendaRowIntervalo, fimMin: number) {
   return `A duração prevista (até ${minutesToHHMM(fimMin)}) conflita com o atendimento das ${ini}. Escolha um horário a partir do fim do atendimento anterior.`
 }
 
+/** Procedimento de valor R$ 0 (ex.: retorno sem cobrança) não exige pagamento inicial. */
+function pagamentoInicialDispensado(body: Record<string, unknown>): boolean {
+  const valor = body.valorProcedimento
+  if (valor === null || valor === undefined || valor === '' || Number(valor) !== 0) return false
+  const raw = body.pagamentoInicial
+  const informado = raw && typeof raw === 'object' ? Number((raw as Record<string, unknown>).valor) : 0
+  return !(informado > 0)
+}
+
 /**
  * Valida o pagamento inicial ANTES de ocupar o horário. Sem isso, um pagamento inválido
  * devolvia erro 400 mas deixava a cliente agendada e o horário preso, sem pagamento.
  */
 function validarPagamentoInicial(body: Record<string, unknown>): Response | null {
+  if (pagamentoInicialDispensado(body)) return null
   const raw = body.pagamentoInicial
   if (!raw || typeof raw !== 'object') {
     return serverErrorResponse(
@@ -558,6 +568,7 @@ async function registrarPagamentoInicialObrigatorio(params: {
   agendamentoId: string
   body: Record<string, unknown>
 }): Promise<Response | null> {
+  if (pagamentoInicialDispensado(params.body)) return null
   const raw = params.body.pagamentoInicial
   if (!raw || typeof raw !== 'object') {
     return serverErrorResponse(
@@ -785,6 +796,8 @@ export async function POST(request: NextRequest) {
     ...body,
     procedimentoId: procResolved.data.procedimentoId,
     valorProcedimento: procResolved.data.valorProcedimento,
+    // Procedimento de retorno sempre grava o tipo Retorno (duração de retorno, fila de retornos).
+    tipo: procResolved.data.ehRetorno ? 'retorno' : body.tipo,
   }
 
   const patientUnitId = pacienteId ? await resolvePatientUnitId(supabase, pacienteId) : null
@@ -812,7 +825,7 @@ export async function POST(request: NextRequest) {
     const inicioMin = timeToMinutes(horarioSlot)
     // Retorno: a duração própria do profissional (grade) vale sobre a do procedimento.
     const duracaoRetorno =
-      isTipoRetorno(body.tipo) && profissionalId && inicioMin !== null
+      procResolved.data.ehRetorno && profissionalId && inicioMin !== null
         ? await getDuracaoRetornoGrade(supabase, profissionalId, dataSlot, inicioMin)
         : null
     const duracaoProc =
@@ -898,7 +911,7 @@ export async function POST(request: NextRequest) {
       intervaloFallback: procResolved.data.intervaloRecorrenciaDias,
     })
 
-    if (isTipoRetorno(body.tipo)) await limparTagRetornoPendente(supabase, pacienteId)
+    if (procResolved.data.ehRetorno) await limparTagRetornoPendente(supabase, pacienteId)
     return listAgenda(session)
   }
 
@@ -954,7 +967,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  if (pacienteId && isTipoRetorno(body.tipo)) await limparTagRetornoPendente(supabase, pacienteId)
+  if (pacienteId && procResolved.data.ehRetorno) await limparTagRetornoPendente(supabase, pacienteId)
   return listAgenda(session)
 }
 
@@ -1033,6 +1046,18 @@ export async function PUT(request: NextRequest) {
     body.valorProcedimento !== undefined ? body.valorProcedimento : existing.valor_procedimento
   const tipoInput = body.tipo !== undefined ? body.tipo : existing.tipo
 
+  const existingDate = String(existing.data_agendamento ?? '').slice(0, 10)
+  const existingTime = String(existing.horario_inicio ?? '').slice(0, 5)
+  const norm = (value: unknown) => String(value ?? '').trim().toLowerCase()
+  // Só revalida o retorno quando a edição muda o que o define (data/hora, profissional, paciente, tipo, procedimento).
+  const mudouDefinicaoRetorno =
+    dataAgendamento !== existingDate ||
+    horario !== existingTime ||
+    norm(profissionalId) !== norm(existing.profissional_id) ||
+    norm(pacienteId) !== norm(existing.paciente_id) ||
+    norm(tipoInput) !== norm(existing.tipo) ||
+    norm(procedimentoIdInput) !== norm(existing.procedimento_id)
+
   const procResolved = await resolveAgendamentoProcedimento(supabase, {
     procedimentoId: procedimentoIdInput,
     valorProcedimento: valorInput,
@@ -1040,6 +1065,7 @@ export async function PUT(request: NextRequest) {
     tipo: tipoInput,
     pacienteId,
     dataAgendamento,
+    validarRetorno: mudouDefinicaoRetorno,
   })
   if (!procResolved.ok) {
     return serverErrorResponse(procResolved.message, procResolved.code, 400)
@@ -1050,8 +1076,6 @@ export async function PUT(request: NextRequest) {
 
   // Remarcar consulta de paciente: ocupa o horário novo (consome o slot livre), libera o antigo,
   // barra horário passado e dupla marcação. Edições que não mudam data/hora/profissional passam direto.
-  const existingDate = String(existing.data_agendamento ?? '').slice(0, 10)
-  const existingTime = String(existing.horario_inicio ?? '').slice(0, 5)
   const moved =
     Boolean(existing.paciente_id) &&
     (dataAgendamento !== existingDate ||
@@ -1087,7 +1111,7 @@ export async function PUT(request: NextRequest) {
       )
       // Duração: procedimento > slot de destino (grade) > duração anterior, só se plausível (≤ 4h;
       // registros antigos podem ter fim inconsistente por causa do remarcar antigo).
-      const duracaoRetorno = isTipoRetorno(existing.tipo)
+      const duracaoRetorno = procResolved.data.ehRetorno
         ? await getDuracaoRetornoGrade(supabase, String(profissionalId), dataAgendamento, inicioMin)
         : null
       const duracaoProc =
@@ -1148,7 +1172,7 @@ export async function PUT(request: NextRequest) {
       horario_inicio: horario,
       horario_fim: horarioFimFinal,
       status: typeof body.status === 'string' && body.status.trim() ? body.status : existing.status,
-      tipo: tipoInput ?? null,
+      tipo: procResolved.data.ehRetorno ? 'retorno' : (tipoInput ?? null),
       titulo: body.titulo !== undefined ? body.titulo : existing.titulo,
       local: body.local !== undefined ? body.local : existing.local,
       participantes: body.participantes !== undefined ? body.participantes : existing.participantes,

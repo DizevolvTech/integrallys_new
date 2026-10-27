@@ -42,6 +42,8 @@ interface AgendaDayViewProps {
   onStatusChange: (slot: AgendaSlot, status: string) => void
   onOpenAvailableSlot?: (slot: AgendaSlot) => void
   onStartAtendimento?: (slot: AgendaSlot) => void
+  /** Reabre o atendimento já em andamento (sem mudar o status). */
+  onContinueAtendimento?: (slot: AgendaSlot) => void
   onRemoveBloqueio?: (bloqueio: AgendaBloqueio) => void
 }
 
@@ -59,6 +61,7 @@ export function AgendaDayView({
   onStatusChange,
   onOpenAvailableSlot,
   onStartAtendimento,
+  onContinueAtendimento,
   onRemoveBloqueio,
 }: AgendaDayViewProps) {
   const router = useRouter()
@@ -228,6 +231,16 @@ export function AgendaDayView({
                               <span className="text-sm">Iniciar Atendimento</span>
                             </Button>
                           )}
+
+                        {onContinueAtendimento && item.paciente && currentStatus === 'Em Atendimento' && (
+                          <Button
+                            onClick={() => onContinueAtendimento(item)}
+                            className="bg-app-primary hover:bg-app-primary-hover text-white h-9 px-3 sm:px-4 rounded-integrallys font-normal flex items-center gap-2 shadow-sm transition-all active:scale-95 flex-1 sm:flex-initial justify-center"
+                          >
+                            <Play className="h-3.5 w-3.5 fill-current shrink-0" />
+                            <span className="text-sm">Continuar atendimento</span>
+                          </Button>
+                        )}
 
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

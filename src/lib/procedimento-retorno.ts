@@ -5,6 +5,19 @@ export function isTipoRetorno(tipo: unknown): boolean {
   return tipo.trim().toLowerCase() === 'retorno'
 }
 
+/** Procedimento "de retorno" genérico (ex.: "Retorno (até 30 dias)"): identificado pelo nome. */
+export function isProcedimentoRetornoNome(nome: unknown): boolean {
+  return typeof nome === 'string' && /^\s*retorno\b/i.test(nome)
+}
+
+/** Prazo em dias escrito no nome do procedimento de retorno ("até 30 dias"); null se não houver. */
+export function prazoDiasDoNomeRetorno(nome: unknown): number | null {
+  if (typeof nome !== 'string') return null
+  const match = /(\d{1,3})\s*dias?/i.exec(nome)
+  const dias = match ? Number(match[1]) : NaN
+  return Number.isInteger(dias) && dias > 0 ? dias : null
+}
+
 /** Diferença em dias civis (dataAlvo - dataBase), ignorando horário. */
 export function diffDiasCivis(dataBaseIso: string, dataAlvoIso: string): number | null {
   const base = parseLocalDate(dataBaseIso)
@@ -65,7 +78,7 @@ export function validateRetornoAgendamento(params: {
       ok: false,
       code: 'RETORNO_SEM_ATENDIMENTO_PREVIO',
       message:
-        'Não há atendimento anterior deste procedimento para o paciente. Agende como consulta nova.',
+        'Este paciente não tem atendimento anterior concluído deste procedimento. Marque como 1ª consulta ou escolha um paciente com atendimento anterior.',
     }
   }
 
