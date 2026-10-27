@@ -303,7 +303,7 @@ export function RepasseView() {
 
       {tab === 'geracao' ? (
         <div className="overflow-hidden rounded-[24px] border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
-          <div className="flex items-center justify-between gap-4 p-8 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4 pb-4 md:p-8">
             <div className="flex items-center gap-3">
               <WalletCards className="h-6 w-6 text-app-text-primary dark:text-white" />
               <div>
@@ -419,7 +419,7 @@ export function RepasseView() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-[24px] border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
-          <div className="flex items-center justify-between gap-4 p-8 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4 pb-4 md:p-8">
             <div className="flex items-center gap-3">
               <Settings2 className="h-6 w-6 text-app-text-primary dark:text-white" />
               <div>
@@ -444,7 +444,7 @@ export function RepasseView() {
             <DataTable data={rules}>
               {(pageData) => (
                 <div className="overflow-x-auto">
-              <Table>
+              <Table className="[&_td]:px-1.5 [&_th]:px-1.5 md:[&_td]:px-4 md:[&_th]:px-4">
                 <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
                   <TableRow>
                     <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Profissional</TableHead>

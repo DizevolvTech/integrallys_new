@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { CartaoMobile } from '@/components/shared/mobile-card'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
@@ -948,7 +949,25 @@ function AdminDashboard({
           {financeiroPorUnidade.length === 0 ? (
             <p className="text-sm text-app-text-muted">Sem lançamentos no período.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-3 md:hidden">
+              {financeiroPorUnidade.map((row) => (
+                <CartaoMobile
+                  key={row.unidadeId ?? 'sem-unidade'}
+                  titulo={row.unidade}
+                  valor={formatCurrency(row.entradas)}
+                  campos={[
+                    { rotulo: 'Procedimentos', valor: formatCurrency(row.faturamento.procedimentos) },
+                    { rotulo: 'Consultas', valor: formatCurrency(row.faturamento.consultas) },
+                    { rotulo: 'Produtos', valor: formatCurrency(row.faturamento.produtos) },
+                    { rotulo: 'Outros', valor: formatCurrency(row.faturamento.outros) },
+                    { rotulo: 'Saídas', valor: formatCurrency(row.saidas) },
+                    { rotulo: 'Saldo', valor: formatCurrency(row.saldo) },
+                  ]}
+                />
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-app-border text-left text-xs uppercase tracking-wide text-app-text-muted dark:border-app-border-dark">
@@ -990,6 +1009,7 @@ function AdminDashboard({
                 </tfoot>
               </table>
             </div>
+            </>
           )}
           {notasEmitidas.registrado ? (
             <Link

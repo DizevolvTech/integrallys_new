@@ -26,7 +26,7 @@ export function AgendaMonthView({
   const profIdToNome = new Map(bloqueiosProfissionais.map((p) => [p.id, p.nome]))
   return (
     <div className="border border-app-border dark:border-app-border-dark rounded-integrallys overflow-hidden">
-      <div className="grid grid-cols-7 bg-app-bg-secondary dark:bg-app-bg-dark/50 border-b border-app-border dark:border-app-border-dark">
+      <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] bg-app-bg-secondary dark:bg-app-bg-dark/50 border-b border-app-border dark:border-app-border-dark">
         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((label) => (
           <div
             key={label}
@@ -37,7 +37,7 @@ export function AgendaMonthView({
         ))}
       </div>
 
-      <div className="grid grid-cols-7">
+      <div className="grid grid-cols-[repeat(7,minmax(0,1fr))]">
         {monthAgendaSummary.map((day, index) => {
           const bloqueiosDia = day.date
             ? bloqueiosDoDia(bloqueios, isoDateLocal(day.date), selectedProfessional, profIdToNome)

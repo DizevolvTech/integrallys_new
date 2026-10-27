@@ -1325,7 +1325,7 @@ export function AgendaView() {
             )}
             {activeTab === 'pessoal' && !isLoading && calendar.viewMode === 'mes' && (
               <div className="overflow-hidden rounded-[16px] border border-app-border/70 bg-white shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/20">
-                <div className="grid grid-cols-7 border-b border-app-border/60 bg-app-bg-secondary/40 dark:border-app-border-dark/60 dark:bg-app-bg-dark/40">
+                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] border-b border-app-border/60 bg-app-bg-secondary/40 dark:border-app-border-dark/60 dark:bg-app-bg-dark/40">
                   {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((label) => (
                     <div
                       key={`personal-month-${label}`}
@@ -1335,7 +1335,7 @@ export function AgendaView() {
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7">
+                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))]">
                   {calendar.monthAgendaSummary.map((day, index) => (
                     <div
                       key={`personal-month-cell-${day.key}`}

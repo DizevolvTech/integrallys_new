@@ -21,6 +21,7 @@ import {
 import { useProntuarios, type ProntuarioItem } from '@/features/prontuarios/hooks/use-prontuarios'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { PacienteCadastroCard } from '@/components/shared/paciente-cadastro-card'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -102,6 +103,50 @@ function ProntuarioViewList() {
     setIsDeleteOpen(false)
     setSelectedItem(null)
   }
+
+  const renderAcoes = (item: (typeof filteredData)[number]) => (
+    <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Visualizar"
+                          onClick={() => openView(item)}
+                        >
+                          <Eye className="h-4 w-4 text-app-text-secondary dark:text-white/60" />
+                        </Button>
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button className="mx-auto flex h-9 w-9 items-center justify-center border-none bg-transparent p-0 shadow-none hover:bg-transparent">
+                            <MoreHorizontal className="h-5 w-5 shrink-0 text-app-text-primary dark:text-white" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-[200px] rounded-integrallys-lg border-app-border bg-app-card p-2 shadow-xl dark:border-app-border-dark dark:bg-app-card-dark">
+                          <DropdownMenuItem
+                            className="flex cursor-pointer items-center gap-3 rounded-integrallys py-3 text-app-text-primary transition-colors hover:bg-app-bg-secondary dark:text-white dark:hover:bg-app-hover"
+                            onClick={() => openView(item)}
+                          >
+                            <Eye className="h-4 w-4 shrink-0 text-app-text-muted" />
+                            <span className="font-normal whitespace-nowrap">Visualizar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="flex cursor-pointer items-center gap-3 rounded-integrallys py-3 text-app-text-primary transition-colors hover:bg-app-bg-secondary dark:text-white dark:hover:bg-app-hover"
+                            onClick={() => openEdit(item)}
+                          >
+                            <Edit3 className="h-4 w-4 shrink-0 text-app-text-muted" />
+                            <span className="font-normal whitespace-nowrap">Editar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="flex cursor-pointer items-center gap-3 rounded-integrallys py-3 text-[var(--app-danger-text)] transition-colors hover:bg-red-900/10 focus:text-[var(--app-danger-text)]"
+                            onClick={() => openDelete(item)}
+                          >
+                            <Trash2 className="h-4 w-4 shrink-0" />
+                            <span className="font-normal whitespace-nowrap">Excluir</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+    </div>
+  )
 
   return (
     <div className="app-page">
@@ -201,7 +246,29 @@ function ProntuarioViewList() {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ListaCartoesMobile>
+            {filteredData.map((item) => (
+              <CartaoMobile
+                key={item.id}
+                titulo={item.paciente}
+                subtitulo={`${item.data} · ${item.tipo}`}
+                selo={
+                  <Badge
+                    className={`rounded-lg border-0 px-2.5 py-1 text-xs font-normal tracking-wider shadow-sm ${
+                      item.status === 'Finalizado'
+                        ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
+                        : 'bg-app-primary text-white dark:bg-blue-900/40 dark:text-[var(--app-info-text)]'
+                    }`}
+                  >
+                    {item.status}
+                  </Badge>
+                }
+                acoes={renderAcoes(item)}
+              />
+            ))}
+          </ListaCartoesMobile>
+          <div className="hidden overflow-x-auto md:block">
             <Table className="[&_td]:px-2 [&_th]:px-2">
               <TableHeader>
                 <TableRow className="border-b border-app-border hover:bg-transparent dark:border-app-border-dark">
@@ -234,45 +301,7 @@ function ProntuarioViewList() {
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Visualizar"
-                          onClick={() => openView(item)}
-                        >
-                          <Eye className="h-4 w-4 text-app-text-secondary dark:text-white/60" />
-                        </Button>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button className="mx-auto flex h-9 w-9 items-center justify-center border-none bg-transparent p-0 shadow-none hover:bg-transparent">
-                            <MoreHorizontal className="h-5 w-5 shrink-0 text-app-text-primary dark:text-white" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-[200px] rounded-integrallys-lg border-app-border bg-app-card p-2 shadow-xl dark:border-app-border-dark dark:bg-app-card-dark">
-                          <DropdownMenuItem
-                            className="flex cursor-pointer items-center gap-3 rounded-integrallys py-3 text-app-text-primary transition-colors hover:bg-app-bg-secondary dark:text-white dark:hover:bg-app-hover"
-                            onClick={() => openView(item)}
-                          >
-                            <Eye className="h-4 w-4 shrink-0 text-app-text-muted" />
-                            <span className="font-normal whitespace-nowrap">Visualizar</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="flex cursor-pointer items-center gap-3 rounded-integrallys py-3 text-app-text-primary transition-colors hover:bg-app-bg-secondary dark:text-white dark:hover:bg-app-hover"
-                            onClick={() => openEdit(item)}
-                          >
-                            <Edit3 className="h-4 w-4 shrink-0 text-app-text-muted" />
-                            <span className="font-normal whitespace-nowrap">Editar</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="flex cursor-pointer items-center gap-3 rounded-integrallys py-3 text-[var(--app-danger-text)] transition-colors hover:bg-red-900/10 focus:text-[var(--app-danger-text)]"
-                            onClick={() => openDelete(item)}
-                          >
-                            <Trash2 className="h-4 w-4 shrink-0" />
-                            <span className="font-normal whitespace-nowrap">Excluir</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        {renderAcoes(item)}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -280,6 +309,7 @@ function ProntuarioViewList() {
               </TableBody>
             </Table>
           </div>
+          </>
         )}
       </div>
 
