@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Patient } from '@/types/patient'
 import { descreverOrigem } from '../utils/origem'
+import { formatarCPF } from '@/lib/validacao-br'
 
 interface DocumentoCadastroProps {
     data: Partial<Patient>;
@@ -43,7 +44,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
                 <h2 className="text-lg font-bold mb-3 uppercase border-b border-app-border pb-1">1. Dados do Paciente</h2>
                 <div className="grid grid-cols-2 gap-4">
                     <div><span className="font-bold">Nome:</span> {data.name}</div>
-                    <div><span className="font-bold">CPF:</span> {data.cpf}</div>
+                    <div><span className="font-bold">CPF:</span> {formatarCPF(data.cpf ?? "")}</div>
                     <div><span className="font-bold">RG:</span> {data.rg || '-'}</div>
                     <div><span className="font-bold">Data de Nasc.:</span> {data.birthDate || '-'}</div>
                     <div><span className="font-bold">Idade:</span> {data.age || (data.birthDate ? (() => {
@@ -67,7 +68,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
                     <h2 className="text-lg font-bold mb-3 uppercase border-b border-app-border pb-1">2. Dados do Responsável</h2>
                     <div className="grid grid-cols-2 gap-4">
                         <div><span className="font-bold">Nome:</span> {data.responsible.name}</div>
-                        <div><span className="font-bold">CPF:</span> {data.responsible.cpf}</div>
+                        <div><span className="font-bold">CPF:</span> {formatarCPF(data.responsible.cpf ?? "")}</div>
                         <div><span className="font-bold">Data de Nasc.:</span> {data.responsible.birthDate || '-'}</div>
                         <div><span className="font-bold">Idade:</span> {data.responsible.age || (data.responsible.birthDate ? (() => {
                             const birth = new Date(data.responsible.birthDate!);

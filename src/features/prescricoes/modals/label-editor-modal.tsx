@@ -26,7 +26,7 @@ export function LabelEditorModal({ isOpen, onClose, data, dataList = [] }: Label
       <DialogContent size="lg" className="rounded-[24px] border-none p-0 overflow-hidden">
         <div className="bg-app-card dark:bg-app-card-dark p-8 space-y-6">
           <div>
-            <h2 className="text-2xl font-bold text-app-text-primary dark:text-white">Editor de rotulos</h2>
+            <h2 className="text-2xl font-bold text-app-text-primary dark:text-white">Editor de rótulos</h2>
             <p className="text-app-text-secondary dark:text-white/60">Revise a composição visual das etiquetas antes de imprimir.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">

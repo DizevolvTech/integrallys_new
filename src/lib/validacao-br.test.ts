@@ -246,3 +246,11 @@ describe('formatarTelefone', () => {
     expect(formatarTelefone('11987654321999')).toBe('(11) 98765-4321')
   })
 })
+
+describe('formatarCPF (recibo e fichas)', () => {
+  it('formata CPF só com dígitos e mantém o já formatado', () => {
+    expect(formatarCPF('99999999933')).toBe('999.999.999-33')
+    expect(formatarCPF('999.999.999-33')).toBe('999.999.999-33')
+    expect(formatarCPF('')).toBe('')
+  })
+})

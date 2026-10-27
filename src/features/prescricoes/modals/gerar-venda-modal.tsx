@@ -67,22 +67,22 @@ export function GerarVendaModal({ isOpen, onClose, prescription, items = [], onC
             <div className="p-12 text-center space-y-6">
               <div className="mx-auto w-20 h-20 app-status-success rounded-full flex items-center justify-center"><CheckCircle2 size={48} /></div>
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-app-text-primary dark:text-white">Prescricao/Vendas gerada com sucesso!</h2>
-                <p className="text-app-text-secondary dark:text-white/60 font-medium">A Prescricao/Vendas foi convertida e o layout final da tela foi preservado.</p>
+                <h2 className="text-2xl font-bold text-app-text-primary dark:text-white">Prescrição/Vendas gerada com sucesso!</h2>
+                <p className="text-app-text-secondary dark:text-white/60 font-medium">A Prescrição/Vendas foi convertida e o layout final da tela foi preservado.</p>
               </div>
               <Button onClick={() => { setIsSuccess(false); onClose() }} className="h-12 px-8 rounded-xl font-bold bg-app-primary hover:bg-app-primary-hover text-white">Fechar</Button>
             </div>
           ) : (
             <div className="p-6 md:p-8 space-y-8">
               <div className="space-y-1 pr-8">
-                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2 text-app-text-primary dark:text-white"><ShoppingCart className="h-6 w-6 text-[var(--app-primary)]" />Gerar Prescricao/Vendas</h2>
-                <p className="text-app-text-secondary dark:text-white/60 text-sm font-medium">Registre a Prescricao/Vendas dos itens</p>
+                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2 text-app-text-primary dark:text-white"><ShoppingCart className="h-6 w-6 text-[var(--app-primary)]" />Gerar Prescrição/Vendas</h2>
+                <p className="text-app-text-secondary dark:text-white/60 text-sm font-medium">Registre a Prescrição/Vendas dos itens</p>
               </div>
 
               <div className="bg-app-bg-secondary/50 dark:bg-app-hover rounded-[20px] p-6 space-y-6 border border-app-border dark:border-app-border-dark">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    <p className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/50 uppercase tracking-wider">Prescricao/Vendas</p>
+                    <p className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/50 uppercase tracking-wider">Prescrição/Vendas</p>
                     <p className="text-xl font-bold text-app-text-primary dark:text-white">{prescription.number}</p>
                   </div>
                   <Badge className="app-status-success border-none font-bold px-3 py-1 rounded-lg">{prescription.status || 'Ativa'}</Badge>
@@ -91,13 +91,13 @@ export function GerarVendaModal({ isOpen, onClose, prescription, items = [], onC
                 <div className="grid grid-cols-2 gap-y-6 gap-x-4">
                   <div className="space-y-1"><p className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/50 uppercase tracking-wider">Paciente</p><p className="font-bold text-app-text-primary dark:text-white">{prescription.patientName}</p></div>
                   <div className="space-y-1"><p className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/50 uppercase tracking-wider">Especialista</p><p className="font-bold text-app-text-primary dark:text-white">{prescription.specialistName || '-'}</p></div>
-                  <div className="space-y-1"><p className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/50 uppercase tracking-wider">Data Criacao</p><p className="font-bold text-app-text-primary dark:text-white">{prescription.createdAt || '-'}</p></div>
+                  <div className="space-y-1"><p className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/50 uppercase tracking-wider">Data Criação</p><p className="font-bold text-app-text-primary dark:text-white">{prescription.createdAt || '-'}</p></div>
                   <div className="space-y-1"><p className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/50 uppercase tracking-wider">Tipo</p><p className="font-bold text-app-text-primary dark:text-white">{prescription.type || '-'}</p></div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-md font-bold flex items-center gap-2 text-app-text-primary dark:text-white"><Package className="h-5 w-5 text-[var(--app-text-secondary)]" />Itens da Prescricao/Vendas</h3>
+                <h3 className="text-md font-bold flex items-center gap-2 text-app-text-primary dark:text-white"><Package className="h-5 w-5 text-[var(--app-text-secondary)]" />Itens da Prescrição/Vendas</h3>
                 <div className="border border-app-border dark:border-app-border-dark rounded-[16px] overflow-hidden">
                   <Table>
                     <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
@@ -123,13 +123,13 @@ export function GerarVendaModal({ isOpen, onClose, prescription, items = [], onC
                   </Table>
                 </div>
                 <div className="flex justify-center pt-2">
-                  <Button onClick={handlePrintAllLabels} variant="outline" className="h-10 px-4 border-[var(--app-primary)] text-[var(--app-primary)] hover:bg-app-primary/5 dark:border-[#4da885] dark:text-[#4da885] dark:hover:bg-[#4da885]/10 font-normal rounded-integrallys flex items-center gap-2 active:scale-95 transition-all text-sm"><Printer className="h-4 w-4" />Imprimir todos os rotulos ({items.length})</Button>
+                  <Button onClick={handlePrintAllLabels} variant="outline" className="h-10 px-4 border-[var(--app-primary)] text-[var(--app-primary)] hover:bg-app-primary/5 dark:border-[#4da885] dark:text-[#4da885] dark:hover:bg-[#4da885]/10 font-normal rounded-integrallys flex items-center gap-2 active:scale-95 transition-all text-sm"><Printer className="h-4 w-4" />Imprimir todos os rótulos ({items.length})</Button>
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
                 <Button variant="outline" onClick={onClose} className="h-12 px-6 rounded-xl font-bold border-app-border dark:border-app-border-dark text-app-text-secondary dark:text-white/60" disabled={isConverting}>Cancelar</Button>
-                <Button onClick={handleConfirmVenda} disabled={isConverting} className="h-12 px-8 rounded-xl font-bold bg-app-primary hover:bg-app-primary-hover text-white shadow-lg shadow-[var(--app-primary)]/10">{isConverting ? 'Processando...' : 'Confirmar Inclusao'}</Button>
+                <Button onClick={handleConfirmVenda} disabled={isConverting} className="h-12 px-8 rounded-xl font-bold bg-app-primary hover:bg-app-primary-hover text-white shadow-lg shadow-[var(--app-primary)]/10">{isConverting ? 'Processando...' : 'Confirmar Inclusão'}</Button>
               </div>
             </div>
           )}
