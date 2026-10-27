@@ -72,7 +72,6 @@ import {
   TarefasModal,
   VisualizarConsultaModal,
 } from './modals'
-import { calcIdade, toBirthDateOnly } from './modals/aniversariantes-modal'
 import { NovoPacienteModal, EditarPacienteModal } from '@/features/gestao-pacientes/modals'
 import type { Patient } from '@/types/patient'
 
@@ -137,25 +136,6 @@ export function AgendaView() {
       : '')
   const preselectedProcedimentoId = searchParams?.get('procedimentoId') ?? ''
   const shouldOpenNewFromQuery = searchParams?.get('modal') === 'novo'
-
-  const aniversariantes = useMemo(
-    () =>
-      pacientes
-        .map((item) => {
-          const dataNascimento = toBirthDateOnly(item.birthDate || '')
-          if (!dataNascimento) return null
-          return {
-            id: item.id,
-            nome: item.nome,
-            dataNascimento,
-            idade: calcIdade(dataNascimento),
-            telefone: item.telefone || '',
-            mensagemEnviada: false,
-          }
-        })
-        .filter((item): item is NonNullable<typeof item> => item !== null),
-    [pacientes],
-  )
 
   const receitaFutura = useMemo(
     () => waitlistItems.reduce((sum, item) => sum + (item.procedimentoValor ?? 0), 0),
@@ -1374,7 +1354,6 @@ export function AgendaView() {
       <AniversariantesModal
         isOpen={actions.activeModal === 'aniversariantes'}
         onClose={() => actions.setActiveModal(null)}
-        aniversariantes={aniversariantes}
       />
       <TarefasModal
         isOpen={actions.activeModal === 'tarefas'}

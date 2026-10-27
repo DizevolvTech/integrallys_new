@@ -64,6 +64,14 @@ async function resolveUnitId(
   }
 }
 
+const FORMAS_PAGAMENTO_VALIDAS = ['pix', 'dinheiro', 'cartao_credito', 'cartao_debito', 'consumo']
+
+/** Grava a forma de pagamento da venda (base do filtro "Vendas por consumo" nos relatórios). */
+function buildFormaPagamentoPayload(body: Record<string, unknown>) {
+  const forma = typeof body.formaPagamento === 'string' ? body.formaPagamento.trim() : ''
+  return FORMAS_PAGAMENTO_VALIDAS.includes(forma) ? { forma_pagamento: forma } : {}
+}
+
 function paymentMethodLabel(method: string | undefined | null) {
   switch (method) {
     case 'pix':
@@ -479,6 +487,7 @@ export async function POST(request: NextRequest) {
       assinado_em: assinaturaRaw ? new Date().toISOString() : null,
       ...buildDescontoPayload(body),
       ...buildParcelamentoPayload(body),
+      ...buildFormaPagamentoPayload(body),
     })
     .select('id')
     .single()
@@ -645,6 +654,7 @@ export async function PUT(request: NextRequest) {
       observacoes: body.observacoes ? String(body.observacoes) : null,
       ...buildDescontoPayload(body),
       ...buildParcelamentoPayload(body),
+      ...buildFormaPagamentoPayload(body),
       updated_at: new Date().toISOString(),
     })
     .eq('id', String(body.id))

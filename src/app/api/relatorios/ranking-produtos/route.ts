@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { margemPercentual } from '@/lib/relatorios/margem'
 import { isFinanciallyRestrictedRole } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
@@ -96,13 +97,21 @@ export async function GET(request: NextRequest) {
     quantidade: r.quantidade,
     receita: hidePrices ? 0 : r.receita,
     margem: hidePrices ? 0 : r.receita - r.custo,
+    margemPct: hidePrices ? null : margemPercentual(r.receita, r.custo),
   }))
+  const receitaTotal = Array.from(byKey.values()).reduce((acc, r) => acc + r.receita, 0)
+  const custoTotal = Array.from(byKey.values()).reduce((acc, r) => acc + r.custo, 0)
+  const totais = {
+    receita: hidePrices ? 0 : receitaTotal,
+    margem: hidePrices ? 0 : receitaTotal - custoTotal,
+    margemPct: hidePrices ? null : margemPercentual(receitaTotal, custoTotal),
+  }
 
   const vendidos = [...rows].sort((a, b) => b.quantidade - a.quantidade).slice(0, 20)
   const lucrativos = [...rows].sort((a, b) => b.margem - a.margem).slice(0, 20)
 
   return NextResponse.json({
-    data: { vendidos, lucrativos },
+    data: { vendidos, lucrativos, totais },
     meta: { dias, valoresVisiveis: !hidePrices, ...session },
   })
 }

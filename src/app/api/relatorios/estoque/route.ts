@@ -1,20 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAppSupabase, supabaseErrorResponse } from '@/lib/app-api'
+import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
+import { perfilPodeVerRelatorio } from '@/lib/relatorios/registry'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
-
-export interface RelatorioMovimentacaoItem {
-  id: string
-  data: string
-  tipo: 'entrada' | 'saida'
-  produto: string
-  quantidade: number
-  precoCusto: number | null
-  operador: string | null
-  vinculoTipo: string | null
-  vinculoNome: string | null
-  observacao: string | null
-}
 
 export interface CurvaAbcItem {
   produtoId: string
@@ -156,89 +144,8 @@ export async function GET(request: NextRequest) {
   const denied = await requirePermission(session.userId, 'relatorios', 'read')
   if (denied) return denied
 
-  const url = new URL(request.url)
-  if (url.searchParams.get('view') === 'curva-abc') {
-    return listCurvaAbc(request)
+  if (!perfilPodeVerRelatorio(session.role, 'estoque-posicao')) {
+    return serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)
   }
-
-  const tipoFilter = url.searchParams.get('tipo')
-  const tipoMovimentacaoFilter = url.searchParams.get('tipoMovimentacao')
-  const dataInicio = url.searchParams.get('inicio')
-  const dataFim = url.searchParams.get('fim')
-  const produtoBusca = url.searchParams.get('q') || ''
-
-  const supabase = getAppSupabase()
-
-  let query = supabase
-    .from('movimentacoes_estoque')
-    .select(
-      'id,tipo,tipo_movimentacao,quantidade,created_at,observacoes,vinculo_tipo,vinculo_nome,produto:produtos_estoque(nome,preco_custo),operador:usuarios!usuario_id(nome)',
-    )
-    .order('created_at', { ascending: false })
-    .limit(500)
-
-  if (tipoFilter === 'entrada' || tipoFilter === 'saida') {
-    query = query.eq('tipo', tipoFilter)
-  }
-  if (
-    tipoMovimentacaoFilter === 'entrada' ||
-    tipoMovimentacaoFilter === 'saida' ||
-    tipoMovimentacaoFilter === 'consumo_interno'
-  ) {
-    query = query.eq('tipo_movimentacao', tipoMovimentacaoFilter)
-  }
-  if (dataInicio) query = query.gte('created_at', dataInicio)
-  if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59`)
-
-  const { data, error } = await query
-  if (error) return supabaseErrorResponse(error, 'Falha ao carregar movimentações de estoque')
-
-  type Row = {
-    id: string
-    tipo: string
-    quantidade: number | string | null
-    created_at: string | null
-    observacoes: string | null
-    vinculo_tipo: string | null
-    vinculo_nome: string | null
-    produto: { nome: string | null; preco_custo: number | string | null } | null
-    operador: { nome: string | null } | null
-  }
-
-  const itens: RelatorioMovimentacaoItem[] = (data ?? [])
-    .map((row): RelatorioMovimentacaoItem => {
-      const r = row as unknown as Row
-      return {
-        id: String(r.id),
-        data: String(r.created_at ?? ''),
-        tipo: r.tipo === 'entrada' ? 'entrada' : 'saida',
-        produto: String(r.produto?.nome ?? '—'),
-        quantidade: Number(r.quantidade ?? 0),
-        precoCusto: r.produto?.preco_custo != null ? Number(r.produto.preco_custo) : null,
-        operador: r.operador?.nome ?? null,
-        vinculoTipo: r.vinculo_tipo,
-        vinculoNome: r.vinculo_nome,
-        observacao: r.observacoes,
-      }
-    })
-    .filter((row) => {
-      if (!produtoBusca) return true
-      const term = produtoBusca.toLowerCase()
-      return (
-        row.produto.toLowerCase().includes(term) ||
-        (row.vinculoNome ?? '').toLowerCase().includes(term)
-      )
-    })
-
-  const totalEntradas = itens
-    .filter((row) => row.tipo === 'entrada')
-    .reduce((acc, row) => acc + row.quantidade, 0)
-  const totalSaidas = itens
-    .filter((row) => row.tipo === 'saida')
-    .reduce((acc, row) => acc + row.quantidade, 0)
-
-  return NextResponse.json({
-    data: itens,
-    meta: { ...session, totalEntradas, totalSaidas },
-  })
+  return listCurvaAbc(request)
 }

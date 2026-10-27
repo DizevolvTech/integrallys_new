@@ -209,6 +209,8 @@ export function mapUsuarioItem(row: Record<string, unknown>) {
         : 'interno',
     especialistasPermitidos,
     agendaPessoalPermitidos,
+    isVendedor: row.is_vendedor === true,
+    comissao: row.comissao_percentual == null ? undefined : Number(row.comissao_percentual),
   }
 }
 

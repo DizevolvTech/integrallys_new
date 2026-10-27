@@ -1,102 +1,47 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Cake, CheckSquare, Search, Square } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { DateInput } from '@/components/shared/date-input'
 import { Input } from '@/components/ui/input'
-
-export interface Aniversariante {
-  id: string
-  nome: string
-  dataNascimento: string
-  idade: number
-  telefone: string
-  mensagemEnviada: boolean
-}
+import { useAniversariantes } from '@/features/relatorios/hooks/use-aniversariantes'
 
 interface AniversariantesModalProps {
   isOpen: boolean
   onClose: () => void
-  aniversariantes?: Aniversariante[]
 }
 
-/** Normaliza nascimento para YYYY-MM-DD em calendário local (evita UTC shift). */
-export function toBirthDateOnly(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10)
-  const br = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (br) return `${br[3]}-${br[2]}-${br[1]}`
-  const parsed = new Date(trimmed)
-  if (Number.isNaN(parsed.getTime())) return ''
-  const y = parsed.getFullYear()
-  const m = String(parsed.getMonth() + 1).padStart(2, '0')
-  const d = String(parsed.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-export function calcIdade(isoDate: string): number {
-  const [y, m, d] = isoDate.split('-').map(Number)
-  if (!y || !m || !d) return 0
+const hojeLocal = () => {
   const hoje = new Date()
-  let idade = hoje.getFullYear() - y
-  if (hoje.getMonth() + 1 < m || (hoje.getMonth() + 1 === m && hoje.getDate() < d)) {
-    idade -= 1
-  }
-  return Math.max(0, idade)
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
 }
 
 const formatDateBR = (isoDate: string) => {
-  const [year, month, day] = isoDate.split('-')
+  const [year, month, day] = isoDate.slice(0, 10).split('-')
   if (!year || !month || !day) return isoDate
   return `${day}/${month}/${year}`
 }
 
-export function AniversariantesModal({
-  isOpen,
-  onClose,
-  aniversariantes = [],
-}: AniversariantesModalProps) {
-  const hoje = new Date()
-  const hojeLocal = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+export function AniversariantesModal({ isOpen, onClose }: AniversariantesModalProps) {
   const [modo, setModo] = useState<'dia' | 'mes'>('dia')
   const [dataFiltro, setDataFiltro] = useState(hojeLocal)
   const [buscaNome, setBuscaNome] = useState('')
-  const [items, setItems] = useState<Aniversariante[]>(aniversariantes)
+  const { linhas, isLoading, error, marcar } = useAniversariantes({
+    modo,
+    data: dataFiltro,
+    q: buscaNome,
+    enviado: 'todos',
+    ativo: isOpen,
+  })
 
   useEffect(() => {
     if (!isOpen) return
-    setItems(aniversariantes)
     setBuscaNome('')
-    const agora = new Date()
-    setDataFiltro(
-      `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`,
-    )
+    setDataFiltro(hojeLocal())
     setModo('dia')
-  }, [isOpen, aniversariantes])
-
-  const filtrados = useMemo(() => {
-    const [, mes, dia] = dataFiltro.split('-').map(Number)
-    const query = buscaNome.trim().toLowerCase()
-    return items.filter((item) => {
-      const nasc = toBirthDateOnly(item.dataNascimento)
-      const [, bm, bd] = nasc.split('-').map(Number)
-      const matchData = modo === 'dia' ? bm === mes && bd === dia : bm === mes
-      if (!matchData) return false
-      if (!query) return true
-      return item.nome.toLowerCase().includes(query)
-    })
-  }, [items, dataFiltro, modo, buscaNome])
-
-  const toggleMensagem = (id: string) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, mensagemEnviada: !item.mensagemEnviada } : item,
-      ),
-    )
-  }
+  }, [isOpen])
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -156,13 +101,15 @@ export function AniversariantesModal({
               <div className="col-span-2 px-4 py-3 text-center">OK mensagem</div>
             </div>
 
-            {filtrados.length === 0 && (
+            {error && <div className="px-4 py-3 text-sm text-[var(--app-danger-text)]">{error}</div>}
+
+            {!isLoading && linhas.length === 0 && (
               <div className="px-4 py-6 text-sm text-app-text-muted">
                 Nenhum aniversariante para o filtro selecionado.
               </div>
             )}
 
-            {filtrados.map((item) => (
+            {linhas.map((item) => (
               <div
                 key={item.id}
                 className="grid grid-cols-12 border-b last:border-b-0 border-app-border dark:border-app-border-dark items-center"
@@ -171,10 +118,10 @@ export function AniversariantesModal({
                   {item.nome}
                 </div>
                 <div className="col-span-2 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
-                  {formatDateBR(toBirthDateOnly(item.dataNascimento))}
+                  {formatDateBR(item.nascimento)}
                 </div>
                 <div className="col-span-1 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
-                  {item.idade || calcIdade(toBirthDateOnly(item.dataNascimento))}
+                  {item.idade}
                 </div>
                 <div className="col-span-3 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
                   {item.telefone}
@@ -182,11 +129,11 @@ export function AniversariantesModal({
                 <div className="col-span-2 px-4 py-3 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => toggleMensagem(item.id)}
+                    onClick={() => void marcar(item.id, !item.enviado)}
                     className="h-8 w-8 inline-flex items-center justify-center rounded-[8px] hover:bg-app-bg-secondary dark:hover:bg-app-bg-dark transition-colors"
-                    title="Marcar mensagem enviada"
+                    title={item.enviado ? 'Desmarcar envio' : 'Marcar mensagem enviada'}
                   >
-                    {item.mensagemEnviada ? (
+                    {item.enviado ? (
                       <CheckSquare className="h-5 w-5 text-[var(--app-primary)]" />
                     ) : (
                       <Square className="h-5 w-5 text-app-text-muted" />
