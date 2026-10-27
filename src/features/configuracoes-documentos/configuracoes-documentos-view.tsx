@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import type { DocumentoTemplate } from '@/lib/documentos'
+import { useCadastro } from '@/features/cadastros/hooks/use-cadastro'
 import { useDocumentTemplates } from './hooks/use-document-templates'
 import { EditarTemplateModal } from './modals/editar-template-modal'
 import { VisualizarTemplateModal } from './modals/visualizar-template-modal'
@@ -38,6 +39,8 @@ const TIPO_LABEL: Record<DocumentoTemplate['tipo'], string> = {
 
 export function ConfiguracoesDocumentosView() {
   const { data, isLoading, error, patch, create, remove } = useDocumentTemplates()
+  const { data: tiposCadastro } = useCadastro('tipos-documento')
+  const tiposPorId = new Map(tiposCadastro.map((tipo) => [tipo.id, tipo.nome]))
   const [editando, setEditando] = useState<DocumentoTemplate | null>(null)
   const [visualizando, setVisualizando] = useState<DocumentoTemplate | null>(null)
   const [criando, setCriando] = useState(false)
@@ -169,7 +172,7 @@ export function ConfiguracoesDocumentosView() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-app-text-secondary dark:text-white/70">
-                      {TIPO_LABEL[template.tipo] ?? template.tipo}
+                      {tiposPorId.get(template.tipo_documento_id ?? '') ?? TIPO_LABEL[template.tipo] ?? template.tipo}
                     </td>
                     <td className="px-4 py-3 text-sm text-app-text-secondary dark:text-white/70">
                       {qtdSecoes}
@@ -269,6 +272,7 @@ export function ConfiguracoesDocumentosView() {
               slug: updates.slug,
               nome: updates.nome,
               tipo: updates.tipo,
+              tipoDocumentoId: updates.tipoDocumentoId,
               conteudo: updates.conteudo,
               unidadeId: updates.unidadeId,
               ativo: updates.ativo,

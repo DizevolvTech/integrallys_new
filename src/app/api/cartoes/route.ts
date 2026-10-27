@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { montarFaturas, parcelasDoMovimento, resumoLimite } from '@/lib/cartao-faturas'
+import { hojeClinica } from '@/lib/recebimento-agendamento'
 import { buildCartaoFormaPayload } from './cartao-forma'
 
 type CartaoRow = {
@@ -51,20 +53,26 @@ function monthStartIso(): string {
 
 function mapCartao(row: CartaoRow, movimentos: MovimentoRow[]) {
   const limiteTotal = Number(row.limite_total ?? 0)
-  const hoje = todayIso()
+  const hoje = hojeClinica()
 
-  const utilizado = movimentos
-    .filter((mov) => !mov.data_vencimento || mov.data_vencimento >= hoje)
-    .reduce((sum, mov) => sum + Number(mov.valor ?? 0), 0)
-
-  const faturasAbertas = movimentos
-    .filter((mov) => mov.data_vencimento && mov.data_vencimento >= hoje)
-    .reduce((sum, mov) => sum + Number(mov.valor ?? 0), 0)
-
-  const proximoVencimento = movimentos
-    .map((mov) => mov.data_vencimento)
-    .filter((value): value is string => Boolean(value) && (value as string) >= hoje)
-    .sort()[0] ?? null
+  // Compra parcelada vira parcelas nas faturas futuras (uma por mês).
+  const parcelas = movimentos
+    .filter((mov) => mov.data_compra)
+    .flatMap((mov) =>
+      parcelasDoMovimento(
+        {
+          id: mov.id,
+          descricao: mov.descricao,
+          beneficiario: mov.beneficiario,
+          valor: Number(mov.valor ?? 0),
+          parcelas: mov.parcelas ?? 1,
+          dataCompra: String(mov.data_compra),
+        },
+        row.dia_vencimento,
+      ),
+    )
+  const faturas = montarFaturas(parcelas, hoje)
+  const limite = resumoLimite(limiteTotal, faturas)
 
   return {
     id: row.id,
@@ -76,15 +84,17 @@ function mapCartao(row: CartaoRow, movimentos: MovimentoRow[]) {
     diaVencimento: row.dia_vencimento,
     contaBancariaId: row.conta_bancaria_id,
     ativo: row.ativo ?? true,
-    limiteUtilizado: Number(utilizado.toFixed(2)),
-    limiteDisponivel: Number((limiteTotal - utilizado).toFixed(2)),
-    faturasAbertas: Number(faturasAbertas.toFixed(2)),
-    proximoVencimento,
+    limiteUtilizado: limite.utilizado,
+    limiteDisponivel: limite.disponivel,
+    faturasAbertas: limite.utilizado,
+    proximoVencimento: limite.proximoVencimento,
+    faturas,
     movimentos: movimentos.map((mov) => ({
       id: mov.id,
       cartaoId: mov.cartao_id,
       descricao: mov.descricao,
       valor: Number(mov.valor ?? 0),
+      valorParcela: Number((Number(mov.valor ?? 0) / Math.max(1, mov.parcelas ?? 1)).toFixed(2)),
       parcelas: mov.parcelas ?? 1,
       parcelaAtual: mov.parcela_atual ?? 1,
       dataCompra: mov.data_compra,

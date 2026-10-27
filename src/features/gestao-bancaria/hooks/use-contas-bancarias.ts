@@ -26,6 +26,7 @@ export interface ContaBancaria {
 export interface ContaBancariaInput {
   nome: string
   banco?: string
+  bancoId?: string
   agencia?: string
   conta?: string
   tipo: ContaTipo

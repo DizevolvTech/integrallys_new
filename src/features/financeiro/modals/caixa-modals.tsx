@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { CaixaItem } from '@/hooks/use-caixa'
 import { formatCurrency } from '../financeiro.utils'
+import { FormaRecebimentoCampos } from '../components/forma-recebimento-campos'
 
 type CaixaModalType = null | 'abrir' | 'suprimento' | 'sangria' | 'fechar'
 
@@ -31,6 +32,9 @@ interface CaixaFormState {
   valor: string
   valorTransferido: string
   observacoes: string
+  forma: string
+  bandeira: string
+  parcelas: string
 }
 
 interface CaixaActionModalProps {
@@ -128,6 +132,15 @@ export function CaixaActionModal({ open, mode, onClose, form, onChange, onSubmit
                   <Label>Valor</Label>
                   <Input value={form.valor} onChange={(event) => onChange({ ...form, valor: event.target.value })} placeholder="0,00" className="h-11 rounded-xl border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-card/5" />
                 </div>
+                {mode === 'suprimento' && (
+                  <FormaRecebimentoCampos
+                    forma={form.forma}
+                    bandeira={form.bandeira}
+                    parcelas={form.parcelas}
+                    valor={form.valor}
+                    onChange={(patch) => onChange({ ...form, ...patch })}
+                  />
+                )}
                 <div className="space-y-3">
                   <Label>Descrição</Label>
                   <Textarea value={form.descricao} onChange={(event) => onChange({ ...form, descricao: event.target.value })} placeholder={mode === 'suprimento' ? 'Motivo do recebimento' : 'Motivo do pagamento'} className="min-h-[96px] rounded-xl border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-card/5" />

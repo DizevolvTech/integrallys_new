@@ -37,8 +37,8 @@ import { RegistrarGastoModal } from './modals/registrar-gasto-modal'
 type Aba = 'corporativos' | 'recebiveis'
 
 const ABAS: { value: Aba; label: string }[] = [
-  { value: 'corporativos', label: 'Cartões corporativos' },
-  { value: 'recebiveis', label: 'Recebíveis de clientes' },
+  { value: 'corporativos', label: 'Cartões de crédito da clínica' },
+  { value: 'recebiveis', label: 'Recebíveis de clientes (maquininha)' },
 ]
 
 function formatCurrency(value: number): string {
@@ -123,7 +123,7 @@ export function CartoesEmpresariaisView() {
             Cartões Empresariais
           </span>
         }
-        description="Gerencie os cartões corporativos da clínica e acompanhe os recebíveis pagos via cartão."
+        description="Cartão de crédito da clínica: compras, parcelas, faturas futuras e limite. Não são os recebimentos de crédito e débito dos clientes (esses estão em Recebíveis de clientes)."
         actions={
           <Button
             onClick={() => setNovoCartaoOpen(true)}
@@ -168,7 +168,7 @@ export function CartoesEmpresariaisView() {
               iconTone="success"
             />
             <StatCard
-              label="Faturas abertas"
+              label="Faturas futuras em aberto"
               value={formatCurrency(totaisCorporativos.faturasAbertas)}
               icon={ArrowDownLeft}
               iconTone="danger"

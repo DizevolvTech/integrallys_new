@@ -44,17 +44,12 @@ export const getFinanceStatusBadgeClass = (status?: string) => {
   return getStatusBadgeClass(status || '')
 }
 
-export const getFinanceStatusLabel = (status?: string, tab?: string) => {
-  if (!status) return 'Pendente'
+export const getFinanceStatusLabel = (status?: string) => {
+  if (!status) return 'A vencer'
   const normalized = status.toLowerCase()
-  if (tab === 'recebimentos') {
-    if (normalized.includes('pago') || normalized.includes('quitado')) return 'Liquidado'
-    if (normalized.includes('pendente')) return 'A vencer'
-  }
-  if (tab === 'pagamentos') {
-    if (normalized.includes('pago') || normalized.includes('quitado')) return 'Liquidado'
-    if (normalized.includes('pendente') || normalized.includes('parcial')) return 'À vencer'
-  }
+  if (normalized.includes('pago') || normalized.includes('quitado')) return 'Liquidado'
+  if (normalized.includes('vencid')) return 'Atrasado'
+  if (normalized.includes('pendente') || normalized.includes('parcial')) return 'A vencer'
   return status
 }
 

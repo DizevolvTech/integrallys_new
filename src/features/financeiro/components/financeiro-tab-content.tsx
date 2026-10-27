@@ -1,6 +1,5 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -41,6 +40,8 @@ import {
   isLiquidado,
 } from '../financeiro.utils'
 import type { useFinanceiroStats } from '../hooks/use-financeiro-stats'
+import { CardClicavel } from '../contas/card-clicavel'
+import type { TipoDetalheCaixa, TipoDetalheFinanceiro } from '../contas/detalhes-cards'
 
 interface Props {
   tab: string
@@ -60,40 +61,8 @@ interface Props {
   onCaixaEdit: (item: CaixaItem) => void
   onCaixaDelete: (item: CaixaItem) => void
   onCaixaAction: (action: 'abrir' | 'suprimento' | 'sangria' | 'fechar') => void
-  cardFilter?: 'todos' | 'liquidado' | 'pendente' | 'atrasado'
-  onCardFilterChange?: (filter: 'todos' | 'liquidado' | 'pendente' | 'atrasado') => void
-}
-
-// Card de resumo clicável que funciona como filtro (acessível por teclado).
-function FilterCard({
-  active,
-  accent,
-  onToggle,
-  children,
-}: {
-  active: boolean
-  accent: string
-  onToggle: () => void
-  children: ReactNode
-}) {
-  return (
-    <Card
-      role="button"
-      tabIndex={0}
-      aria-pressed={active}
-      onClick={onToggle}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onToggle()
-        }
-      }}
-      style={active ? { borderColor: accent, boxShadow: `inset 0 0 0 1px ${accent}` } : undefined}
-      className="cursor-pointer rounded-[16px] border border-app-border bg-app-card p-6 transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary/50 dark:border-app-border-dark dark:bg-app-card-dark"
-    >
-      {children}
-    </Card>
-  )
+  onDetalheCaixa: (tipo: TipoDetalheCaixa) => void
+  onDetalheLancamentos: (tipo: TipoDetalheFinanceiro) => void
 }
 
 export function FinanceiroTabContent({
@@ -112,12 +81,10 @@ export function FinanceiroTabContent({
   onCaixaEdit,
   onCaixaDelete,
   onCaixaAction,
-  cardFilter = 'todos',
-  onCardFilterChange,
+  onDetalheCaixa,
+  onDetalheLancamentos,
 }: Props) {
   const {
-    recebimentosSummary,
-    pagamentosSummary,
     lancamentosSummary,
     caixaTodayData,
     caixaStatus,
@@ -181,27 +148,33 @@ export function FinanceiroTabContent({
               {[
                 {
                   label: 'Saldo Inicial',
+                  tipo: 'saldo-inicial' as const,
                   value: formatCurrency(caixaStatus.saldoInicial),
                   color: 'text-app-text-primary',
                 },
                 {
                   label: 'Entradas',
+                  tipo: 'entradas' as const,
                   value: formatCurrency(caixaStatus.entradas),
                   color: 'text-[var(--app-success-text)]',
                 },
                 {
                   label: 'Saídas',
+                  tipo: 'saidas' as const,
                   value: formatCurrency(caixaStatus.saidas),
                   color: 'text-[var(--app-danger-text)]',
                 },
                 {
                   label: 'Saldo Atual',
+                  tipo: 'saldo-atual' as const,
                   value: formatCurrency(caixaStatus.saldo),
                   color: 'text-app-text-primary',
                 },
               ].map((stat) => (
-                <Card
+                <CardClicavel
                   key={stat.label}
+                  rotulo={`${stat.label}: ${stat.value}`}
+                  onOpen={() => onDetalheCaixa(stat.tipo)}
                   className="flex flex-col justify-center rounded-[16px] border border-app-border bg-app-card p-6 shadow-sm dark:border-app-border-dark dark:bg-app-card-dark"
                 >
                   <p className="mb-4 text-sm font-normal text-app-text-secondary dark:text-white/60">
@@ -210,7 +183,7 @@ export function FinanceiroTabContent({
                   <p className={`text-2xl font-normal ${stat.color} dark:text-white`}>
                     {stat.value}
                   </p>
-                </Card>
+                </CardClicavel>
               ))}
             </div>
           </div>
@@ -424,71 +397,9 @@ export function FinanceiroTabContent({
         </div>
       )}
 
-      {tab === 'recebimentos' && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <FilterCard
-            active={cardFilter === 'liquidado'}
-            accent="var(--app-success-text)"
-            onToggle={() =>
-              onCardFilterChange?.(cardFilter === 'liquidado' ? 'todos' : 'liquidado')
-            }
-          >
-            <p className="text-sm text-app-text-muted">Recebido no período</p>
-            <p className="mt-2 text-2xl font-normal text-[var(--app-success-text)]">
-              {formatCurrency(recebimentosSummary.liquidado)}
-            </p>
-            <p className="mt-1 text-xs text-app-text-muted">Total liquidado</p>
-          </FilterCard>
-          <FilterCard
-            active={cardFilter === 'pendente'}
-            accent="var(--app-warning-text)"
-            onToggle={() => onCardFilterChange?.(cardFilter === 'pendente' ? 'todos' : 'pendente')}
-          >
-            <p className="text-sm text-app-text-muted">A receber</p>
-            <p className="mt-2 text-2xl font-normal text-[var(--app-warning-text)]">
-              {formatCurrency(recebimentosSummary.aReceber)}
-            </p>
-            <p className="mt-1 text-xs text-app-text-muted">
-              {recebimentosSummary.pendencias} pendências
-            </p>
-          </FilterCard>
-        </div>
-      )}
-
-      {tab === 'pagamentos' && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <FilterCard
-            active={cardFilter === 'liquidado'}
-            accent="var(--app-danger-text)"
-            onToggle={() =>
-              onCardFilterChange?.(cardFilter === 'liquidado' ? 'todos' : 'liquidado')
-            }
-          >
-            <p className="text-sm text-app-text-muted">Pago no período</p>
-            <p className="mt-2 text-2xl font-normal text-[var(--app-danger-text)]">
-              {formatCurrency(pagamentosSummary.pago)}
-            </p>
-            <p className="mt-1 text-xs text-app-text-muted">Total liquidado</p>
-          </FilterCard>
-          <FilterCard
-            active={cardFilter === 'pendente'}
-            accent="var(--app-warning-text)"
-            onToggle={() => onCardFilterChange?.(cardFilter === 'pendente' ? 'todos' : 'pendente')}
-          >
-            <p className="text-sm text-app-text-muted">A pagar</p>
-            <p className="mt-2 text-2xl font-normal text-[var(--app-warning-text)]">
-              {formatCurrency(pagamentosSummary.aPagar)}
-            </p>
-            <p className="mt-1 text-xs text-app-text-muted">
-              {pagamentosSummary.pendencias} pendências
-            </p>
-          </FilterCard>
-        </div>
-      )}
-
       {tab === 'lancamentos' && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <Card className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
+          <CardClicavel onOpen={() => onDetalheLancamentos('entradas')} className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
             <p className="text-sm text-app-text-muted">Entradas no período</p>
             <p className="mt-2 text-2xl font-normal text-[var(--app-success-text)]">
               {formatCurrency(lancamentosSummary.entradas)}
@@ -496,8 +407,8 @@ export function FinanceiroTabContent({
             <p className="mt-1 text-xs text-app-text-muted">
               {data.filter((item) => item.tipo === 'receita').length} lançamentos
             </p>
-          </Card>
-          <Card className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
+          </CardClicavel>
+          <CardClicavel onOpen={() => onDetalheLancamentos('saidas')} className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
             <p className="text-sm text-app-text-muted">Saídas no período</p>
             <p className="mt-2 text-2xl font-normal text-[var(--app-danger-text)]">
               {formatCurrency(lancamentosSummary.saidas)}
@@ -505,21 +416,21 @@ export function FinanceiroTabContent({
             <p className="mt-1 text-xs text-app-text-muted">
               {data.filter((item) => item.tipo === 'despesa').length} lançamentos
             </p>
-          </Card>
-          <Card className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
+          </CardClicavel>
+          <CardClicavel onOpen={() => onDetalheLancamentos('saldo')} className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
             <p className="text-sm text-app-text-muted">Saldo do período</p>
             <p className="mt-2 text-2xl font-normal text-app-text-primary dark:text-white">
               {formatCurrency(lancamentosSummary.saldo)}
             </p>
             <p className="mt-1 text-xs text-app-text-muted">Resultado filtrado</p>
-          </Card>
-          <Card className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
+          </CardClicavel>
+          <CardClicavel onOpen={() => onDetalheLancamentos('a-vencer')} className="rounded-[16px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark">
             <p className="text-sm text-app-text-muted">Recebimentos a vencer</p>
             <p className="mt-2 text-2xl font-normal text-[var(--app-warning-text)]">
               {formatCurrency(lancamentosSummary.pendente)}
             </p>
             <p className="mt-1 text-xs text-app-text-muted">Pendências em aberto</p>
-          </Card>
+          </CardClicavel>
         </div>
       )}
 
@@ -529,11 +440,7 @@ export function FinanceiroTabContent({
             <h2 className="text-xl font-normal tracking-tight text-app-text-primary dark:text-white">
               {tab === 'caixa'
                 ? 'Movimentações de caixa'
-                : tab === 'recebimentos'
-                  ? 'Recebimentos lançados'
-                  : tab === 'pagamentos'
-                    ? 'Pagamentos lançados'
-                    : 'Consolidado financeiro'}
+                : 'Consolidado financeiro'}
             </h2>
             <p className="text-sm text-app-text-muted">
               {tab === 'caixa'
@@ -572,214 +479,6 @@ export function FinanceiroTabContent({
           <DataTable data={filteredData}>
             {(pageData) => (
               <div className="overflow-x-auto">
-                {tab === 'recebimentos' && (
-                  <Table>
-                    <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
-                      <TableRow>
-                        <TableHead className="min-w-[130px] px-6 text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Vencimento
-                        </TableHead>
-                        <TableHead className="min-w-[220px] px-6 text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Descrição/Pagador
-                        </TableHead>
-                        <TableHead className="min-w-[120px] px-6 text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Valor Total
-                        </TableHead>
-                        <TableHead className="min-w-[120px] px-6 text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Valor Recebido
-                        </TableHead>
-                        <TableHead className="min-w-[120px] px-6 text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Saldo Devedor
-                        </TableHead>
-                        <TableHead className="min-w-[100px] px-6 text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Status
-                        </TableHead>
-                        <TableHead className="min-w-[100px] px-6 text-center text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Ações
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pageData.map((item) => {
-                        const liquidado = isLiquidado(item.status)
-                        const valorRecebido = liquidado ? item.valor : 0
-                        const saldoDevedor = liquidado ? 0 : item.valor
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell className="px-6 py-4 text-app-text-secondary dark:text-white/70">
-                              {item.data?.split(' ')[0] || '-'}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 font-normal text-app-text-primary dark:text-white">
-                              {item.descricao}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-right font-normal text-app-text-primary dark:text-white">
-                              {formatCurrency(item.valor)}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-right font-normal text-[var(--app-success-text)]">
-                              {formatCurrency(valorRecebido)}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-right font-normal text-[var(--app-warning-text)]">
-                              {formatCurrency(saldoDevedor)}
-                            </TableCell>
-                            <TableCell className="px-6 py-4">
-                              <Badge
-                                className={`font-normal ${getFinanceStatusBadgeClass(item.status)}`}
-                              >
-                                {getFinanceStatusLabel(item.status, 'recebimentos')}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-center">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    aria-label="Ações"
-                                    className="mx-auto h-9 w-9 rounded-xl border-app-border dark:border-app-border-dark"
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => onLancamentoView(item)}>
-                                    <Eye className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Visualizar</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => onLancamentoEdit(item)}>
-                                    <Edit className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Editar</span>
-                                  </DropdownMenuItem>
-                                  {!liquidado && (
-                                    <DropdownMenuItem onClick={() => onLancamentoRecebimento(item)}>
-                                      <DollarSign className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                      <span>Registrar recebimento</span>
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuItem onClick={() => onLancamentoComprovante(item)}>
-                                    <FileText className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Recibo/Anexo</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-[var(--app-danger-text)]"
-                                    onClick={() => onLancamentoDelete(item)}
-                                  >
-                                    <RotateCcw className="mr-2 h-4 w-4" />
-                                    <span>Excluir</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-
-                {tab === 'pagamentos' && (
-                  <Table>
-                    <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
-                      <TableRow>
-                        <TableHead className="min-w-[130px] px-6 text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Vencimento
-                        </TableHead>
-                        <TableHead className="min-w-[220px] px-6 text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Descrição/Fornecedor
-                        </TableHead>
-                        <TableHead className="min-w-[140px] px-6 text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Forma de pagamento
-                        </TableHead>
-                        <TableHead className="min-w-[120px] px-6 text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Valor Total
-                        </TableHead>
-                        <TableHead className="min-w-[120px] px-6 text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Valor Pago
-                        </TableHead>
-                        <TableHead className="min-w-[120px] px-6 text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Saldo Devedor
-                        </TableHead>
-                        <TableHead className="min-w-[100px] px-6 text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Status
-                        </TableHead>
-                        <TableHead className="min-w-[100px] px-6 text-center text-xs font-medium uppercase tracking-wider text-app-text-secondary">
-                          Ações
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pageData.map((item) => {
-                        const liquidado = isLiquidado(item.status)
-                        const valorPago = liquidado ? item.valor : 0
-                        const saldoDevedor = liquidado ? 0 : item.valor
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell className="px-6 py-4 text-app-text-secondary dark:text-white/70">
-                              {item.data?.split(' ')[0] || '-'}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 font-normal text-app-text-primary dark:text-white">
-                              {item.descricao}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-app-text-secondary dark:text-white/70">
-                              {item.metodo || '-'}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-right font-normal text-app-text-primary dark:text-white">
-                              {formatCurrency(item.valor)}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-right font-normal text-[var(--app-danger-text)]">
-                              {formatCurrency(valorPago)}
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-right font-normal text-[var(--app-warning-text)]">
-                              {formatCurrency(saldoDevedor)}
-                            </TableCell>
-                            <TableCell className="px-6 py-4">
-                              <Badge
-                                className={`font-normal ${getFinanceStatusBadgeClass(item.status)}`}
-                              >
-                                {getFinanceStatusLabel(item.status, 'pagamentos')}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="px-6 py-4 text-center">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    aria-label="Ações"
-                                    className="mx-auto h-9 w-9 rounded-xl border-app-border dark:border-app-border-dark"
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => onLancamentoView(item)}>
-                                    <Eye className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Visualizar</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => onLancamentoEdit(item)}>
-                                    <Edit className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Editar</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => onLancamentoComprovante(item)}>
-                                    <FileText className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Anexo/Doc</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-[var(--app-danger-text)]"
-                                    onClick={() => onLancamentoDelete(item)}
-                                  >
-                                    <RotateCcw className="mr-2 h-4 w-4" />
-                                    <span>Excluir</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-
                 {tab === 'lancamentos' && (
                   <Table>
                     <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
@@ -858,7 +557,7 @@ export function FinanceiroTabContent({
                               <Badge
                                 className={`font-normal ${getFinanceStatusBadgeClass(status)}`}
                               >
-                                {status}
+                                {getFinanceStatusLabel(status)}
                               </Badge>
                             </TableCell>
                             <TableCell className="px-6 py-4 text-center">
@@ -909,7 +608,7 @@ export function FinanceiroTabContent({
                   </Table>
                 )}
 
-                {tab !== 'recebimentos' && tab !== 'pagamentos' && tab !== 'lancamentos' && (
+                {tab !== 'lancamentos' && (
                   <Table>
                     <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
                       <TableRow>

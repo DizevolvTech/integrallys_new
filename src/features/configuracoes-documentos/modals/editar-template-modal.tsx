@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useCadastro } from '@/features/cadastros/hooks/use-cadastro'
 import { useAuth } from '@/hooks/use-auth'
 import { useUnidades } from '@/hooks/use-unidades'
 import type {
@@ -69,6 +70,7 @@ interface TemplateUpdates {
   conteudo: TemplateConteudo
   slug?: string
   tipo?: DocumentoTipo
+  tipoDocumentoId?: string
   /** Só enviado na criação por master/admin (sem unidade implícita no JWT). */
   unidadeId?: string
 }
@@ -82,15 +84,6 @@ interface Props {
   onSave: (updates: TemplateUpdates) => Promise<void>
 }
 
-const TIPOS_DOCUMENTO: Array<{ value: DocumentoTipo; label: string }> = [
-  { value: 'formulario', label: 'Formulário' },
-  { value: 'declaracao', label: 'Declaração' },
-  { value: 'laudo', label: 'Laudo' },
-  { value: 'encaminhamento', label: 'Encaminhamento' },
-  { value: 'procedimento', label: 'Procedimento' },
-  { value: 'dieta', label: 'Dieta' },
-  { value: 'contrato', label: 'Contrato' },
-]
 
 const SLUG_REGEX = /^[a-z0-9_]+$/
 
@@ -130,6 +123,8 @@ export function EditarTemplateModal({
   const [nome, setNome] = useState('')
   const [slug, setSlug] = useState('')
   const [tipo, setTipo] = useState<DocumentoTipo>('formulario')
+  const [tipoDocumentoId, setTipoDocumentoId] = useState('')
+  const { data: tiposCadastro } = useCadastro('tipos-documento')
   const [unidadeId, setUnidadeId] = useState('')
   const [ativo, setAtivo] = useState(true)
   const [editavelEspecialista, setEditavelEspecialista] = useState(true)
@@ -156,6 +151,7 @@ export function EditarTemplateModal({
       setNome('')
       setSlug('')
       setTipo('formulario')
+      setTipoDocumentoId('')
       setUnidadeId('')
       setAtivo(true)
       setEditavelEspecialista(true)
@@ -184,6 +180,7 @@ export function EditarTemplateModal({
           ? {
               slug: slug.trim().toLowerCase(),
               tipo,
+              ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
               ...(precisaEscolherUnidade ? { unidadeId } : {}),
             }
           : {}),
@@ -262,16 +259,32 @@ export function EditarTemplateModal({
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-normal dark:text-white/70">Tipo</label>
-                  <Select value={tipo} onValueChange={(value) => setTipo(value as DocumentoTipo)}>
+                  <Select
+                    value={tipoDocumentoId || `base:${tipo}`}
+                    onValueChange={(value) => {
+                      const escolhido = tiposCadastro.find((entry) => entry.id === value)
+                      if (escolhido) {
+                        setTipoDocumentoId(escolhido.id)
+                        setTipo(escolhido.base as DocumentoTipo)
+                      }
+                    }}
+                  >
                     <SelectTrigger className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {TIPOS_DOCUMENTO.map((entry) => (
-                        <SelectItem key={entry.value} value={entry.value}>
-                          {entry.label}
+                      {tiposCadastro
+                        .filter((entry) => entry.ativo)
+                        .map((entry) => (
+                          <SelectItem key={entry.id} value={entry.id}>
+                            {entry.nome}
+                          </SelectItem>
+                        ))}
+                      {!tipoDocumentoId && (
+                        <SelectItem value={`base:${tipo}`} disabled>
+                          Escolha o tipo
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

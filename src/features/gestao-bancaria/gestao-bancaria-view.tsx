@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useCadastro } from '@/features/cadastros/hooks/use-cadastro'
 import { useContasBancarias, type ContaBancariaInput, type ContaTipo } from './hooks/use-contas-bancarias'
 import { ImportarOfxModal } from './modals/importar-ofx-modal'
 import { ContaExtrato } from './components/conta-extrato'
@@ -45,6 +46,7 @@ const TIPO_LABEL: Record<ContaTipo, string> = {
 
 export function GestaoBancariaView() {
   const { data, isLoading, error, accessDenied, create } = useContasBancarias()
+  const { data: bancos } = useCadastro('bancos')
   const [isCreating, setIsCreating] = useState(false)
   const [isOfxOpen, setIsOfxOpen] = useState(false)
   const [selectedContaId, setSelectedContaId] = useState<string | null>(null)
@@ -76,7 +78,7 @@ export function GestaoBancariaView() {
       })
       toast.success('Conta bancária criada.')
       setIsCreating(false)
-      setForm({ nome: '', banco: '', agencia: '', conta: '', tipo: 'corrente', saldoInicial: 0 })
+      setForm({ nome: '', banco: '', bancoId: undefined, agencia: '', conta: '', tipo: 'corrente', saldoInicial: 0 })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Falha ao criar conta')
     } finally {
@@ -313,7 +315,7 @@ export function GestaoBancariaView() {
                     ...prev,
                     tipo: value,
                     // caixa em dinheiro (cofre/recepção) não tem dados bancários
-                    ...(value === 'dinheiro' ? { banco: '', agencia: '', conta: '' } : {}),
+                    ...(value === 'dinheiro' ? { banco: '', bancoId: undefined, agencia: '', conta: '' } : {}),
                   }))
                 }
               >
@@ -332,11 +334,27 @@ export function GestaoBancariaView() {
               <>
                 <div className="space-y-1.5">
                   <Label>Banco</Label>
-                  <Input
-                    placeholder="Ex.: Itaú"
-                    value={form.banco ?? ''}
-                    onChange={(e) => setForm((prev) => ({ ...prev, banco: e.target.value }))}
-                  />
+                  <Select
+                    value={form.bancoId ?? 'none'}
+                    onValueChange={(value) =>
+                      setForm((prev) => ({ ...prev, bancoId: value === 'none' ? undefined : value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o banco" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não informado</SelectItem>
+                      {bancos
+                        .filter((banco) => banco.ativo)
+                        .map((banco) => (
+                          <SelectItem key={banco.id} value={banco.id}>
+                            {banco.codigo ? `${banco.codigo} · ${banco.nome}` : banco.nome}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-app-text-muted">Lista editável em Cadastros › Bancos.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">

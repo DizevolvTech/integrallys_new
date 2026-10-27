@@ -87,6 +87,8 @@ export interface DocumentoTemplate {
   slug: string
   nome: string
   tipo: DocumentoTipo
+  /** Tipo do cadastro (Cadastros › Tipos de documento); `tipo` segue como modelo base. */
+  tipo_documento_id?: string | null
   conteudo: TemplateConteudo
   ativo: boolean
   editavel_pelo_especialista: boolean

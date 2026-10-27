@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table'
 import { DateInput } from '@/components/shared/date-input'
 import type { CartaoEmpresarial } from '../hooks/use-cartoes-empresariais'
+import { FaturasCartao } from '../components/faturas-cartao'
 
 interface Props {
   open: boolean
@@ -96,6 +97,8 @@ export function DetalheCartaoModal({ open, cartao, onClose, onRegistrarGasto }: 
               />
             </div>
 
+            <FaturasCartao faturas={cartao.faturas} />
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="flex flex-col gap-1">
@@ -129,7 +132,7 @@ export function DetalheCartaoModal({ open, cartao, onClose, onRegistrarGasto }: 
                       <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Descrição</TableHead>
                       <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Beneficiário</TableHead>
                       <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Parcelas</TableHead>
-                      <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">Valor</TableHead>
+                      <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">Valor total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -148,7 +151,7 @@ export function DetalheCartaoModal({ open, cartao, onClose, onRegistrarGasto }: 
                           {mov.beneficiario ?? '—'}
                         </TableCell>
                         <TableCell className="text-app-text-secondary dark:text-white/70">
-                          {mov.parcelas > 1 ? `${mov.parcelas}x` : 'À vista'}
+                          {mov.parcelas > 1 ? `${mov.parcelas}x de ${formatCurrency(mov.valorParcela)}` : 'À vista'}
                         </TableCell>
                         <TableCell className="text-right font-normal tabular-nums text-app-text-primary dark:text-white">
                           {formatCurrency(mov.valor)}
