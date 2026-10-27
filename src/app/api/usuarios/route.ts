@@ -2,6 +2,7 @@ import { hash } from 'bcryptjs'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { limparCacheCurto } from '@/lib/short-cache'
 import { mapUsuarioItem } from '@/lib/domain-mappers'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import { resolverUnidadeUsuario } from './usuario-input'
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
     return supabaseErrorResponse(error, 'Falha ao criar usuário')
   }
 
+  limparCacheCurto() // sessão/permissão em cache curto: aplica a mudança já
   return listUsuarios(request, session)
 }
 
@@ -216,6 +218,7 @@ export async function PUT(request: NextRequest) {
     return supabaseErrorResponse(error, 'Falha ao atualizar usuário')
   }
 
+  limparCacheCurto() // sessão/permissão em cache curto: aplica a mudança já
   return listUsuarios(request, session)
 }
 
@@ -237,5 +240,6 @@ export async function DELETE(request: NextRequest) {
     return supabaseErrorResponse(error, 'Falha ao excluir usuário')
   }
 
+  limparCacheCurto() // sessão/permissão em cache curto: aplica a mudança já
   return listUsuarios(request, session)
 }

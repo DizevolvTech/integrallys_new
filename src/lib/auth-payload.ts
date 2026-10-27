@@ -124,8 +124,10 @@ export async function buildAuthPayloadFromUserRecord(
   }
 
   const supabase = getServiceSupabase();
-  const permissions = await fetchPermissions(supabase, userRow.id);
-  const mustDefinePassword = await fetchMustDefinePassword(supabase, userRow.id);
+  const [permissions, mustDefinePassword] = await Promise.all([
+    fetchPermissions(supabase, userRow.id),
+    fetchMustDefinePassword(supabase, userRow.id),
+  ]);
 
   return {
     user: {

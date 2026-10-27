@@ -93,6 +93,7 @@ export function AgendaView() {
     updateAgendamento,
     deleteAgendamento,
     load: reloadAgenda,
+    podeEmitirRecibo,
   } = useAgenda()
   const api = useApi()
   const { data: bloqueios, create: createBloqueio, remove: removeBloqueio } = useAgendaBloqueios()
@@ -1059,7 +1060,7 @@ export function AgendaView() {
                 showDaySlots={showDaySlots}
                 onOpenSlotModal={actions.openSlotModal}
                 onOpenCharge={actions.handleOpenCharge}
-                onOpenRecibo={(slot) => setReciboAgendamentoId(slot.id)}
+                onOpenRecibo={podeEmitirRecibo ? (slot) => setReciboAgendamentoId(slot.id) : undefined}
                 onCallSpecialist={(slot) => actions.openSlotModal('chamar-especialista', slot)}
                 onStatusChange={actions.handleStatusChange}
                 onRemoveBloqueio={async (bloqueio) => {

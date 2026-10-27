@@ -1,6 +1,19 @@
 import { getAppSupabase, serverErrorResponse } from '@/lib/app-api'
+import { memoizeShort } from '@/lib/short-cache'
 
-export async function can(
+const PERMISSAO_CACHE_MS = 10_000
+
+export function can(userId: string, resource: string, action: string): Promise<boolean> {
+  // Cache curto + dedupe: chamadas paralelas da mesma tela reutilizam a mesma consulta; só "permitido" fica guardado.
+  return memoizeShort(
+    `can:${userId}:${resource}:${action}`,
+    PERMISSAO_CACHE_MS,
+    () => consultarPermissao(userId, resource, action),
+    (permitido) => permitido,
+  )
+}
+
+async function consultarPermissao(
   userId: string,
   resource: string,
   action: string,

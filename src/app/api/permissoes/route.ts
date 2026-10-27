@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { limparCacheCurto } from '@/lib/short-cache'
 import { mapPermissaoItem } from '@/lib/domain-mappers'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
@@ -164,6 +165,7 @@ async function savePermissoes(
     return supabaseErrorResponse(error, mode === 'create' ? 'Falha ao criar perfil de permissões' : 'Falha ao atualizar permissões')
   }
 
+  limparCacheCurto() // sessão/permissão em cache curto: aplica a mudança já
   return listPermissoes(session)
 }
 
@@ -229,5 +231,6 @@ export async function DELETE(request: NextRequest) {
     return supabaseErrorResponse(error, 'Falha ao excluir perfil de permissões')
   }
 
+  limparCacheCurto() // sessão/permissão em cache curto: aplica a mudança já
   return listPermissoes(session)
 }

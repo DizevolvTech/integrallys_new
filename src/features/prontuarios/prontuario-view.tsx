@@ -1,6 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+import { useApi } from '@/hooks/use-api'
+import { PrazoRetornoModal, type PrazoRetornoEscolhido } from '@/features/retornos/prazo-retorno-modal'
 import {
   Calendar,
   CheckCircle,
@@ -66,6 +69,10 @@ function ProntuarioViewList() {
   const [isViewOpen, setIsViewOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isFinalizeOpen, setIsFinalizeOpen] = useState(false)
+  const [isReturnOpen, setIsReturnOpen] = useState(false)
+  const [isFinalizing, setIsFinalizing] = useState(false)
+  const api = useApi()
 
   const filteredData = useMemo(() => {
     return data.filter((item) => {
@@ -93,6 +100,36 @@ function ProntuarioViewList() {
   const openDelete = (item: ProntuarioItem) => {
     setSelectedItem(item)
     setIsDeleteOpen(true)
+  }
+
+  /** Marca o prontuário como Fechado (o prazo, quando definido, já foi gravado antes). */
+  const concluirFinalizacao = async () => {
+    if (!selectedItem?.pacienteId) return
+    setIsFinalizing(true)
+    try {
+      const atual = await updateProntuario({
+        id: selectedItem.id,
+        pacienteId: selectedItem.pacienteId,
+        data: selectedItem.data,
+        tipo: selectedItem.tipo,
+        status: 'Fechado',
+      })
+      setSelectedItem(atual.find((item) => item.id === selectedItem.id) ?? { ...selectedItem, status: 'Fechado' })
+      toast.success('Atendimento finalizado com sucesso.')
+      setIsReturnOpen(false)
+      setIsFinalizeOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível finalizar o atendimento.')
+    } finally {
+      setIsFinalizing(false)
+    }
+  }
+
+  const salvarPrazo = async (prazo: PrazoRetornoEscolhido) => {
+    if (!selectedItem?.pacienteId) return
+    // Prazo gravado antes de finalizar: se falhar, o atendimento continua aberto.
+    await api.post('/api/retornos', { origem: 'atendimento', pacienteId: selectedItem.pacienteId, prazo })
+    await concluirFinalizacao()
   }
 
   const handleDelete = async () => {
@@ -160,8 +197,8 @@ function ProntuarioViewList() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-[200px] rounded-integrallys-lg border-app-border bg-app-card p-2 dark:border-app-border-dark dark:bg-app-card-dark">
                   <DropdownMenuItem onClick={() => setStatusFilter('Todos os Status')}>Todos os status</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter('Em Andamento')}>Em andamento</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter('Finalizado')}>Finalizado</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter('Aberto')}>Em andamento</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatusFilter('Fechado')}>Finalizado</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -224,7 +261,7 @@ function ProntuarioViewList() {
                     <TableCell className="text-center">
                       <Badge
                         className={`rounded-lg border-0 px-2.5 py-1 text-xs font-normal tracking-wider shadow-sm ${
-                          item.status === 'Finalizado'
+                          item.status === 'Fechado'
                             ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
                             : 'bg-app-primary text-white dark:bg-blue-900/40 dark:text-[var(--app-info-text)]'
                         }`}
@@ -313,7 +350,7 @@ function ProntuarioViewList() {
                   </div>
                   <Badge
                     className={`order-first w-fit shrink-0 rounded-lg border-none px-3 py-1.5 text-xs font-normal tracking-wider shadow-sm ${
-                      selectedItem.status === 'Finalizado'
+                      selectedItem.status === 'Fechado'
                         ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
                         : 'app-status-info text-white'
                     }`}
@@ -333,6 +370,8 @@ function ProntuarioViewList() {
                     Editar prontuário
                   </Button>
                   <Button
+                    onClick={() => setIsFinalizeOpen(true)}
+                    disabled={selectedItem.status === 'Fechado'}
                     className="h-10 px-4 rounded-integrallys bg-app-primary hover:bg-app-primary-hover text-white font-normal flex items-center gap-2 shadow-sm"
                   >
                     <CheckCircle className="h-4 w-4 shrink-0" />
@@ -453,6 +492,35 @@ function ProntuarioViewList() {
         onConfirm={async () => {
           await handleDelete()
         }}
+      />
+
+      <Dialog open={isFinalizeOpen && !isReturnOpen} onOpenChange={setIsFinalizeOpen}>
+        <DialogContent className="p-8">
+          <div className="space-y-4 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full app-status-success text-[var(--app-success-text)]">
+              <CheckCircle className="h-8 w-8" />
+            </div>
+            <h2 className="text-2xl font-normal text-app-text-primary dark:text-white">Finalizar atendimento?</h2>
+            <p className="font-normal text-app-text-muted">
+              O prontuário permanece editável após a finalização (com auditoria). Em seguida você define o prazo de retorno.
+            </p>
+            <div className="flex gap-4 pt-4">
+              <Button variant="outline" className="flex-1 font-normal" onClick={() => setIsFinalizeOpen(false)}>
+                Revisar
+              </Button>
+              <Button className="flex-1 bg-app-primary font-normal" disabled={isFinalizing} onClick={() => setIsReturnOpen(true)}>
+                Sim, finalizar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <PrazoRetornoModal
+        open={isReturnOpen}
+        onOpenChange={setIsReturnOpen}
+        onConfirm={salvarPrazo}
+        onSkip={() => void concluirFinalizacao()}
       />
     </div>
   )
