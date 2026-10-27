@@ -483,7 +483,7 @@ export function PacientesView() {
                     </TableHeader>
                     <TableBody>
                       {pageData.map((p) => (
-                        <TableRow key={String(p.id)}>
+                        <TableRow key={String(p.id)} className={p.status === 'complete' ? undefined : 'bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'} data-cadastro={p.status}>
                     <TableCell className="pl-8">
                       <div className="py-1 flex items-center gap-3">
                         <div className="h-9 w-9 rounded-full overflow-hidden border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-hover shrink-0 relative">

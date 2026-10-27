@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { assinarUrlsExames, caminhoDoExame, EXAMES_BUCKET } from '@/lib/exames-storage'
 import { authErrorResponse, assertPacienteInUnitScope, getRequestAuth } from '@/lib/request-auth'
 
 export interface PacienteExameItem {
@@ -62,6 +63,8 @@ export async function GET(request: NextRequest) {
   } else {
     const denied = await requirePermission(session.userId, 'pacientes', 'read')
     if (denied) return denied
+    const fora = await assertPacienteInUnitScope({ session, pacienteId })
+    if (fora) return fora
   }
 
   const { data, error } = await supabase
@@ -73,7 +76,7 @@ export async function GET(request: NextRequest) {
   if (error) return supabaseErrorResponse(error, 'Falha ao carregar exames do paciente')
 
   return NextResponse.json({
-    data: (data ?? []).map((row) => mapRow(row as Row)),
+    data: (await assinarUrlsExames(supabase, (data ?? []).map((row) => mapRow(row as Row)))),
     meta: session,
   })
 }
@@ -145,7 +148,7 @@ export async function DELETE(request: NextRequest) {
   const supabase = getAppSupabase()
   const { data: exame, error: exameError } = await supabase
     .from('paciente_exames')
-    .select('id,paciente_id')
+    .select('id,paciente_id,url')
     .eq('id', body.id)
     .maybeSingle()
   if (exameError) return supabaseErrorResponse(exameError, 'Falha ao excluir exame')
@@ -159,6 +162,8 @@ export async function DELETE(request: NextRequest) {
 
   const { error } = await supabase.from('paciente_exames').delete().eq('id', body.id)
   if (error) return supabaseErrorResponse(error, 'Falha ao excluir exame')
+  const caminho = caminhoDoExame(String(exame.url ?? ''))
+  if (caminho) await supabase.storage.from(EXAMES_BUCKET).remove([caminho])
 
   return NextResponse.json({ data: { id: body.id }, meta: session })
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { calcularIdade } from '../utils/idade'
 import { descreverNotaFiscal, notaFiscalFromFinancial } from '../utils/nota-fiscal'
 import { descreverOrigem } from '../utils/origem'
 import Image from 'next/image'
@@ -182,6 +183,7 @@ export function VisualizarPacienteModal({
                 <p><strong>Origem:</strong> {descreverOrigem(paciente?.source, paciente?.origemDetalhe)}</p>
                 <p><strong>Nota fiscal:</strong> {descreverNotaFiscal(paciente?.precisaNf === true, notaFiscalFromFinancial(paciente?.financial))}</p>
                 <p><strong>Nascimento:</strong> {paciente?.birthDate ? new Date(paciente.birthDate).toLocaleDateString('pt-BR') : '-'}</p>
+                <p data-testid="paciente-idade"><strong>Idade:</strong> {(() => { const idade = calcularIdade(paciente?.birthDate); return idade !== null ? `${idade} ${idade === 1 ? 'ano' : 'anos'}` : '-' })()}</p>
                 <p><strong>Status:</strong> {paciente?.activeStatus || 'Ativo'}</p>
               </div>
 
