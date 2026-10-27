@@ -43,4 +43,9 @@ describe('faturas e limite', () => {
   it('limite usado soma só faturas em aberto', () => {
     expect(resumoLimite(1000, faturas)).toEqual({ utilizado: 300, disponivel: 700, proximoVencimento: '2026-11-10' })
   })
+
+  it('fatura que vence hoje ainda está em aberto', () => {
+    const doDia = montarFaturas(parcelasDoMovimento(compra('c', 50, 1, '2026-09-27'), 27), '2026-10-27')
+    expect(doDia[0]).toMatchObject({ vencimento: '2026-10-27', aberta: true })
+  })
 })

@@ -18,7 +18,8 @@ const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julh
 
 function nomeMes(mes: string): string {
   const [ano, numero] = mes.split('-')
-  return `${MESES[Number(numero) - 1]} de ${ano}`
+  const nome = MESES[Number(numero) - 1]
+  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${ano}`
 }
 
 export function FaturasCartao({ faturas }: { faturas: FaturaCartao[] }) {
@@ -51,7 +52,7 @@ export function FaturasCartao({ faturas }: { faturas: FaturaCartao[] }) {
                 >
                   <span className="flex items-center gap-2 text-sm text-app-text-primary dark:text-white">
                     {expandida ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    <span className="capitalize">{nomeMes(fatura.mes)}</span>
+                    <span>{nomeMes(fatura.mes)}</span>
                     <Badge variant="outline" className="rounded-full text-[10px]">vence {formatDate(fatura.vencimento)}</Badge>
                   </span>
                   <span className="tabular-nums text-sm font-medium text-app-text-primary dark:text-white">

@@ -115,7 +115,7 @@ export function ContasCards({ tipo, contas }: { tipo: 'receita' | 'despesa'; con
         open={aberto !== null}
         onClose={() => setAberto(null)}
         titulo={atual ? `${rotulos[atual.situacao][0]} — ${tipo === 'receita' ? 'recebimentos' : 'pagamentos'}` : ''}
-        descricao={rotuloPeriodo(periodo)}
+        descricao={atual?.situacao === 'atrasado' && !periodo?.informado ? 'Tudo o que já venceu e não foi liquidado' : rotuloPeriodo(periodo)}
         total={atual?.valor ?? 0}
         grupos={grupos}
         carregando={carregando}

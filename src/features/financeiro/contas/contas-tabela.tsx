@@ -34,7 +34,7 @@ interface Props {
   onExcluir: (item: ContaItem) => void
 }
 
-const CABECALHO = 'px-4 text-xs font-medium uppercase tracking-wider text-app-text-secondary whitespace-nowrap'
+const CABECALHO = 'px-3 text-xs font-medium uppercase tracking-wider text-app-text-secondary whitespace-nowrap'
 
 export function ContasTabela({ tipo, itens, onVisualizar, onEditar, onLiquidar, onAnexos, onExcluir }: Props) {
   const receita = tipo === 'receita'
@@ -47,10 +47,10 @@ export function ContasTabela({ tipo, itens, onVisualizar, onEditar, onLiquidar, 
               <TableRow>
                 <TableHead className={CABECALHO}>Vencimento</TableHead>
                 <TableHead className={CABECALHO}>Emissão</TableHead>
-                <TableHead className={CABECALHO}>Nº documento</TableHead>
-                <TableHead className={`${CABECALHO} min-w-[220px]`}>{receita ? 'Descrição / cliente' : 'Descrição / fornecedor'}</TableHead>
+                <TableHead className={CABECALHO}>Nº doc.</TableHead>
+                <TableHead className={`${CABECALHO} min-w-[180px]`}>{receita ? 'Descrição / cliente' : 'Descrição / fornecedor'}</TableHead>
                 <TableHead className={CABECALHO}>Parcela</TableHead>
-                <TableHead className={CABECALHO}>{receita ? 'Forma de recebimento' : 'Forma de pagamento'}</TableHead>
+                <TableHead className={CABECALHO}>Forma</TableHead>
                 <TableHead className={`${CABECALHO} text-right`}>Valor</TableHead>
                 <TableHead className={CABECALHO}>Situação</TableHead>
                 <TableHead className={`${CABECALHO} text-center`}>Ações</TableHead>
@@ -59,19 +59,19 @@ export function ContasTabela({ tipo, itens, onVisualizar, onEditar, onLiquidar, 
             <TableBody>
               {pagina.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="px-4 py-3 text-app-text-secondary">{formatarData(item.vencimento ?? item.dataReferencia)}</TableCell>
-                  <TableCell className="px-4 py-3 text-app-text-secondary">{formatarData(item.emissao)}</TableCell>
-                  <TableCell className="px-4 py-3 text-app-text-secondary">{item.numeroDocumento ?? '—'}</TableCell>
-                  <TableCell className="px-4 py-3 text-app-text-primary dark:text-white">
+                  <TableCell className="px-3 py-3 text-app-text-secondary">{formatarData(item.vencimento ?? item.dataReferencia)}</TableCell>
+                  <TableCell className="px-3 py-3 text-app-text-secondary">{formatarData(item.emissao)}</TableCell>
+                  <TableCell className="px-3 py-3 text-app-text-secondary">{item.numeroDocumento ?? '—'}</TableCell>
+                  <TableCell className="px-3 py-3 text-app-text-primary dark:text-white">
                     <span className="block">{item.descricao}</span>
                     {(item.pessoa || item.categoria) && (
                       <span className="block text-xs text-app-text-muted">{[item.pessoa, item.categoria].filter(Boolean).join(' · ')}</span>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-app-text-secondary">{item.parcela ?? '—'}</TableCell>
-                  <TableCell className="px-4 py-3 text-app-text-secondary">{item.forma}</TableCell>
-                  <TableCell className="px-4 py-3 text-right tabular-nums text-app-text-primary dark:text-white">{formatCurrency(item.valor)}</TableCell>
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="px-3 py-3 text-app-text-secondary">{item.parcela ?? '—'}</TableCell>
+                  <TableCell className="px-3 py-3 text-app-text-secondary">{item.forma}</TableCell>
+                  <TableCell className="px-3 py-3 text-right tabular-nums text-app-text-primary dark:text-white">{formatCurrency(item.valor)}</TableCell>
+                  <TableCell className="px-3 py-3">
                     <Badge className={`font-normal ${COR_SITUACAO[item.situacao]}`}>{item.situacaoLabel}</Badge>
                     {item.anexos > 0 && (
                       <span className="ml-2 inline-flex items-center gap-1 text-xs text-app-text-muted" title={`${item.anexos} documento(s) anexado(s)`}>
@@ -80,7 +80,7 @@ export function ContasTabela({ tipo, itens, onVisualizar, onEditar, onLiquidar, 
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
+                  <TableCell className="px-3 py-3 text-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="icon" aria-label="Ações" className="mx-auto h-9 w-9 rounded-xl">

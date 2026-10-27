@@ -50,7 +50,8 @@ describe('filtros', () => {
   const saldo = saldoAgendamentoConta({
     agendamentoId: 'a1', paciente: 'Maria Souza', procedimento: null, procedimentoId: 'p1',
     profissionalId: 'u1', dataAgendamento: '2026-11-05', valorDevido: 200, totalPago: 100, hoje,
-  })!
+  })
+  if (!saldo) throw new Error('saldo esperado')
 
   it('filtra o saldo por cliente, profissional e período', () => {
     expect(filtrarSaldos([saldo], filtros({ pessoa: 'souza' }))).toHaveLength(1)

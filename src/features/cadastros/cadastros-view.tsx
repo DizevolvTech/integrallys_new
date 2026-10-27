@@ -14,7 +14,7 @@ const ABAS = [
   { value: 'bancos', label: 'Bancos' },
   { value: 'categorias-dre', label: 'Categorias de DRE' },
   { value: 'tipos-documento', label: 'Tipos de documento' },
-  { value: 'outros', label: 'Formas, procedimentos e profissionais' },
+  { value: 'outros', label: 'Outros cadastros' },
 ]
 
 const CAMPOS_BANCO: CampoCadastro[] = [{ chave: 'codigo', rotulo: 'Código', tipo: 'texto' }]
