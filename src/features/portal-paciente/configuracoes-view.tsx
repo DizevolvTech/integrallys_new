@@ -13,6 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePerfilPaciente, type PatientPerfilData } from './hooks/use-perfil-paciente'
 import { AlterarFotoModal } from './modals/alterar-foto-modal'
 import { useAuth } from '@/hooks/use-auth'
+import { OrigemNfFields } from '@/features/gestao-pacientes/components/origem-nf-fields'
+import { ResponsavelFields } from '@/features/gestao-pacientes/components/responsavel-fields'
+import { NecessidadeEspecialFields, NECESSIDADE_ESPECIAL_VAZIA } from '@/features/gestao-pacientes/components/necessidade-especial-fields'
+import { camposFaltandoCadastro, mensagemCamposFaltando } from '@/features/gestao-pacientes/utils/cadastro-validacao'
+import { calcularIdade } from '@/features/gestao-pacientes/utils/idade'
+import { NOTA_FISCAL_VAZIA } from '@/features/gestao-pacientes/utils/nota-fiscal'
+import { RESPONSAVEL_VAZIO } from '@/features/gestao-pacientes/components/responsavel-fields'
 
 const EMPTY_PROFILE: PatientPerfilData = {
   nome: '',
@@ -36,6 +43,12 @@ const EMPTY_PROFILE: PatientPerfilData = {
   lembretesConsultas: true,
   avisosPagamento: true,
   promocoesNovidades: false,
+  indicacao: '',
+  origemDetalhe: '',
+  precisaNf: false,
+  notaFiscal: { ...NOTA_FISCAL_VAZIA },
+  specialNeeds: { ...NECESSIDADE_ESPECIAL_VAZIA },
+  responsible: { ...RESPONSAVEL_VAZIO },
 }
 
 function isValidAppEmail(value: string) {
@@ -159,9 +172,34 @@ export function ConfiguracoesView() {
     return Object.keys(nextErrors).length === 0
   }
 
+  // Mesmas exigências do cadastro da recepção (menor de idade exige responsável; NF com outros dados exige endereço).
+  const idade = calcularIdade(formData.dataNascimento)
+  const menorDeIdade = idade !== null && idade < 18
+  const avisoCadastro = () =>
+    mensagemCamposFaltando(
+      camposFaltandoCadastro({
+        nome: formData.nome,
+        cpf: formData.cpf,
+        dataNascimento: formData.dataNascimento,
+        cep: formData.zipCode,
+        telefone: formData.telefone,
+        precisaNf: formData.precisaNf,
+        notaFiscal: formData.notaFiscal,
+        menorDeIdade,
+        responsavelNome: formData.responsible.name,
+        responsavelParentesco: formData.responsible.relationship,
+      }),
+    )
+
   const handleSaveProfile = async () => {
     if (!validateProfile()) {
       toast.error('Preencha os campos obrigatórios do perfil.')
+      return
+    }
+
+    const faltando = avisoCadastro()
+    if (faltando) {
+      toast.error(faltando)
       return
     }
 
@@ -347,6 +385,35 @@ export function ConfiguracoesView() {
                       {profileErrors.state && <p className="text-xs text-[var(--app-danger-text)]">{profileErrors.state}</p>}
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-[12px] border border-app-border p-5 dark:border-app-border-dark">
+                  <h4 className="mb-4 text-sm font-semibold text-app-text-primary dark:text-white">Origem e nota fiscal</h4>
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-6">
+                    <OrigemNfFields
+                      value={{ indicacao: formData.indicacao, origemDetalhe: formData.origemDetalhe, indicadoPorId: null, precisaNf: formData.precisaNf, notaFiscal: formData.notaFiscal }}
+                      onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+                      buscarIndicador={false}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[12px] border border-app-border p-5 dark:border-app-border-dark">
+                  <h4 className="mb-4 text-sm font-semibold text-app-text-primary dark:text-white">Responsável legal</h4>
+                  {!menorDeIdade && !formData.responsible.name && (
+                    <p className="text-sm text-app-text-muted">Obrigatório para menores de 18 anos; opcional acima de 70.</p>
+                  )}
+                  <ResponsavelFields
+                    value={formData.responsible}
+                    onChange={(responsible) => updateField('responsible', responsible)}
+                    obrigatorio={menorDeIdade}
+                    opcional={idade !== null && idade > 70}
+                  />
+                </div>
+
+                <div className="rounded-[12px] border border-app-border p-5 dark:border-app-border-dark">
+                  <h4 className="mb-4 text-sm font-semibold text-app-text-primary dark:text-white">Necessidades especiais</h4>
+                  <NecessidadeEspecialFields value={formData.specialNeeds} onChange={(specialNeeds) => updateField('specialNeeds', specialNeeds)} />
                 </div>
 
                 <div className="flex flex-col-reverse justify-end gap-3 pt-2 sm:flex-row">

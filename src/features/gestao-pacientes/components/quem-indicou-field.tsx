@@ -13,6 +13,8 @@ interface QuemIndicouFieldProps {
     indicadoPorId: string | null
     /** Paciente em edição: não sugere ele mesmo. */
     excluirId?: string
+    /** Falso no portal do paciente: texto livre, sem listar outros cadastros (privacidade). */
+    buscar?: boolean
     onChange: (next: { nome: string; indicadoPorId: string | null }) => void
 }
 
@@ -23,7 +25,7 @@ const LABEL = 'text-xs font-bold text-[var(--app-text-primary)] dark:text-white/
  * paciente/cliente já cadastrado e o vínculo fica salvo. Texto livre continua
  * aceito para quem indicou e não é cliente.
  */
-export function QuemIndicouField({ nome, indicadoPorId, excluirId, onChange }: QuemIndicouFieldProps) {
+export function QuemIndicouField({ nome, indicadoPorId, excluirId, buscar = true, onChange }: QuemIndicouFieldProps) {
     const api = useApi()
     const listId = useId()
     const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
@@ -33,7 +35,7 @@ export function QuemIndicouField({ nome, indicadoPorId, excluirId, onChange }: Q
 
     useEffect(() => {
         const termo = nome.trim()
-        if (indicadoPorId || termo.length < 2) {
+        if (!buscar || indicadoPorId || termo.length < 2) {
             setSugestoes([])
             return
         }
@@ -49,7 +51,7 @@ export function QuemIndicouField({ nome, indicadoPorId, excluirId, onChange }: Q
             }
         }, 250)
         return () => clearTimeout(timer)
-    }, [api, excluirId, indicadoPorId, nome])
+    }, [api, buscar, excluirId, indicadoPorId, nome])
 
     const escolher = (s: Sugestao) => {
         onChange({ nome: s.nome, indicadoPorId: s.id })

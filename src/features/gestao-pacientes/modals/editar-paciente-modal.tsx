@@ -11,8 +11,10 @@ import { DateInput } from '@/components/shared/date-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Patient } from '@/types/patient'
-import { NotaFiscalFields } from '../components/nota-fiscal-fields'
-import { QuemIndicouField } from '../components/quem-indicou-field'
+import { OrigemNfFields } from '../components/origem-nf-fields'
+import { ResponsavelFields } from '../components/responsavel-fields'
+import { NecessidadeEspecialFields, type NecessidadeEspecialForm } from '../components/necessidade-especial-fields'
+import { calcularIdade } from '../utils/idade'
 import { camposFaltandoCadastro, mensagemCamposFaltando } from '../utils/cadastro-validacao'
 import { NOTA_FISCAL_VAZIA, notaFiscalFromFinancial, notaFiscalToFinancial, validarNotaFiscal, type NotaFiscalForm } from '../utils/nota-fiscal'
 import { DocumentoCadastro } from '../components/documento-cadastro'
@@ -148,16 +150,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
             const specialNeedsLegacy = paciente.specialNeeds as { categories?: string[]; types?: string[] } | undefined
             const responsibleLegacy = paciente.responsible as { birthDate?: string; age?: string } | undefined
             const inscricaoEstadualLegacy = paciente as { inscricaoEstadual?: string }
-            const birthDate = paciente.birthDate ? new Date(paciente.birthDate) : null;
-            let age: number | null = null;
-            if (birthDate) {
-                const today = new Date();
-                age = today.getFullYear() - birthDate.getFullYear();
-                const m = today.getMonth() - birthDate.getMonth();
-                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                    age--;
-                }
-            }
+            const age = calcularIdade(paciente.birthDate)
             setPatientAge(age);
 
             setFormData({
@@ -216,31 +209,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
     const handleDateChange = (date: string) => {
         setFormData((prev) => ({ ...prev, dataNascimento: date }));
 
-        if (date) {
-            const birthDate = new Date(`${date}T12:00:00`);
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
-            }
-            setPatientAge(age);
-        }
-    }
-
-    const handleRespDateChange = (date: string) => {
-        let age = '';
-        if (date) {
-            const birthDate = new Date(date);
-            const today = new Date();
-            let calcAge = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                calcAge--;
-            }
-            age = calcAge.toString();
-        }
-        setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, birthDate: date, age } }));
+        setPatientAge(calcularIdade(date))
     }
 
     const needsMandatoryResponsible = patientAge !== null && patientAge < 18;
@@ -305,15 +274,6 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
     // Só acusa erro depois de o documento estar completo — não enquanto digita.
     const cpfCompletoInvalido = formData.cpf.replace(/\D/g, '').length === 11 && !validarCPF(formData.cpf);
     const telefoneCompletoInvalido = formData.telefone.replace(/\D/g, '').length >= 10 && !validarTelefone(formData.telefone);
-    const respCpfCompletoInvalido = formData.responsible.cpf.replace(/\D/g, '').length === 11 && !validarCPF(formData.responsible.cpf);
-
-    const toggleSpecialNeed = (category: string) => {
-        const current = formData.specialNeeds.categories;
-        const updated = current.includes(category)
-            ? current.filter(t => t !== category)
-            : [...current, category];
-        setFormData(prev => ({ ...prev, specialNeeds: { ...prev.specialNeeds, categories: updated } }));
-    }
 
     const toggleVinculo = (tipo: string) => {
         setFormData(prev => {
@@ -545,37 +505,11 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                             <SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem><SelectItem value="Óbito">Óbito</SelectItem></SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="md:col-span-2 space-y-2">
-                                        <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Origem *</Label>
-                                        <Select value={formData.indicacao} onValueChange={(v) => setFormData({ ...formData, indicacao: v })}>
-                                            <SelectTrigger className="h-11 rounded-xl border-app-border dark:border-app-border-dark"><SelectValue preferPlaceholder placeholder="Como nos achou?" /></SelectTrigger>
-                                            <SelectContent><SelectItem value="instagram">Instagram</SelectItem><SelectItem value="google">Google</SelectItem><SelectItem value="indicacao">Indicação</SelectItem><SelectItem value="outros">Outros</SelectItem></SelectContent>
-                                        </Select>
-                                    </div>
-                                    {formData.indicacao === 'indicacao' && (
-                                        <QuemIndicouField
-                                            nome={formData.origemDetalhe}
-                                            indicadoPorId={formData.indicadoPorId}
-                                            excluirId={paciente?.id ? String(paciente.id) : undefined}
-                                            onChange={({ nome, indicadoPorId }) => setFormData((prev) => ({ ...prev, origemDetalhe: nome, indicadoPorId }))}
-                                        />
-                                    )}
-                                    {formData.indicacao === 'outros' && (
-                                        <div className="md:col-span-2 space-y-2">
-                                            <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Qual a origem?</Label>
-                                            <Input value={formData.origemDetalhe} onChange={(e) => setFormData({ ...formData, origemDetalhe: e.target.value })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="Detalhe da origem" />
-                                        </div>
-                                    )}
-                                    <div className="md:col-span-2 space-y-2">
-                                        <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Precisa de Nota Fiscal?</Label>
-                                        <label className="flex items-center gap-2 h-11 px-3 rounded-xl border border-app-border dark:border-app-border-dark cursor-pointer">
-                                            <input type="checkbox" checked={formData.precisaNf} onChange={(e) => setFormData({ ...formData, precisaNf: e.target.checked })} className="h-4 w-4 accent-[var(--app-primary)]" />
-                                            <span className="text-xs font-bold uppercase tracking-tight text-app-text-secondary dark:text-white/60">{formData.precisaNf ? 'Sim' : 'Não'}</span>
-                                        </label>
-                                    </div>
-                                    {formData.precisaNf && (
-                                        <NotaFiscalFields value={formData.notaFiscal} onChange={(notaFiscal) => setFormData((prev) => ({ ...prev, notaFiscal }))} />
-                                    )}
+                                    <OrigemNfFields
+                                        value={{ indicacao: formData.indicacao, origemDetalhe: formData.origemDetalhe, indicadoPorId: formData.indicadoPorId, precisaNf: formData.precisaNf, notaFiscal: formData.notaFiscal }}
+                                        onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+                                        excluirId={paciente?.id ? String(paciente.id) : undefined}
+                                    />
                                     <div className="md:col-span-6 space-y-2">
                                         <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Tipo de vínculo <span className="normal-case font-normal text-app-text-muted">(pode marcar mais de um)</span></Label>
                                         <div className="flex flex-wrap gap-2">
@@ -734,81 +668,21 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                     </div>
                                 </div>
 
-                                {(needsMandatoryResponsible || showOptionalResponsible || formData.responsible.name) && (
-                                    <div className="mt-8 p-6 bg-[var(--app-bg-secondary)] dark:bg-app-hover rounded-2xl border border-app-border dark:border-app-border-dark space-y-6">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-2.5 w-2.5 rounded-full bg-app-primary" />
-                                                <h4 className="text-sm font-bold text-[var(--app-text-primary)] dark:text-white uppercase tracking-widest">Responsável Legal</h4>
-                                                {needsMandatoryResponsible && <span className="text-xs app-status-danger text-[var(--app-danger-text)] px-2 py-0.5 rounded-md font-bold uppercase tracking-tight">Obrigatório</span>}
-                                            </div>
-                                            {showOptionalResponsible && !needsMandatoryResponsible && (
-                                                <button type="button" onClick={() => setFormData(prev => ({ ...prev, responsible: { name: '', cpf: '', phone: '', relationship: '', birthDate: '', age: '' } }))} className="text-xs font-bold text-[var(--app-danger-text)] hover:text-[var(--app-danger-text)] uppercase tracking-tight">Remover dados</button>
-                                            )}
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="md:col-span-2 space-y-2">
-                                                <Label htmlFor="resp-nome" className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">Nome completo {needsMandatoryResponsible && '*'}</Label>
-                                                <Input id="resp-nome" value={formData.responsible.name} onChange={(e) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, name: e.target.value } }))} required={needsMandatoryResponsible} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="resp-cpf" className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">CPF do Responsável</Label>
-                                                <Input id="resp-cpf" value={formData.responsible.cpf} onChange={(e) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, cpf: formatarCPF(e.target.value) } }))} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" placeholder="000.000.000-00" inputMode="numeric" />
-                                                {respCpfCompletoInvalido && <p className="mt-1 text-xs leading-snug text-[var(--app-danger-text)]">CPF inválido — confira os dígitos verificadores.</p>}
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="resp-tel" className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">Telefone do Responsável</Label>
-                                                <Input id="resp-tel" value={formData.responsible.phone} onChange={(e) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, phone: formatarTelefone(e.target.value) } }))} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" placeholder="(00) 00000-0000" inputMode="tel" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="resp-nasc" className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">Data de Nascimento</Label>
-                                                <DateInput id="resp-nasc" value={formData.responsible.birthDate} onChange={handleRespDateChange} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">Parentesco / Vínculo</Label>
-                                                <Select value={formData.responsible.relationship} onValueChange={(v) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, relationship: v } }))}>
-                                                    <SelectTrigger className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark"><SelectValue preferPlaceholder placeholder="Selecione" /></SelectTrigger>
-                                                    <SelectContent><SelectItem value="Pai">Pai</SelectItem><SelectItem value="Mãe">Mãe</SelectItem><SelectItem value="Irmão">Irmão</SelectItem><SelectItem value="Avô/Avó">Avô/Avó</SelectItem><SelectItem value="Outro">Outro</SelectItem></SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                <ResponsavelFields
+                                    value={formData.responsible}
+                                    onChange={(responsible) => setFormData((prev) => ({ ...prev, responsible }))}
+                                    obrigatorio={needsMandatoryResponsible}
+                                    opcional={showOptionalResponsible}
+                                />
                             </div>
 
                             {/* 4. Necessidades Especiais */}
                             <div className="bg-white dark:bg-app-hover p-6 rounded-2xl border border-app-border dark:border-app-border-dark shadow-sm animate-in fade-in slide-in-from-top-2">
                                 <FormSectionHeader icon={Heart} title="Necessidades Especiais" subtitle="Orientações e suporte assistencial" />
-                                <div className="space-y-6">
-                                    <div className="space-y-3">
-                                        <Label className="text-sm font-medium text-[var(--app-text-primary)] dark:text-white/70">Portador de necessidade especial?</Label>
-                                        <div className="flex p-1 bg-app-bg-secondary dark:bg-app-hover rounded-2xl w-full max-w-[280px]">
-                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, specialNeeds: { ...prev.specialNeeds, hasNeeds: 'sim' } }))} className={`flex-1 h-10 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${formData.specialNeeds.hasNeeds === 'sim' ? 'bg-white dark:bg-app-primary text-app-primary dark:text-white shadow-sm' : 'text-app-text-muted hover:text-app-text-primary'}`}>Sim</button>
-                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, specialNeeds: { ...prev.specialNeeds, hasNeeds: 'nao' } }))} className={`flex-1 h-10 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${formData.specialNeeds.hasNeeds === 'nao' ? 'bg-white dark:bg-app-primary text-app-primary dark:text-white shadow-sm' : 'text-app-text-muted hover:text-app-text-primary'}`}>Não</button>
-                                        </div>
-                                    </div>
-                                    {formData.specialNeeds.hasNeeds === 'sim' && (
-                                        <div className="p-6 app-status-info rounded-2xl border border-transparent space-y-6 animate-in fade-in slide-in-from-top-1">
-                                            <div className="space-y-3">
-                                                <Label className="text-xs font-black text-app-primary uppercase tracking-widest">CATEGORIAS</Label>
-                                                <div className="flex flex-wrap gap-3">
-                                                    {['Física', 'Auditiva', 'Visual', 'Intelectual'].map(cat => (
-                                                        <label key={cat} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border cursor-pointer transition-all ${formData.specialNeeds.categories.includes(cat) ? 'bg-app-primary border-app-primary text-white shadow-md' : 'bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark text-app-text-secondary dark:text-white/60 hover:border-app-primary/50'}`}>
-                                                            <input type="checkbox" checked={formData.specialNeeds.categories.includes(cat)} onChange={() => toggleSpecialNeed(cat)} className="hidden" />
-                                                            <span className="text-xs font-bold uppercase tracking-tight">{cat}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            {formData.specialNeeds.categories.length > 0 && (
-                                                <div className="space-y-2 animate-in fade-in zoom-in-95">
-                                                    <Label htmlFor="needs-details" className="text-xs font-black text-app-primary uppercase tracking-widest">DESCRIÇÃO DETALHADA</Label>
-                                                    <Input id="needs-details" value={formData.specialNeeds.details} onChange={(e) => setFormData(prev => ({ ...prev, specialNeeds: { ...prev.specialNeeds, details: e.target.value } }))} placeholder="Ex: Baixa visão no olho esquerdo, necessita de fonte ampliada..." className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" />
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
+                                <NecessidadeEspecialFields
+                                    value={formData.specialNeeds as NecessidadeEspecialForm}
+                                    onChange={(specialNeeds) => setFormData((prev) => ({ ...prev, specialNeeds }))}
+                                />
                             </div>
 
                         </form>

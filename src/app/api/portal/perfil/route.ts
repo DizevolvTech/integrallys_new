@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getPacienteIdByUserId, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
+import { montarCadastroPortal } from '@/lib/portal-cadastro'
 import { authErrorResponse, getRequestAuth, requirePatientRole } from '@/lib/request-auth'
 
 function pickString(...values: Array<unknown>) {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
     pacienteId
       ? supabase
           .from('pacientes')
-          .select('nome,email,telefone,cpf,data_nascimento,status,sexo,rg,inscricao_estadual,cep,logradouro,numero,complemento,bairro,cidade,estado')
+          .select('nome,email,telefone,cpf,data_nascimento,status,sexo,rg,inscricao_estadual,cep,logradouro,numero,complemento,bairro,cidade,estado,origem,origem_detalhe,precisa_nf,financeiro,necessidades_especiais,responsavel')
           .eq('id', pacienteId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -81,6 +82,12 @@ export async function GET(request: NextRequest) {
       neighborhood: String(paciente?.bairro ?? ''),
       city: String(paciente?.cidade ?? ''),
       state: String(paciente?.estado ?? ''),
+      indicacao: String(paciente?.origem ?? ''),
+      origemDetalhe: String(paciente?.origem_detalhe ?? ''),
+      precisaNf: paciente?.precisa_nf === true,
+      financial: paciente?.financeiro ?? null,
+      specialNeeds: paciente?.necessidades_especiais ?? null,
+      responsible: paciente?.responsavel ?? null,
       notificacoesEmail: parseBooleanSetting(prefsMap[`email_${session.userId}`], false),
       notificacoesSms: parseBooleanSetting(prefsMap[`sms_${session.userId}`], false),
       lembretesConsultas: parseBooleanSetting(prefsMap[`consultas_${session.userId}`], true),
@@ -117,6 +124,9 @@ export async function PUT(request: NextRequest) {
     return serverErrorResponse('Preencha todos os campos obrigatórios do perfil', 'PROFILE_REQUIRED_FIELDS', 400)
   }
 
+  const cadastro = montarCadastroPortal(body, dataNascimento)
+  if (!cadastro.ok) return serverErrorResponse(cadastro.error, cadastro.code, 400)
+
   const supabase = getAppSupabase()
   const { pacienteId, error: pacienteError } = await getPacienteIdByUserId(supabase, session.userId)
   if (pacienteError) return supabaseErrorResponse(pacienteError, 'Falha ao salvar perfil')
@@ -144,6 +154,7 @@ export async function PUT(request: NextRequest) {
     bairro: neighborhood,
     cidade: city,
     estado: state,
+    ...cadastro.colunas,
     updated_at: new Date().toISOString(),
   }
 
@@ -188,6 +199,12 @@ export async function PUT(request: NextRequest) {
       neighborhood: patientPayload.bairro,
       city: patientPayload.cidade,
       state: patientPayload.estado,
+      indicacao: String(cadastro.colunas.origem ?? ''),
+      origemDetalhe: String(cadastro.colunas.origem_detalhe ?? ''),
+      precisaNf: cadastro.colunas.precisa_nf === true,
+      financial: cadastro.colunas.financeiro,
+      specialNeeds: cadastro.colunas.necessidades_especiais,
+      responsible: cadastro.colunas.responsavel,
       notificacoesEmail: Boolean(body.notificacoesEmail),
       notificacoesSms: Boolean(body.notificacoesSms),
       lembretesConsultas: Boolean(body.lembretesConsultas),
