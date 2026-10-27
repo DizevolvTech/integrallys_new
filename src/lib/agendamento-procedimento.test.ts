@@ -3,6 +3,8 @@ import { resolveAgendamentoProcedimento } from './agendamento-procedimento'
 import {
   addDaysIso,
   diffDiasCivis,
+  isProcedimentoRetornoNome,
+  prazoDiasDoNomeRetorno,
   validateRetornoAgendamento,
 } from './procedimento-retorno'
 
@@ -63,6 +65,15 @@ describe('diffDiasCivis / addDaysIso', () => {
   })
 })
 
+describe('procedimento de retorno pelo nome', () => {
+  it('reconhece Retorno… e o prazo escrito no nome', () => {
+    expect(isProcedimentoRetornoNome('Retorno (até 30 dias)')).toBe(true)
+    expect(isProcedimentoRetornoNome('Consulta Clínica Geral')).toBe(false)
+    expect(prazoDiasDoNomeRetorno('Retorno (até 30 dias)')).toBe(30)
+    expect(prazoDiasDoNomeRetorno('Retorno')).toBeNull()
+  })
+})
+
 describe('validateRetornoAgendamento', () => {
   it('bloqueia fora do prazo de 35 dias', () => {
     const result = validateRetornoAgendamento({
@@ -105,6 +116,7 @@ describe('resolveAgendamentoProcedimento', () => {
         intervaloRecorrenciaDias: null,
         quantidadeSugeridaPacote: null,
         temPacote: false,
+        ehRetorno: false,
       },
     })
   })
@@ -129,6 +141,7 @@ describe('resolveAgendamentoProcedimento', () => {
         intervaloRecorrenciaDias: null,
         quantidadeSugeridaPacote: null,
         temPacote: false,
+        ehRetorno: false,
       },
     })
   })
@@ -221,5 +234,99 @@ describe('resolveAgendamentoProcedimento', () => {
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe('RETORNO_FORA_PRAZO')
+  })
+
+  const retornoGenerico = {
+    id: 'proc-ret',
+    nome: 'Retorno (até 30 dias)',
+    valor: 0,
+    ativo: true,
+    tem_retorno: false,
+  }
+
+  it('procedimento "Retorno" mesmo com tipo consulta vira retorno (valor 0) quando há atendimento concluído', async () => {
+    const result = await resolveAgendamentoProcedimento(
+      makeSupabase({
+        procedimento: retornoGenerico,
+        vinculos: [{ procedimento_id: 'proc-ret' }],
+        ultimoAgendamento: { data_agendamento: '2026-10-26', status: 'Concluído' },
+      }) as never,
+      {
+        procedimentoId: 'proc-ret',
+        valorProcedimento: null,
+        profissionalId: 'prof-1',
+        tipo: 'consulta',
+        pacienteId: 'pac-1',
+        dataAgendamento: '2026-11-02',
+      },
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.ehRetorno).toBe(true)
+      expect(result.data.valorProcedimento).toBe(0)
+    }
+  })
+
+  it('procedimento "Retorno" sem atendimento anterior: mensagem clara', async () => {
+    const result = await resolveAgendamentoProcedimento(
+      makeSupabase({
+        procedimento: retornoGenerico,
+        vinculos: [{ procedimento_id: 'proc-ret' }],
+        ultimoAgendamento: null,
+      }) as never,
+      {
+        procedimentoId: 'proc-ret',
+        valorProcedimento: null,
+        profissionalId: 'prof-1',
+        tipo: 'retorno',
+        pacienteId: 'pac-1',
+        dataAgendamento: '2026-11-02',
+      },
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.code).toBe('RETORNO_SEM_ATENDIMENTO_PREVIO')
+      expect(result.message).toContain('atendimento anterior concluído')
+    }
+  })
+
+  it('procedimento "Retorno (até 30 dias)" respeita os 30 dias do nome', async () => {
+    const result = await resolveAgendamentoProcedimento(
+      makeSupabase({
+        procedimento: retornoGenerico,
+        vinculos: [{ procedimento_id: 'proc-ret' }],
+        ultimoAgendamento: { data_agendamento: '2026-09-01', status: 'Concluído' },
+      }) as never,
+      {
+        procedimentoId: 'proc-ret',
+        valorProcedimento: null,
+        profissionalId: 'prof-1',
+        tipo: 'retorno',
+        pacienteId: 'pac-1',
+        dataAgendamento: '2026-11-02',
+      },
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('RETORNO_FORA_PRAZO')
+  })
+
+  it('edição sem mudar a definição do retorno não revalida (validarRetorno=false)', async () => {
+    const result = await resolveAgendamentoProcedimento(
+      makeSupabase({
+        procedimento: retornoGenerico,
+        vinculos: [{ procedimento_id: 'proc-ret' }],
+        ultimoAgendamento: null,
+      }) as never,
+      {
+        procedimentoId: 'proc-ret',
+        valorProcedimento: 0,
+        profissionalId: 'prof-1',
+        tipo: 'retorno',
+        pacienteId: 'pac-1',
+        dataAgendamento: '2026-12-14',
+        validarRetorno: false,
+      },
+    )
+    expect(result.ok).toBe(true)
   })
 })

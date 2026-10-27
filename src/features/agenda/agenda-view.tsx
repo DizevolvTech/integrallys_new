@@ -83,6 +83,10 @@ export function AgendaView() {
   const user = useAuth((state) => state.user)
   const podeIniciarAtendimento = useAuth((state) => state.capabilities.iniciarAtendimento)
   const agendaClinica = useAuth((state) => state.capabilities.agendaClinica)
+  // Marcar consulta / compromisso exige a permissão agenda:create (decidida pelo servidor em /api/auth/me).
+  const podeCriarNaAgenda = useAuth((state) =>
+    state.permissions.some((p) => p.resource === 'agenda' && p.actions.includes('create')),
+  )
   const {
     data,
     patients: agendaPatients,
@@ -395,7 +399,7 @@ export function AgendaView() {
     valorProcedimento?: number
     serieQuantidade?: number
     serieIntervaloDias?: number
-    pagamentoInicial: {
+    pagamentoInicial?: {
       valor: number
       metodo: string
       bandeira?: string
@@ -686,20 +690,22 @@ export function AgendaView() {
           />
           {!isEspecialista && (
             <div className="flex flex-wrap items-center gap-3 sm:justify-end justify-center">
-              <Button
-                className="h-10 w-full rounded-xl bg-app-primary px-5 text-white shadow-sm shadow-blue-900/10 hover:bg-app-primary-hover md:w-auto"
-                onClick={() =>
-                  activeTab === 'pessoal'
-                    ? setIsAgendarReuniaoOpen(true)
-                    : actions.setActiveModal('novo')
-                }
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {activeTab === 'pessoal' ? 'Novo compromisso' : 'Marcar consulta'}
-                </span>
-                <span className="sm:hidden">Marcar</span>
-              </Button>
+              {podeCriarNaAgenda && (
+                <Button
+                  className="h-10 w-full rounded-xl bg-app-primary px-5 text-white shadow-sm shadow-blue-900/10 hover:bg-app-primary-hover md:w-auto"
+                  onClick={() =>
+                    activeTab === 'pessoal'
+                      ? setIsAgendarReuniaoOpen(true)
+                      : actions.setActiveModal('novo')
+                  }
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  <span className="hidden sm:inline">
+                    {activeTab === 'pessoal' ? 'Novo compromisso' : 'Marcar consulta'}
+                  </span>
+                  <span className="sm:hidden">Marcar</span>
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="h-10 px-4 rounded-xl gap-2 font-normal border-app-border dark:border-app-border-dark hover:border-app-primary hover:text-app-primary whitespace-nowrap text-sm"
@@ -810,17 +816,19 @@ export function AgendaView() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    className="h-10 rounded-xl bg-app-primary px-4 text-white shadow-sm shadow-blue-900/10 hover:bg-app-primary-hover md:px-6"
-                    onClick={() =>
-                      activeTab === 'pessoal'
-                        ? setIsAgendarReuniaoOpen(true)
-                        : actions.setActiveModal('novo')
-                    }
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    {activeTab === 'pessoal' ? 'Novo compromisso' : '+Marcar Consulta'}
-                  </Button>
+                  {podeCriarNaAgenda && (
+                    <Button
+                      className="h-10 rounded-xl bg-app-primary px-4 text-white shadow-sm shadow-blue-900/10 hover:bg-app-primary-hover md:px-6"
+                      onClick={() =>
+                        activeTab === 'pessoal'
+                          ? setIsAgendarReuniaoOpen(true)
+                          : actions.setActiveModal('novo')
+                      }
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      {activeTab === 'pessoal' ? 'Novo compromisso' : '+Marcar Consulta'}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     className="h-10 px-3 md:px-4 rounded-xl gap-2 font-normal border-app-border dark:border-app-border-dark hover:border-app-primary hover:text-app-primary whitespace-nowrap text-xs md:text-sm"
@@ -1081,14 +1089,29 @@ export function AgendaView() {
                     toast.error(err instanceof Error ? err.message : 'Falha ao remover bloqueio')
                   }
                 }}
-                onOpenAvailableSlot={(slot) => {
-                  setNovoAgendamentoPreset({
-                    data: actions.parseAgendaDate(slot.data),
-                    horario: slot.hora,
-                    profissional: slot.profissional,
-                  })
-                  actions.setActiveModal('novo')
-                }}
+                onOpenAvailableSlot={
+                  podeCriarNaAgenda
+                    ? (slot) => {
+                        setNovoAgendamentoPreset({
+                          data: actions.parseAgendaDate(slot.data),
+                          horario: slot.hora,
+                          profissional: slot.profissional,
+                        })
+                        actions.setActiveModal('novo')
+                      }
+                    : undefined
+                }
+                onContinueAtendimento={
+                  podeIniciarAtendimento
+                    ? (slot) =>
+                        setActiveAtendimento({
+                          patientName: slot.paciente || 'Paciente',
+                          id: slot.id,
+                          appointmentTime: slot.hora,
+                          slot,
+                        })
+                    : undefined
+                }
                 onStartAtendimento={
                   podeIniciarAtendimento
                     ? async (slot) => {
@@ -1224,6 +1247,23 @@ export function AgendaView() {
                               }}
                             >
                               Iniciar atendimento
+                            </Button>
+                          )}
+                        {podeIniciarAtendimento &&
+                          item.paciente &&
+                          normalizeAgendaStatus(item.status) === 'Em Atendimento' && (
+                            <Button
+                              className="rounded-xl bg-app-primary text-white hover:bg-app-primary-hover"
+                              onClick={() =>
+                                setActiveAtendimento({
+                                  patientName: item.paciente || 'Paciente',
+                                  id: item.id,
+                                  appointmentTime: item.hora,
+                                  slot: item,
+                                })
+                              }
+                            >
+                              Continuar atendimento
                             </Button>
                           )}
                         <Button

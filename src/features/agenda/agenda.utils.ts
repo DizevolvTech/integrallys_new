@@ -364,3 +364,18 @@ export function buildMonthDays(baseDate: Date): MonthDayCell[] {
 
   return cells
 }
+
+/** Anda um período na navegação da agenda: dia = 1 dia, semana = 7 dias, mês = 1 mês (sem estourar o fim do mês). */
+export function deslocarPeriodo(base: Date, modo: ViewMode, sentido: 1 | -1): Date {
+  const next = new Date(base)
+  if (modo === 'mes') {
+    const dia = next.getDate()
+    next.setDate(1)
+    next.setMonth(next.getMonth() + sentido)
+    const ultimo = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+    next.setDate(Math.min(dia, ultimo))
+  } else {
+    next.setDate(next.getDate() + (modo === 'semana' ? 7 : 1) * sentido)
+  }
+  return next
+}

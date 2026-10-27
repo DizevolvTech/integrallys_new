@@ -22,3 +22,22 @@ export function resolveModalidade(
     plataformaOnline: comOnline ? plataformaOnline : undefined,
   }
 }
+
+/** Mensagem quando o agendamento não tem horário utilizável (data passada, grade vazia ou horário já passado). */
+export function mensagemSemHorario(params: {
+  data: string
+  hoje: string
+  encaixe: boolean
+  temHorarios: boolean
+  horarioPassado?: boolean
+}): string {
+  const dataPassada = params.data < params.hoje
+  if (params.horarioPassado || dataPassada || (params.data === params.hoje && !params.temHorarios)) {
+    return params.encaixe
+      ? 'Esse horário já passou. Informe um horário futuro para o encaixe.'
+      : 'Esse horário já passou. Escolha uma data ou horário futuro — ou ative "Encaixe fora do horário padrão" e informe um horário futuro fora da grade.'
+  }
+  return params.encaixe
+    ? 'Informe o horário do encaixe.'
+    : 'Selecione um horário disponível. Se não houver, gere a agenda do profissional ou ative "Encaixe fora do horário padrão".'
+}
