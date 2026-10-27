@@ -20,7 +20,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useAuth } from '@/hooks/use-auth'
+import { useUnidades } from '@/hooks/use-unidades'
 import type { DocumentoTemplate } from '@/lib/documentos'
 import { useCadastro } from '@/features/cadastros/hooks/use-cadastro'
 import { useDocumentTemplates } from './hooks/use-document-templates'
@@ -40,6 +43,19 @@ const TIPO_LABEL: Record<DocumentoTemplate['tipo'], string> = {
 export function ConfiguracoesDocumentosView() {
   const { data, isLoading, error, patch, create, remove } = useDocumentTemplates()
   const { data: tiposCadastro } = useCadastro('tipos-documento')
+  // Admin/master recebem os modelos de todas as unidades (cada unidade tem a sua cópia):
+  // quando a lista cobre mais de uma unidade, filtra por unidade para não repetir o mesmo modelo.
+  const unidadeDoUsuario = useAuth((s) => s.user?.unidadeId)
+  const { data: unidades } = useUnidades()
+  const [unidadeFiltro, setUnidadeFiltro] = useState<string | null>(null)
+  const idsNaLista = [...new Set(data.map((t) => t.unidade_id))]
+  const multiUnidade = idsNaLista.length > 1
+  const unidadesLista = unidades.filter((u) => idsNaLista.includes(u.id))
+  const unidadeAtiva = multiUnidade
+    ? (unidadeFiltro ?? (unidadeDoUsuario && idsNaLista.includes(unidadeDoUsuario) ? unidadeDoUsuario : idsNaLista[0]))
+    : 'todas'
+  const unidadesPorId = new Map(unidades.map((u) => [u.id, u.nome]))
+  const lista = unidadeAtiva === 'todas' ? data : data.filter((t) => t.unidade_id === unidadeAtiva)
   const tiposPorId = new Map(tiposCadastro.map((tipo) => [tipo.id, tipo.nome]))
   const [editando, setEditando] = useState<DocumentoTemplate | null>(null)
   const [visualizando, setVisualizando] = useState<DocumentoTemplate | null>(null)
@@ -133,6 +149,24 @@ export function ConfiguracoesDocumentosView() {
           </div>
         )}
 
+        {multiUnidade && (
+          <div className="mb-4 max-w-xs">
+            <Select value={unidadeAtiva} onValueChange={setUnidadeFiltro}>
+              <SelectTrigger aria-label="Unidade" className="h-11 rounded-xl">
+                <SelectValue placeholder="Unidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {unidadesLista.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.nome}
+                  </SelectItem>
+                ))}
+                <SelectItem value="todas">Todas as unidades</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px]">
             <thead className="bg-app-bg-secondary dark:bg-app-hover/60">
@@ -148,7 +182,7 @@ export function ConfiguracoesDocumentosView() {
               </tr>
             </thead>
             <tbody>
-              {data.map((template) => {
+              {lista.map((template) => {
                 const qtdSecoes = Array.isArray(template.conteudo?.secoes)
                   ? template.conteudo.secoes.length
                   : 0
@@ -168,6 +202,11 @@ export function ConfiguracoesDocumentosView() {
                             {template.nome}
                           </div>
                           <code className="text-xs text-app-text-muted">{template.slug}</code>
+                          {multiUnidade && unidadeAtiva === 'todas' && (
+                            <span className="ml-2 text-xs text-app-text-muted">
+                              {unidadesPorId.get(template.unidade_id) ?? ''}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
