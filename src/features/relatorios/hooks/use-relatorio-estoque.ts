@@ -30,13 +30,17 @@ const INITIAL_CURVA_ABC: CurvaAbcResponse = {
   diasAnalisados: 90,
 }
 
-export function useCurvaAbc(dias: number) {
+export function useCurvaAbc(dias: number, ativo = true) {
   const api = useApi()
   const [data, setData] = useState<CurvaAbcResponse>(INITIAL_CURVA_ABC)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!ativo) {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     setError(null)
     try {
@@ -48,7 +52,7 @@ export function useCurvaAbc(dias: number) {
     } finally {
       setIsLoading(false)
     }
-  }, [api, dias])
+  }, [api, dias, ativo])
 
   useEffect(() => {
     void load()

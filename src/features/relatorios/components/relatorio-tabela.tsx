@@ -12,7 +12,7 @@ import { RelatorioFiltros } from '@/features/relatorios/components/relatorio-fil
 import { hojeIso, somarDiasIso } from '@/features/relatorios/format'
 import { useOpcoesFiltro } from '@/features/relatorios/hooks/use-opcoes-filtro'
 import { useRelatorioTabela, type LinhaRelatorio } from '@/features/relatorios/hooks/use-relatorio-tabela'
-import { CONFIG_RELATORIOS, type ConfigRelatorio } from '@/features/relatorios/relatorio-config'
+import { CONFIG_RELATORIOS, configSemCusto, type ConfigRelatorio } from '@/features/relatorios/relatorio-config'
 import { exportarCsv } from '@/features/relatorios/exportar-csv'
 
 function valoresIniciais(config: ConfigRelatorio): Record<string, string> {
@@ -32,12 +32,13 @@ interface Props {
 }
 
 export function RelatorioTabela({ tipo, proprio = false }: Props) {
-  const config = CONFIG_RELATORIOS[tipo]
+  const configBase = CONFIG_RELATORIOS[tipo]
   const opcoes = useOpcoesFiltro()
-  const [valores, setValores] = useState<Record<string, string>>(() => valoresIniciais(config))
+  const [valores, setValores] = useState<Record<string, string>>(() => valoresIniciais(configBase))
   const [pagina, setPagina] = useState(1)
   const [detalhe, setDetalhe] = useState<LinhaRelatorio | null>(null)
   const { linhas, meta, isLoading, error } = useRelatorioTabela(tipo, valores, pagina)
+  const config = useMemo(() => (meta?.custoOculto ? configSemCusto(configBase) : configBase), [meta?.custoOculto, configBase])
 
   const alterar = (key: string, valor: string) => {
     setValores((prev) => ({ ...prev, [key]: valor }))

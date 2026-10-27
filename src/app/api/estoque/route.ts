@@ -9,6 +9,7 @@ import {
   estoqueRegistrarEntrada,
   estoqueRpcHttpStatus,
 } from '@/lib/estoque-movimentacao'
+import { removerCustoProduto } from '@/lib/estoque-custo'
 import { stripEstoquePrices } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import { montarEntrada } from './entrada-input'
@@ -43,6 +44,7 @@ async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typ
   let query = supabase
     .from('produtos_estoque')
     .select('id,nome,categoria,sku,quantidade,estoque_minimo,lote,validade,preco_custo,preco_venda,unidade_medida,status,unidade_id')
+    .eq('controla_estoque', true)
     .order('nome', { ascending: true })
 
   if (scopedUnit.unidadeId) {
@@ -61,7 +63,7 @@ async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typ
   }
 
   return NextResponse.json({
-    data: (data ?? []).map((row) => stripEstoquePrices(mapEstoqueItem(row), session?.role)),
+    data: (data ?? []).map((row) => removerCustoProduto(stripEstoquePrices(mapEstoqueItem(row), session?.role), session?.role)),
     meta: session,
   })
 }

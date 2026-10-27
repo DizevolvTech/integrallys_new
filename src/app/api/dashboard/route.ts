@@ -508,7 +508,7 @@ export async function GET(request: NextRequest) {
       adminUnidadeId
         ? supabase.from('lista_espera').select('*', { count: 'exact', head: true }).eq('unidade_id', adminUnidadeId)
         : supabase.from('lista_espera').select('*', { count: 'exact', head: true }),
-      supabase.from('produtos_estoque').select('id,nome,quantidade,estoque_minimo').limit(1000),
+      supabase.from('produtos_estoque').select('id,nome,quantidade,estoque_minimo').eq('controla_estoque', true).limit(1000),
       supabase
         .from('agendamentos')
         .select('observacoes,paciente_id,status')
