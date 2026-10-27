@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Plus, Printer, Search, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react'
+import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Plus, Printer, Search, SlidersHorizontal, Trash2, } from 'lucide-react'
 import { useEstoque, type EstoqueInput, type MovimentacaoEstoqueInput, type MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
 import { toast } from 'sonner'
 import { SegmentedControl } from '@/components/shared/segmented-control'
@@ -12,7 +12,6 @@ import { DateInput } from '@/components/shared/date-input'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,14 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { PageHeader } from '@/components/shared/page-header'
 import {
   AjusteEstoqueModal,
