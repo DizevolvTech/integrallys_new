@@ -18,23 +18,13 @@ import {
 import { DateInput } from '@/components/shared/date-input'
 import type { CartaoEmpresarial } from '../hooks/use-cartoes-empresariais'
 import { FaturasCartao } from '../components/faturas-cartao'
+import { formatCurrency, formatDate } from '../formato'
 
 interface Props {
   open: boolean
   cartao: CartaoEmpresarial | null
   onClose: () => void
   onRegistrarGasto: () => void
-}
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  const [year, month, day] = value.split('-')
-  if (!year || !month || !day) return '—'
-  return `${day}/${month}/${year}`
 }
 
 export function DetalheCartaoModal({ open, cartao, onClose, onRegistrarGasto }: Props) {

@@ -4,15 +4,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { FaturaCartao } from '../hooks/use-cartoes-empresariais'
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatDate(value: string): string {
-  const [year, month, day] = value.split('-')
-  return `${day}/${month}/${year}`
-}
+import { formatCurrency, formatDate } from '../formato'
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
@@ -24,14 +16,14 @@ function nomeMes(mes: string): string {
 
 export function FaturasCartao({ faturas }: { faturas: FaturaCartao[] }) {
   const [aberta, setAberta] = useState<string | null>(null)
-  const emAberto = faturas.filter((fatura) => fatura.aberta)
+  const emAberto = faturas.filter((fatura) => fatura.status !== 'paga')
 
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="text-base font-medium text-app-text-primary dark:text-white">Faturas em aberto por mês</h3>
+        <h3 className="text-base font-medium text-app-text-primary dark:text-white">Faturas em aberto, mês a mês</h3>
         <p className="text-xs text-app-text-muted">
-          Compras parceladas aparecem em cada fatura futura, parcela a parcela.
+          Cada fatura mostra o total do mês; compras parceladas aparecem parcela a parcela em cada fatura futura.
         </p>
       </div>
       {emAberto.length === 0 ? (
@@ -53,7 +45,8 @@ export function FaturasCartao({ faturas }: { faturas: FaturaCartao[] }) {
                   <span className="flex items-center gap-2 text-sm text-app-text-primary dark:text-white">
                     {expandida ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     <span>{nomeMes(fatura.mes)}</span>
-                    <Badge variant="outline" className="rounded-full text-[10px]">vence {formatDate(fatura.vencimento)}</Badge>
+                    <Badge variant="outline" className="rounded-full text-[10px]">{fatura.status === 'fechada' ? 'Fechada' : 'Aberta'}</Badge>
+                    <span className="hidden text-xs text-app-text-muted sm:inline">vence {formatDate(fatura.vencimento)}</span>
                   </span>
                   <span className="tabular-nums text-sm font-medium text-app-text-primary dark:text-white">
                     {formatCurrency(fatura.total)}

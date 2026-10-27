@@ -2,24 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
+import type { FaturaCartao } from '@/lib/cartao-faturas'
 
-export interface ParcelaFatura {
-  movimentoId: string
-  descricao: string
-  beneficiario: string | null
-  numero: number
-  total: number
-  valor: number
-  vencimento: string
-}
-
-export interface FaturaCartao {
-  mes: string
-  vencimento: string
-  total: number
-  aberta: boolean
-  itens: ParcelaFatura[]
-}
+export type { FaturaCartao, ParcelaCartao as ParcelaFatura, StatusFatura } from '@/lib/cartao-faturas'
 
 export interface CartaoMovimento {
   id: string
@@ -45,12 +30,14 @@ export interface CartaoEmpresarial {
   ultimosDigitos: string | null
   limiteTotal: number
   diaVencimento: number | null
+  diaFechamento: number | null
   contaBancariaId: string | null
   ativo: boolean
   limiteUtilizado: number
   limiteDisponivel: number
   faturasAbertas: number
   proximoVencimento: string | null
+  faturaAtual: FaturaCartao | null
   faturas: FaturaCartao[]
   movimentos: CartaoMovimento[]
 }
@@ -84,6 +71,7 @@ export interface NovoCartaoInput {
   ultimosDigitos?: string | null
   limiteTotal: number
   diaVencimento?: number | null
+  diaFechamento?: number | null
   unidadeId?: string | null
   contaBancariaId?: string | null
 }
@@ -139,6 +127,12 @@ export function useCartoesEmpresariais() {
     return response
   }
 
+  const pagarFatura = async (cartaoId: string, mes: string) => {
+    const response = await api.post<CartoesResponse>('/api/cartoes', { action: 'pagar_fatura', cartaoId, mes })
+    setData(response)
+    return response
+  }
+
   const desativarCartao = async (id: string) => {
     const response = await api.delete<CartoesResponse>('/api/cartoes', { id })
     setData(response)
@@ -152,6 +146,7 @@ export function useCartoesEmpresariais() {
     load,
     criarCartao,
     registrarMovimento,
+    pagarFatura,
     desativarCartao,
   }
 }

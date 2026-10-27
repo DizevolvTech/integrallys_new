@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { buildSidebarForRole } from '@/lib/sidebar-builder'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
-import { montarFaturas, parcelasDoMovimento, resumoLimite } from '@/lib/cartao-faturas'
+import { faturasDoCartao, resumoLimite } from '@/lib/cartao-faturas'
 import { hojeClinica } from '@/lib/recebimento-agendamento'
 import { buildCartaoFormaPayload } from './cartao-forma'
+import { pagarFatura } from './pagar-fatura'
 
 type CartaoRow = {
   id: string
@@ -14,6 +16,7 @@ type CartaoRow = {
   ultimos_digitos: string | null
   limite_total: number | null
   dia_vencimento: number | null
+  dia_fechamento: number | null
   ativo: boolean | null
   conta_bancaria_id: string | null
   created_at: string | null
@@ -43,6 +46,12 @@ type LancamentoRow = {
   tipo: string | null
 }
 
+/** O cartão empresarial é do gestor/admin: quem não tem a tela no menu também não usa a API. */
+function deniedUnlessCartaoRole(role: Parameters<typeof buildSidebarForRole>[0]) {
+  const temTela = buildSidebarForRole(role).some((item) => item.href === '/cartoes')
+  return temTela ? null : serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)
+}
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -51,27 +60,27 @@ function monthStartIso(): string {
   return `${todayIso().slice(0, 7)}-01`
 }
 
-function mapCartao(row: CartaoRow, movimentos: MovimentoRow[]) {
+function mapCartao(row: CartaoRow, movimentos: MovimentoRow[], mesesPagos: ReadonlySet<string>) {
   const limiteTotal = Number(row.limite_total ?? 0)
   const hoje = hojeClinica()
 
   // Compra parcelada vira parcelas nas faturas futuras (uma por mês).
-  const parcelas = movimentos
+  const compras = movimentos
     .filter((mov) => mov.data_compra)
-    .flatMap((mov) =>
-      parcelasDoMovimento(
-        {
-          id: mov.id,
-          descricao: mov.descricao,
-          beneficiario: mov.beneficiario,
-          valor: Number(mov.valor ?? 0),
-          parcelas: mov.parcelas ?? 1,
-          dataCompra: String(mov.data_compra),
-        },
-        row.dia_vencimento,
-      ),
-    )
-  const faturas = montarFaturas(parcelas, hoje)
+    .map((mov) => ({
+      id: mov.id,
+      descricao: mov.descricao,
+      beneficiario: mov.beneficiario,
+      valor: Number(mov.valor ?? 0),
+      parcelas: mov.parcelas ?? 1,
+      dataCompra: String(mov.data_compra),
+    }))
+  const faturas = faturasDoCartao(
+    compras,
+    { diaVencimento: row.dia_vencimento, diaFechamento: row.dia_fechamento },
+    hoje,
+    mesesPagos,
+  )
   const limite = resumoLimite(limiteTotal, faturas)
 
   return {
@@ -82,12 +91,14 @@ function mapCartao(row: CartaoRow, movimentos: MovimentoRow[]) {
     ultimosDigitos: row.ultimos_digitos,
     limiteTotal,
     diaVencimento: row.dia_vencimento,
+    diaFechamento: row.dia_fechamento,
     contaBancariaId: row.conta_bancaria_id,
     ativo: row.ativo ?? true,
     limiteUtilizado: limite.utilizado,
     limiteDisponivel: limite.disponivel,
     faturasAbertas: limite.utilizado,
     proximoVencimento: limite.proximoVencimento,
+    faturaAtual: limite.faturaAtual,
     faturas,
     movimentos: movimentos.map((mov) => ({
       id: mov.id,
@@ -148,7 +159,7 @@ async function listCartoes() {
   const { data: cartoesRaw, error: cartoesError } = await supabase
     .from('cartoes_empresariais')
     .select(
-      'id,unidade_id,nome,bandeira,ultimos_digitos,limite_total,dia_vencimento,ativo,conta_bancaria_id,created_at,updated_at',
+      'id,unidade_id,nome,bandeira,ultimos_digitos,limite_total,dia_vencimento,dia_fechamento,ativo,conta_bancaria_id,created_at,updated_at',
     )
     .eq('ativo', true)
     .order('nome', { ascending: true })
@@ -161,17 +172,29 @@ async function listCartoes() {
   const cartaoIds = cartoes.map((row) => row.id)
 
   let movimentos: MovimentoRow[] = []
+  const mesesPagosByCartao = new Map<string, Set<string>>()
   if (cartaoIds.length > 0) {
-    const { data: movRaw, error: movError } = await supabase
-      .from('cartao_movimentos')
-      .select('id,cartao_id,descricao,valor,parcelas,parcela_atual,data_compra,data_vencimento,beneficiario,categoria,operador_id,created_at')
-      .in('cartao_id', cartaoIds)
-      .order('data_compra', { ascending: false })
+    const [movResult, pagasResult] = await Promise.all([
+      supabase
+        .from('cartao_movimentos')
+        .select('id,cartao_id,descricao,valor,parcelas,parcela_atual,data_compra,data_vencimento,beneficiario,categoria,operador_id,created_at')
+        .in('cartao_id', cartaoIds)
+        .order('data_compra', { ascending: false }),
+      supabase.from('cartao_faturas_pagas').select('cartao_id,mes').in('cartao_id', cartaoIds),
+    ])
 
-    if (movError) {
-      return supabaseErrorResponse(movError, 'Falha ao carregar movimentos do cartão')
+    if (movResult.error) {
+      return supabaseErrorResponse(movResult.error, 'Falha ao carregar movimentos do cartão')
     }
-    movimentos = (movRaw ?? []) as MovimentoRow[]
+    if (pagasResult.error) {
+      return supabaseErrorResponse(pagasResult.error, 'Falha ao carregar faturas pagas')
+    }
+    movimentos = (movResult.data ?? []) as MovimentoRow[]
+    for (const pago of pagasResult.data ?? []) {
+      const meses = mesesPagosByCartao.get(String(pago.cartao_id)) ?? new Set<string>()
+      meses.add(String(pago.mes))
+      mesesPagosByCartao.set(String(pago.cartao_id), meses)
+    }
   }
 
   const movimentosByCartao = movimentos.reduce<Record<string, MovimentoRow[]>>((acc, mov) => {
@@ -180,7 +203,7 @@ async function listCartoes() {
     return acc
   }, {})
 
-  const cartoesPayload = cartoes.map((row) => mapCartao(row, movimentosByCartao[row.id] ?? []))
+  const cartoesPayload = cartoes.map((row) => mapCartao(row, movimentosByCartao[row.id] ?? [], mesesPagosByCartao.get(row.id) ?? new Set()))
 
   const { data: lancamentosRaw, error: lancError } = await supabase
     .from('financeiro_lancamentos')
@@ -257,7 +280,7 @@ async function listCartoes() {
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
-  const denied = await requirePermission(session.userId, 'financeiro', 'read')
+  const denied = deniedUnlessCartaoRole(session.role) ?? (await requirePermission(session.userId, 'financeiro', 'read'))
   if (denied) return denied
   return listCartoes()
 }
@@ -265,7 +288,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
-  const denied = await requirePermission(session.userId, 'financeiro', 'create')
+  const denied = deniedUnlessCartaoRole(session.role) ?? (await requirePermission(session.userId, 'financeiro', 'create'))
   if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
@@ -285,6 +308,11 @@ export async function POST(request: NextRequest) {
         ? Math.floor(body.diaVencimento)
         : null
 
+    const diaFechamento =
+      typeof body.diaFechamento === 'number' && body.diaFechamento >= 1 && body.diaFechamento <= 31
+        ? Math.floor(body.diaFechamento)
+        : null
+
     const nomeCartao = body.nome.trim()
     const ultimosDigitos =
       typeof body.ultimosDigitos === 'string' && body.ultimosDigitos.length > 0
@@ -300,6 +328,7 @@ export async function POST(request: NextRequest) {
         ultimos_digitos: ultimosDigitos,
         limite_total: limiteTotal,
         dia_vencimento: diaVencimento,
+        dia_fechamento: diaFechamento,
         conta_bancaria_id:
           typeof body.contaBancariaId === 'string' && body.contaBancariaId.length > 0
             ? body.contaBancariaId
@@ -328,6 +357,11 @@ export async function POST(request: NextRequest) {
     }
 
     return listCartoes()
+  }
+
+  if (body.action === 'pagar_fatura') {
+    const erro = await pagarFatura(session, body)
+    return erro ?? listCartoes()
   }
 
   if (body.action === 'registrar_movimento') {
@@ -387,7 +421,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
-  const denied = await requirePermission(session.userId, 'financeiro', 'delete')
+  const denied = deniedUnlessCartaoRole(session.role) ?? (await requirePermission(session.userId, 'financeiro', 'delete'))
   if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
