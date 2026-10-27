@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
   let retornosQuery = supabase
     .from('retornos_em_aberto')
     .select('situacao')
-    .in('situacao', ['limite', 'vencido'])
+    .in('situacao', ['no_prazo', 'limite', 'vencido'])
     .limit(5000)
   if (variant === 'especialista') {
     retornosQuery = retornosQuery.eq('profissional_id', session.userId)
