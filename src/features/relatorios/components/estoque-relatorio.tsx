@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuth } from '@/hooks/use-auth'
+import { perfilVeCustoEstoque } from '@/lib/estoque-custo'
 import { SegmentedControl } from '@/components/shared/segmented-control'
 import { CurvaAbcSection } from '@/features/relatorios/components/curva-abc-section'
 import { RelatorioTabela } from '@/features/relatorios/components/relatorio-tabela'
@@ -12,7 +14,8 @@ type SubAba = 'estoque-posicao' | 'estoque-movimentacao' | 'curva-abc'
 export function EstoqueRelatorio() {
   const [subAba, setSubAba] = useState<SubAba>('estoque-posicao')
   const [dias, setDias] = useState(90)
-  const curvaAbc = useCurvaAbc(dias)
+  const veCusto = useAuth((state) => perfilVeCustoEstoque(state.user?.role))
+  const curvaAbc = useCurvaAbc(dias, veCusto)
 
   return (
     <div className="space-y-6">
@@ -20,7 +23,7 @@ export function EstoqueRelatorio() {
         options={[
           { value: 'estoque-posicao', label: 'Posição do estoque' },
           { value: 'estoque-movimentacao', label: 'Movimentação diária' },
-          { value: 'curva-abc', label: 'Curva ABC' },
+          ...(veCusto ? [{ value: 'curva-abc', label: 'Curva ABC' }] : []),
         ]}
         value={subAba}
         onChange={(valor) => setSubAba(valor as SubAba)}

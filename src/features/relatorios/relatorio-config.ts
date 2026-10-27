@@ -586,3 +586,19 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
   },
 }
+
+const COLUNAS_CUSTO = new Set(['custo', 'margem', 'margemPct', 'totalCusto'])
+const TEXTO_CUSTO = /custo|margem/i
+
+/** Versão do relatório sem custo e margem, para perfis que o servidor não autoriza a ver. */
+export function configSemCusto(config: ConfigRelatorio): ConfigRelatorio {
+  const { cartoes } = config
+  return {
+    ...config,
+    descricao: config.descricao.replace(/, custo, venda e margem/, ' e venda').replace(/custo, venda e margem de cada produto/, 'venda de cada produto'),
+    colunas: config.colunas.filter((c) => !COLUNAS_CUSTO.has(c.key)),
+    cartoes: cartoes
+      ? (totais, total) => cartoes(totais, total).filter((c) => !TEXTO_CUSTO.test(c.label) && !TEXTO_CUSTO.test(c.valor))
+      : undefined,
+  }
+}

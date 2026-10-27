@@ -238,18 +238,20 @@ export function ConfiguracoesDocumentosView() {
                           className="rounded-lg font-normal"
                           onClick={() => setVisualizando(template)}
                           title="Pré-visualizar"
+                          aria-label="Visualizar"
                         >
-                          <Eye className="h-3.5 w-3.5 mr-2" />
-                          Visualizar
+                          <Eye className="h-3.5 w-3.5 md:mr-2" />
+                          <span className="hidden md:inline">Visualizar</span>
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="rounded-lg font-normal"
                           onClick={() => setEditando(template)}
+                          aria-label="Editar"
                         >
-                          <Edit className="h-3.5 w-3.5 mr-2" />
-                          Editar
+                          <Edit className="h-3.5 w-3.5 md:mr-2" />
+                          <span className="hidden md:inline">Editar</span>
                         </Button>
                         <Button
                           variant="ghost"

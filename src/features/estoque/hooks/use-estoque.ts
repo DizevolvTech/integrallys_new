@@ -73,6 +73,7 @@ export interface MovimentacaoFiltros {
   produtoId?: string
   de?: string
   ate?: string
+  q?: string
   limit?: number
   offset?: number
 }
@@ -94,6 +95,7 @@ export function useEstoque() {
 
   const ultimosFiltros = useRef<MovimentacaoFiltros | undefined>(undefined)
   const movimentacoesCarregadas = useRef(false)
+  const sequenciaMovimentacoes = useRef(0)
 
   const load = async () => {
     setIsLoading(true)
@@ -180,6 +182,7 @@ export function useEstoque() {
   const loadMovimentacoes = useCallback(
     async (filtros?: MovimentacaoFiltros) => {
       ultimosFiltros.current = filtros
+      const minha = ++sequenciaMovimentacoes.current
       movimentacoesCarregadas.current = true
       setIsLoadingMovimentacoes(true)
       setMovimentacoesError(null)
@@ -189,9 +192,11 @@ export function useEstoque() {
         if (filtros?.produtoId) params.set('produto_id', filtros.produtoId)
         if (filtros?.de) params.set('de', filtros.de)
         if (filtros?.ate) params.set('ate', filtros.ate)
+        if (filtros?.q) params.set('q', filtros.q)
         if (filtros?.limit != null) params.set('limit', String(filtros.limit))
         if (filtros?.offset != null) params.set('offset', String(filtros.offset))
         const response = await api.get<MovimentacoesResponse>(`/api/estoque?${params.toString()}`)
+        if (minha !== sequenciaMovimentacoes.current) return response.data
         setMovimentacoes(response.data)
         setMovimentacoesTotal(response.meta?.total ?? 0)
         return response.data
@@ -200,7 +205,7 @@ export function useEstoque() {
         setMovimentacoesError(message)
         throw err
       } finally {
-        setIsLoadingMovimentacoes(false)
+        if (minha === sequenciaMovimentacoes.current) setIsLoadingMovimentacoes(false)
       }
     },
     [api],

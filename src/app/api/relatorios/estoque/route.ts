@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { perfilPodeVerRelatorio } from '@/lib/relatorios/registry'
+import { perfilVeCustoEstoque } from '@/lib/estoque-custo'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
@@ -32,6 +33,7 @@ async function listCurvaAbc(request: NextRequest) {
   const { data: produtosRows, error: produtosError } = await supabase
     .from('produtos_estoque')
     .select('id,nome,categoria,quantidade,preco_custo')
+    .eq('controla_estoque', true)
 
   if (produtosError) return supabaseErrorResponse(produtosError, 'Falha ao carregar produtos')
 
@@ -145,6 +147,10 @@ export async function GET(request: NextRequest) {
   if (denied) return denied
 
   if (!perfilPodeVerRelatorio(session.role, 'estoque-posicao')) {
+    return serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)
+  }
+  // Curva ABC é toda em valor de custo: só gestão.
+  if (!perfilVeCustoEstoque(session.role)) {
     return serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)
   }
   return listCurvaAbc(request)

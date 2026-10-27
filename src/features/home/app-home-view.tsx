@@ -128,7 +128,7 @@ function RecepcaoDashboard({
 }: {
   cards: DashboardCardItem[]
   appointments: Array<{ id: string; patient: string; professional: string; procedure: string; status: string; time: string }>
-  retornos: { limitePrazo: number; vencidos: number }
+  retornos: { noPrazo?: number; limitePrazo: number; vencidos: number }
 }) {
   const todayLabel = new Intl.DateTimeFormat('pt-BR', {
     weekday: 'long',
@@ -422,7 +422,7 @@ function GestorDashboard({
   appointments,
   retornos,
 }: {
-  retornos: { limitePrazo: number; vencidos: number }
+  retornos: { noPrazo?: number; limitePrazo: number; vencidos: number }
   accounts: Array<{ id: string; type: string; name: string; balance: string; color: string; href?: string }>
   paymentsDue: Array<{ title: string; cat: string; date: string; value: string }>
   receivables: Array<{ title: string; cat: string; date: string; value: string }>
@@ -616,7 +616,7 @@ type AdminAdmin = {
   notasEmitidas: { registrado: boolean; aviso: string; pendentes?: number; emitidas?: number; valorPendente?: number; valorEmitido?: number }
   unidadesComparativo: Array<{ unidadeId: string | null; unidadeNome: string; agendamentos: number; receita: number }>
   prescricoesPendentes: { limitePrazo: number; vencidos: number }
-  retornosPendentes: { limitePrazo: number; vencidos: number }
+  retornosPendentes: { noPrazo?: number; limitePrazo: number; vencidos: number }
   listaEsperaCount: number
   estoqueCritico: { count: number; itens: Array<{ id: string; nome: string; quantidade: number; estoqueMinimo: number }> }
   topProcedimentos: Array<{ nome: string; total: number }>
@@ -771,8 +771,9 @@ function AdminDashboard({
       </div>
 
       {/* Atenção: retornos e prescrições no limite do prazo ou vencidos + lista de espera (cada card é atalho) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {[
+          { href: '/retornos?situacao=no_prazo', titulo: 'Retornos no prazo', valor: retornosPendentes.noPrazo ?? 0, sub: 'Ainda dentro do prazo', tom: 'green', icon: Clock },
           { href: '/retornos?situacao=vencido', titulo: 'Retornos vencidos', valor: retornosPendentes.vencidos, sub: 'Prazo expirado, sem agendamento', tom: 'red', icon: AlertTriangle },
           { href: '/retornos?situacao=limite', titulo: 'Retornos no limite', valor: retornosPendentes.limitePrazo, sub: 'Vencem nos próximos 10 dias', tom: 'amber', icon: Clock },
           { href: '/relatorios?aba=prescricoes&situacao=vencido', titulo: 'Prescrições vencidas', valor: prescricoesPendentes.vencidos, sub: 'Validade expirada', tom: 'red', icon: FileText },
@@ -781,8 +782,15 @@ function AdminDashboard({
           const Icon = item.icon
           const cor = item.tom === 'red'
             ? 'border-red-200 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20'
-            : 'border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
-          const texto = item.tom === 'red' ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'
+            : item.tom === 'green'
+              ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/20'
+              : 'border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
+          const texto =
+            item.tom === 'red'
+              ? 'text-red-700 dark:text-red-300'
+              : item.tom === 'green'
+                ? 'text-emerald-700 dark:text-emerald-300'
+                : 'text-amber-700 dark:text-amber-300'
           return (
             <Link key={item.titulo} href={item.href} className={`rounded-integrallys-lg border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md ${cor}`}>
               <div className="flex items-start justify-between gap-3">

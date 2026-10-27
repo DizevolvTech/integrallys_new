@@ -9,6 +9,8 @@ export interface RelatorioMeta {
   porPagina: number
   totalPaginas: number
   totais: Record<string, unknown>
+  /** Servidor omitiu custo e margem (perfil sem acesso). */
+  custoOculto?: boolean
 }
 
 export type LinhaRelatorio = Record<string, unknown> & { id: string }

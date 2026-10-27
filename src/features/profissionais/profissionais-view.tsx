@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { AcessoNegadoState } from '@/components/shared/acesso-negado-state'
 import { EmptyState } from '@/components/shared/empty-state'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
 import { Badge } from '@/components/ui/badge'
@@ -169,6 +170,71 @@ export function ProfissionaisView() {
       ...item.unidadesAtuacaoIds.map((id) => unidadeNomeById.get(id)),
     ].filter((nome): nome is string => Boolean(nome))
 
+  const renderAcoes = (item: ProfissionalItem) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            aria-label="Ações"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-lg border border-transparent text-[#6a7282] hover:border-app-border hover:bg-app-bg-secondary hover:shadow-sm dark:text-app-text-muted dark:hover:border-app-border-dark dark:hover:bg-app-hover"
+          >
+            <MoreHorizontal className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-56 rounded-xl border-app-border shadow-lg dark:border-app-border-dark"
+        >
+          <DropdownMenuItem
+            onClick={() => handleOpenEdit(item)}
+            className="rounded-lg py-2.5"
+          >
+            <Edit2 className="mr-3 h-4 w-4 text-app-text-muted" />
+            Editar
+          </DropdownMenuItem>
+          {item.tipoVinculo === 'parceiro' &&
+            (contratoTemplates.length === 0 ? (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <DropdownMenuItem
+                        disabled
+                        className="rounded-lg py-2.5"
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <FileText className="mr-3 h-4 w-4 text-app-text-muted" />
+                        Gerar contrato
+                      </DropdownMenuItem>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-xs text-xs">
+                    Nenhum modelo de contrato cadastrado — crie um em
+                    Configurações → Templates de Documentos
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <DropdownMenuItem
+                onClick={() => handleOpenGerarContrato(item)}
+                className="rounded-lg py-2.5"
+              >
+                <FileText className="mr-3 h-4 w-4 text-app-text-muted" />
+                Gerar contrato
+              </DropdownMenuItem>
+            ))}
+          <DropdownMenuItem
+            onClick={() => handleOpenDelete(item)}
+            className="rounded-lg py-2.5 text-[var(--app-danger-text)]"
+          >
+            <Trash2 className="mr-3 h-4 w-4 text-red-400" />
+            Excluir
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+  )
+
   // 403: perfil sem permissão (ex.: recepção). Mostra SÓ o estado de acesso
   // negado — sem "Novo profissional" e sem o estado de "nenhum cadastrado".
   if (accessDenied) {
@@ -217,7 +283,7 @@ export function ProfissionaisView() {
 
       <Card className="overflow-hidden rounded-2xl border-app-border/60 shadow-sm dark:border-app-border-dark">
         <CardContent className="p-0">
-          <div className="overflow-x-auto custom-scrollbar">
+          <div className={`overflow-x-auto custom-scrollbar ${!isLoading && filtered.length > 0 ? 'hidden md:block' : ''}`}>
             <Table>
               <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-card/5">
                 <TableRow className="border-app-border hover:bg-transparent dark:border-app-border-dark">
@@ -316,67 +382,7 @@ export function ProfissionaisView() {
                       </TableCell>
                       <TableCell className="px-6 py-4">
                         <div className="flex items-center justify-center">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-9 w-9 rounded-lg border border-transparent text-[#6a7282] hover:border-app-border hover:bg-app-bg-secondary hover:shadow-sm dark:text-app-text-muted dark:hover:border-app-border-dark dark:hover:bg-app-hover"
-                              >
-                                <MoreHorizontal className="h-5 w-5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="end"
-                              className="w-56 rounded-xl border-app-border shadow-lg dark:border-app-border-dark"
-                            >
-                              <DropdownMenuItem
-                                onClick={() => handleOpenEdit(item)}
-                                className="rounded-lg py-2.5"
-                              >
-                                <Edit2 className="mr-3 h-4 w-4 text-app-text-muted" />
-                                Editar
-                              </DropdownMenuItem>
-                              {item.tipoVinculo === 'parceiro' &&
-                                (contratoTemplates.length === 0 ? (
-                                  <TooltipProvider delayDuration={200}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div>
-                                          <DropdownMenuItem
-                                            disabled
-                                            className="rounded-lg py-2.5"
-                                            onSelect={(e) => e.preventDefault()}
-                                          >
-                                            <FileText className="mr-3 h-4 w-4 text-app-text-muted" />
-                                            Gerar contrato
-                                          </DropdownMenuItem>
-                                        </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="left" className="max-w-xs text-xs">
-                                        Nenhum modelo de contrato cadastrado — crie um em
-                                        Configurações → Templates de Documentos
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() => handleOpenGerarContrato(item)}
-                                    className="rounded-lg py-2.5"
-                                  >
-                                    <FileText className="mr-3 h-4 w-4 text-app-text-muted" />
-                                    Gerar contrato
-                                  </DropdownMenuItem>
-                                ))}
-                              <DropdownMenuItem
-                                onClick={() => handleOpenDelete(item)}
-                                className="rounded-lg py-2.5 text-[var(--app-danger-text)]"
-                              >
-                                <Trash2 className="mr-3 h-4 w-4 text-red-400" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {renderAcoes(item)}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -385,6 +391,32 @@ export function ProfissionaisView() {
               </TableBody>
             </Table>
           </div>
+          {!isLoading && filtered.length > 0 && (
+            <ListaCartoesMobile>
+              {filtered.map((item) => (
+                <CartaoMobile
+                  key={item.id}
+                  titulo={item.nome}
+                  subtitulo={item.email}
+                  selo={
+                    <Badge className={item.status === 'Ativo' ? 'app-status-success border-none font-normal' : 'app-status-neutral border-none font-normal'}>
+                      {item.status === 'Ativo' ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  }
+                  acoes={renderAcoes(item)}
+                  campos={[
+                    { rotulo: 'Conselho', valor: item.conselho ? `${item.conselho}${item.crm ? ` ${item.crm}` : ''}` : '--' },
+                    { rotulo: 'Vínculo', valor: VINCULO_LABEL[item.tipoVinculo] },
+                    { rotulo: 'Filiais', valor: filiaisNomes(item).join(', ') || '--' },
+                    {
+                      rotulo: 'Atendimento',
+                      valor: diasAtendidos(item) > 0 ? `${diasAtendidos(item)} dia(s) · ${item.procedimentoIds.length} proc.` : 'Sem grade',
+                    },
+                  ]}
+                />
+              ))}
+            </ListaCartoesMobile>
+          )}
         </CardContent>
       </Card>
 

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useApi } from '@/hooks/use-api'
 import type { PacienteItem } from '@/hooks/use-pacientes'
+import { formatarCPF } from '@/lib/validacao-br'
 
 interface FichaPacienteModalProps {
   open: boolean
@@ -86,7 +87,7 @@ export function FichaPacienteModal({ open, onOpenChange, pacienteId }: FichaPaci
                 <div className="min-w-0 space-y-0.5">
                   <h3 className="truncate text-lg font-normal text-app-text-primary dark:text-white">{paciente.nome}</h3>
                   <p className="text-xs font-normal text-app-text-muted">
-                    {paciente.cpf ? `CPF: ${paciente.cpf}` : 'CPF não informado'}
+                    {paciente.cpf ? `CPF: ${formatarCPF(paciente.cpf)}` : 'CPF não informado'}
                     {paciente.birthDate ? ` - Nasc: ${paciente.birthDate}` : ''}
                   </p>
                 </div>

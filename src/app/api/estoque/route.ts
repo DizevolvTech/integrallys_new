@@ -9,6 +9,7 @@ import {
   estoqueRegistrarEntrada,
   estoqueRpcHttpStatus,
 } from '@/lib/estoque-movimentacao'
+import { removerCustoProduto } from '@/lib/estoque-custo'
 import { stripEstoquePrices } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import { montarEntrada } from './entrada-input'
@@ -43,6 +44,7 @@ async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typ
   let query = supabase
     .from('produtos_estoque')
     .select('id,nome,categoria,sku,quantidade,estoque_minimo,lote,validade,preco_custo,preco_venda,unidade_medida,status,unidade_id')
+    .eq('controla_estoque', true)
     .order('nome', { ascending: true })
 
   if (scopedUnit.unidadeId) {
@@ -61,7 +63,7 @@ async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typ
   }
 
   return NextResponse.json({
-    data: (data ?? []).map((row) => stripEstoquePrices(mapEstoqueItem(row), session?.role)),
+    data: (data ?? []).map((row) => removerCustoProduto(stripEstoquePrices(mapEstoqueItem(row), session?.role), session?.role)),
     meta: session,
   })
 }
@@ -101,6 +103,23 @@ function pickJoinedName(value: unknown): string {
 const inicioDoDia = (dia: string) => (/^\d{4}-\d{2}-\d{2}$/.test(dia) ? `${dia}T00:00:00-03:00` : dia)
 const fimDoDia = (dia: string) => `${dia.slice(0, 10)}T23:59:59.999-03:00`
 
+/**
+ * Busca por produto, operador, vínculo ou observação. Produto e operador viram listas de ids
+ * (limitadas) para o filtro `or` do PostgREST; vínculo e observação são colunas da própria linha.
+ */
+async function montarFiltroBuscaMovimentacao(busca: string): Promise<string> {
+  const supabase = getAppSupabase()
+  const [produtos, operadores] = await Promise.all([
+    supabase.from('produtos_estoque').select('id').ilike('nome', `%${busca}%`).limit(150),
+    supabase.from('usuarios').select('id').ilike('nome', `%${busca}%`).limit(150),
+  ])
+  const ids = (linhas: Array<{ id: unknown }> | null) => (linhas ?? []).map((l) => String(l.id)).join(',')
+  const partes = [`vinculo_nome.ilike.%${busca}%`, `observacoes.ilike.%${busca}%`]
+  if (produtos.data?.length) partes.push(`produto_id.in.(${ids(produtos.data)})`)
+  if (operadores.data?.length) partes.push(`usuario_id.in.(${ids(operadores.data)})`)
+  return partes.join(',')
+}
+
 async function listMovimentacoes(
   request: NextRequest,
   session: Awaited<ReturnType<typeof getRequestAuth>>,
@@ -110,12 +129,14 @@ async function listMovimentacoes(
   const produtoId = url.searchParams.get('produto_id')
   const de = url.searchParams.get('de')
   const ate = url.searchParams.get('ate')
+  const busca = (url.searchParams.get('q') ?? '').replace(/[%,()*\\]/g, ' ').trim().slice(0, 80)
   const limitParam = Number(url.searchParams.get('limit') ?? '100')
   const offsetParam = Number(url.searchParams.get('offset') ?? '0')
   const limit = Number.isFinite(limitParam) && limitParam > 0 && limitParam <= 500 ? Math.floor(limitParam) : 100
   const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? Math.floor(offsetParam) : 0
 
   const supabase = getAppSupabase()
+  const filtroBusca = busca ? await montarFiltroBuscaMovimentacao(busca) : null
 
   let countQuery = supabase
     .from('movimentacoes_estoque')
@@ -123,6 +144,7 @@ async function listMovimentacoes(
   if (tipo === 'entrada' || tipo === 'saida') countQuery = countQuery.eq('tipo', tipo)
   if (tipo === 'consumo_interno') countQuery = countQuery.eq('tipo_movimentacao', 'consumo_interno')
   if (produtoId) countQuery = countQuery.eq('produto_id', produtoId)
+  if (filtroBusca) countQuery = countQuery.or(filtroBusca)
   if (de) countQuery = countQuery.gte('created_at', inicioDoDia(de))
   if (ate) countQuery = countQuery.lte('created_at', fimDoDia(ate))
   const countResult = await countQuery
@@ -142,6 +164,7 @@ async function listMovimentacoes(
   if (tipo === 'entrada' || tipo === 'saida') query = query.eq('tipo', tipo)
   if (tipo === 'consumo_interno') query = query.eq('tipo_movimentacao', 'consumo_interno')
   if (produtoId) query = query.eq('produto_id', produtoId)
+  if (filtroBusca) query = query.or(filtroBusca)
   if (de) query = query.gte('created_at', inicioDoDia(de))
   if (ate) query = query.lte('created_at', fimDoDia(ate))
 

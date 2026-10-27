@@ -42,7 +42,7 @@ export function SegmentedControl({
     const sizeClasses = {
         sm: 'px-3 py-1.5 text-xs',
         md: 'px-4 py-2 text-sm',
-        lg: 'px-6 py-2.5 text-base',
+        lg: 'px-3 py-2.5 text-sm sm:px-6 sm:text-base',
     }
 
     const containerClasses = {
@@ -59,7 +59,7 @@ export function SegmentedControl({
         <div
             className={`
         bg-app-bg-secondary dark:bg-app-card-dark p-1 
-        flex flex-wrap sm:flex-nowrap gap-1 
+        flex flex-nowrap gap-1 
         overflow-x-auto scrollbar-hide
         ${containerClasses[variant]}
         ${fullWidth ? 'w-full' : 'inline-flex'}
@@ -68,10 +68,11 @@ export function SegmentedControl({
         >
             {options.map((option) => (
                 <button
+                    type="button"
                     key={option.value}
                     onClick={() => onChange(option.value)}
                     className={`
-            flex-1 min-w-[80px] transition-all font-normal
+            flex-1 min-w-fit shrink-0 whitespace-nowrap transition-all font-normal
             ${buttonClasses[variant]}
             ${sizeClasses[size]}
             ${value === option.value

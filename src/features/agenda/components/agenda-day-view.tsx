@@ -220,7 +220,7 @@ export function AgendaDayView({
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 ml-0 sm:ml-4 w-full sm:w-auto justify-end mt-2 sm:mt-0">
+                      <div className="flex flex-wrap items-center gap-2 ml-0 sm:ml-4 w-full sm:w-auto justify-end mt-2 sm:mt-0">
                         {onStartAtendimento &&
                           !['Em Atendimento', 'Check-out', 'Cancelado'].includes(currentStatus) && (
                             <Button

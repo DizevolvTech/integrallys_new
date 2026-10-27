@@ -1,4 +1,5 @@
 import type { ReciboDados } from '@/lib/recibo'
+import { formatarCPF } from '@/lib/validacao-br'
 
 const reais = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const dataBr = (iso?: string | null) => (iso ? new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString('pt-BR') : '—')
@@ -22,7 +23,7 @@ export function ReciboDocumento({ dados }: { dados: ReciboDados }) {
 
       <div style={{ marginBottom: 16 }}>
         <strong>Paciente:</strong> {dados.paciente.nome}
-        {dados.paciente.cpf && <> &nbsp;·&nbsp; <strong>CPF:</strong> {dados.paciente.cpf}</>}
+        {dados.paciente.cpf && <> &nbsp;·&nbsp; <strong>CPF:</strong> {formatarCPF(dados.paciente.cpf)}</>}
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>

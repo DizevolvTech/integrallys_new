@@ -229,7 +229,7 @@ function ProntuarioViewList() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
+                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-2 rounded-[12px] border-app-border px-3 sm:px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
                   >
                     <div className="flex items-center gap-3">
                       <Filter className="h-4 w-4 text-app-text-muted" />
@@ -251,7 +251,7 @@ function ProntuarioViewList() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-3 rounded-[12px] border-app-border px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
+                    className="flex h-12 min-w-0 flex-1 justify-between lg:min-w-[180px] lg:flex-none gap-2 rounded-[12px] border-app-border px-3 sm:px-5 font-normal text-app-text-secondary transition-all hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover"
                   >
                     <div className="flex items-center gap-3">
                       <Filter className="h-4 w-4 text-app-text-muted" />

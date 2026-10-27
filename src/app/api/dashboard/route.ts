@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
   let retornosQuery = supabase
     .from('retornos_em_aberto')
     .select('situacao')
-    .in('situacao', ['limite', 'vencido'])
+    .in('situacao', ['no_prazo', 'limite', 'vencido'])
     .limit(5000)
   if (variant === 'especialista') {
     retornosQuery = retornosQuery.eq('profissional_id', session.userId)
@@ -508,7 +508,7 @@ export async function GET(request: NextRequest) {
       adminUnidadeId
         ? supabase.from('lista_espera').select('*', { count: 'exact', head: true }).eq('unidade_id', adminUnidadeId)
         : supabase.from('lista_espera').select('*', { count: 'exact', head: true }),
-      supabase.from('produtos_estoque').select('id,nome,quantidade,estoque_minimo').limit(1000),
+      supabase.from('produtos_estoque').select('id,nome,quantidade,estoque_minimo').eq('controla_estoque', true).limit(1000),
       supabase
         .from('agendamentos')
         .select('observacoes,paciente_id,status')
@@ -751,7 +751,7 @@ export async function GET(request: NextRequest) {
     ? {
         periodo: { de: perfFrom, ate: perfTo },
         ...calcularPerformance(perfAgendaResult.data ?? [], prescricoesPerf),
-        retornos: { limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
+        retornos: { noPrazo: retornosContagem.noPrazo, limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
       }
     : undefined
 
@@ -841,7 +841,7 @@ export async function GET(request: NextRequest) {
       notasEmitidas: { registrado: true, ...pedidosNf, aviso: '' },
       unidadesComparativo,
       prescricoesPendentes,
-      retornosPendentes: { limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
+      retornosPendentes: { noPrazo: retornosContagem.noPrazo, limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
       listaEsperaCount,
       estoqueCritico,
       topProcedimentos,

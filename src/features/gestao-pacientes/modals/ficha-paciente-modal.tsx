@@ -5,6 +5,7 @@ import {
     DialogContent,
 } from "@/components/ui/dialog"
 import { X } from "lucide-react"
+import { formatarCPF } from '@/lib/validacao-br'
 
 interface Paciente {
     id: number
@@ -88,7 +89,7 @@ export function FichaPacienteModal({ isOpen, onClose, paciente }: FichaPacienteM
 
                         <div className="space-y-1">
                             <h4 className="text-sm font-normal text-app-text-primary dark:text-white tracking-wider opacity-80">CPF</h4>
-                            <p className="text-lg text-app-text-primary dark:text-white">{paciente.cpf}</p>
+                            <p className="text-lg text-app-text-primary dark:text-white">{formatarCPF(paciente.cpf)}</p>
                         </div>
 
                         {/* Endereço */}

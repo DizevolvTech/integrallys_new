@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth, getScopedUnitId, isScopedRole } from '@/lib/request-auth'
+import { removerCustoRelatorio } from '@/lib/estoque-custo'
 import { montarFiltros } from '@/lib/relatorios/filtros'
 import { lerConfigTaxas, calcularTaxa, somarDias, totalizarRecebimentos, type GrupoRecebimento } from '@/lib/relatorios/recebimentos-taxas'
 import { perfilPodeVerRelatorio, type RelatorioTipo } from '@/lib/relatorios/registry'
@@ -98,8 +99,16 @@ export async function executarRelatorio(request: NextRequest, tipo: RelatorioTip
     totais = { ...enriquecido.totais }
   }
 
+  let custoOculto = false
+  if (tipo === 'estoque-posicao' || tipo === 'estoque-movimentacao') {
+    const semCusto = removerCustoRelatorio(rows, totais, session.role)
+    rows = semCusto.rows
+    totais = semCusto.totais
+    custoOculto = semCusto.custoOculto
+  }
+
   return NextResponse.json({
     data: rows,
-    meta: { total, pagina, porPagina, totalPaginas: Math.max(1, Math.ceil(total / porPagina)), totais },
+    meta: { total, pagina, porPagina, totalPaginas: Math.max(1, Math.ceil(total / porPagina)), totais, custoOculto },
   })
 }
