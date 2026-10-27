@@ -612,7 +612,7 @@ type AdminAdmin = {
   saldoBancos: Array<{ id: string; unidade: string; nome: string; banco: string; tipo: string; saldo: number }>
   financeiroPorUnidade: Array<{ unidadeId: string | null; unidade: string; entradas: number; saidas: number; saldo: number; faturamento: Record<TipoFaturamento, number> }>
   faturamentoTotal: Record<TipoFaturamento, number>
-  notasEmitidas: { registrado: boolean; aviso: string }
+  notasEmitidas: { registrado: boolean; aviso: string; pendentes?: number; emitidas?: number; valorPendente?: number; valorEmitido?: number }
   unidadesComparativo: Array<{ unidadeId: string | null; unidadeNome: string; agendamentos: number; receita: number }>
   prescricoesPendentes: { limitePrazo: number; vencidos: number }
   retornosPendentes: { limitePrazo: number; vencidos: number }
@@ -991,7 +991,15 @@ function AdminDashboard({
               </table>
             </div>
           )}
-          {!notasEmitidas.registrado && (
+          {notasEmitidas.registrado ? (
+            <Link
+              href="/notas-fiscais"
+              className="mt-3 block rounded-lg bg-app-bg-secondary px-3 py-2 text-xs text-app-text-muted hover:text-app-text-primary dark:bg-app-hover/40"
+            >
+              <Receipt className="mr-1 inline h-3.5 w-3.5" aria-hidden /> Pedidos de nota fiscal: {notasEmitidas.pendentes ?? 0} pendentes ·{' '}
+              {notasEmitidas.emitidas ?? 0} emitidas. Ver lista
+            </Link>
+          ) : (
             <p className="mt-3 rounded-lg bg-app-bg-secondary px-3 py-2 text-xs text-app-text-muted dark:bg-app-hover/40">
               <Receipt className="mr-1 inline h-3.5 w-3.5" aria-hidden /> {notasEmitidas.aviso}
             </p>

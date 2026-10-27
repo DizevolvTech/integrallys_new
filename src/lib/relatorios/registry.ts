@@ -67,7 +67,7 @@ const ABAS_GESTAO: RelatorioTab[] = [
   { id: 'retornos', label: 'Retornos' },
   { id: 'pacientes', label: 'Pacientes' },
   { id: 'aniversariantes', label: 'Aniversariantes' },
-  { id: 'prescricoes', label: 'Prescrição/Vendas' },
+  { id: 'prescricoes', label: 'Orçamentos / Prescrição' },
   { id: 'vendas', label: 'Vendas' },
   { id: 'recebimentos', label: 'Recebimentos' },
   { id: 'estoque', label: 'Estoque' },
@@ -87,7 +87,7 @@ const ABAS_RECEPCAO: RelatorioTab[] = [
   { id: 'justificativas', label: 'Justificativas de cancelamento' },
   { id: 'retornos', label: 'Retornos' },
   { id: 'pacientes', label: 'Pacientes' },
-  { id: 'prescricoes', label: 'Prescrição/Vendas' },
+  { id: 'prescricoes', label: 'Orçamentos / Prescrição' },
   { id: 'vendas', label: 'Vendas' },
   { id: 'recebimentos', label: 'Recebimentos' },
   { id: 'estoque', label: 'Estoque' },
@@ -100,7 +100,7 @@ const ABAS_ESPECIALISTA: RelatorioTab[] = [
   { id: 'repasse', label: 'Meus repasses', proprio: true },
   { id: 'comissoes', label: 'Minhas comissões', proprio: true },
   { id: 'consultas', label: 'Consultas', proprio: true },
-  { id: 'prescricoes', label: 'Prescrição/Vendas' },
+  { id: 'prescricoes', label: 'Orçamentos / Prescrição' },
 ]
 
 export function abasDoPerfil(perfil: Perfil): RelatorioTab[] {

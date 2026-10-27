@@ -37,6 +37,13 @@ const ROTULOS = {
   },
 } as const
 
+function descricaoDetalhe(situacao: SituacaoCard | undefined, periodo: PeriodoContas | null) {
+  if (periodo?.informado) return rotuloPeriodo(periodo)
+  if (situacao === 'atrasado') return 'Tudo o que já venceu e não foi liquidado'
+  if (situacao === 'a_vencer') return 'Tudo o que vence de hoje em diante (inclui o saldo de atendimentos já pagos em parte)'
+  return rotuloPeriodo(periodo)
+}
+
 /** Cards de totais; cada um abre o detalhamento (por forma de pagamento) do que compõe o valor. */
 export function ContasCards({ tipo, contas }: { tipo: 'receita' | 'despesa'; contas: Contas }) {
   const [aberto, setAberto] = useState<SituacaoCard | null>(null)
@@ -85,7 +92,7 @@ export function ContasCards({ tipo, contas }: { tipo: 'receita' | 'despesa'; con
       <div className="space-y-2">
         <p className="text-xs text-app-text-muted">
           Totais de: <span className="font-medium text-app-text-secondary">{rotuloPeriodo(periodo)}</span>
-          {periodo && !periodo.informado ? ' (sem filtro de período, mostra o dia de hoje; atrasado mostra tudo que já venceu)' : ''}
+          {periodo && !periodo.informado ? ' (sem filtro de período: recebido/pago é o de hoje; a receber/a pagar é tudo que vence de hoje em diante; atrasado é tudo que já venceu)' : ''}
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {cards.map((card) => (
@@ -115,7 +122,7 @@ export function ContasCards({ tipo, contas }: { tipo: 'receita' | 'despesa'; con
         open={aberto !== null}
         onClose={() => setAberto(null)}
         titulo={atual ? `${rotulos[atual.situacao][0]} — ${tipo === 'receita' ? 'recebimentos' : 'pagamentos'}` : ''}
-        descricao={atual?.situacao === 'atrasado' && !periodo?.informado ? 'Tudo o que já venceu e não foi liquidado' : rotuloPeriodo(periodo)}
+        descricao={descricaoDetalhe(atual?.situacao, periodo)}
         total={atual?.valor ?? 0}
         grupos={grupos}
         carregando={carregando}

@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
   // Linhas que compõem os cards: o período (ou hoje) e, sem período, também tudo o que já venceu.
   const linhasDosCards = async () => {
     const [noPeriodo, atrasadas] = await Promise.all([
-      buscarContas(ctx, semSituacao, { de: periodo.de, ate: periodo.ate }),
+      // Sem período: liquidado de hoje + tudo a vencer de hoje em diante.
+      buscarContas(ctx, semSituacao, { de: periodo.de, ate: periodoInformado ? periodo.ate : null }),
       periodoInformado
         ? Promise.resolve(null)
         : buscarContas(ctx, semSituacao, { de: null, ate: null, soAtrasadas: true }),
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
     const doCard = itens.filter((item) => {
       if (item.situacao !== (detalhe as SituacaoFinanceira)) return false
       if (detalhe === 'atrasado') return periodoInformado ? item.dataReferencia <= periodo.ate : true
+      if (detalhe === 'a_vencer' && !periodoInformado) return item.dataReferencia >= hoje
       return item.dataReferencia >= periodo.de && item.dataReferencia <= periodo.ate
     })
     return NextResponse.json({

@@ -46,8 +46,10 @@ export type ItemResumivel = {
 export type ResumoFinanceiro = Record<'liquidado' | 'aVencer' | 'atrasado', number>
 
 /**
- * Totais dos cards. Liquidado e a vencer seguem o período; atrasado, por definição
- * já vencido, vai desde o início até o fim do período (sem filtro: tudo o que está atrasado).
+ * Totais dos cards. Liquidado segue o período (sem filtro: hoje); atrasado, por definição já vencido,
+ * vai desde o início até o fim do período (sem filtro: tudo o que está atrasado). "A vencer" segue o
+ * período; sem filtro é tudo o que ainda vai vencer de hoje em diante (saldo de atendimento futuro,
+ * parcelas futuras), senão o saldo a receber de um agendamento para a semana que vem nunca apareceria.
  */
 export function resumirPeriodo(
   itens: ItemResumivel[],
@@ -59,7 +61,9 @@ export function resumirPeriodo(
   for (const item of itens) {
     const noPeriodo = item.dataReferencia >= periodo.de && item.dataReferencia <= periodo.ate
     if (item.situacao === 'liquidado' && noPeriodo) resumo.liquidado += item.valor
-    else if (item.situacao === 'a_vencer' && noPeriodo) resumo.aVencer += item.valor
+    else if (item.situacao === 'a_vencer' && (periodoInformado ? noPeriodo : item.dataReferencia >= hoje)) {
+      resumo.aVencer += item.valor
+    }
     else if (item.situacao === 'atrasado') {
       const dentro = periodoInformado ? item.dataReferencia <= periodo.ate : item.dataReferencia < hoje
       if (dentro) resumo.atrasado += item.valor

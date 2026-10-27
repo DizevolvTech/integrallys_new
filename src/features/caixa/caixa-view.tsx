@@ -51,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { diaDoMovimento, formaCaixaLabel } from './caixa-format'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 type CaixaModal = 'abrircaixa' | 'suprimento' | 'sangria' | 'fecharcaixa' | 'edit_caixa' | null
 
@@ -753,7 +754,7 @@ export function CaixaView() {
                 Resumo do fechamento
               </DialogTitle>
               <DialogDescription className="text-sm text-app-text-muted">
-                {resumoFechamento && new Date(resumoFechamento.fechadoEm).toLocaleString('pt-BR')}
+                {resumoFechamento && formatarDataHoraClinica(resumoFechamento.fechadoEm)}
               </DialogDescription>
             </DialogHeader>
 

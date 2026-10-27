@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  filtrarRecebimentosCaixa,
   filtrarSaldos,
   lerFiltrosContas,
   mapLancamentoConta,
+  recebimentoCaixaConta,
   saldoAgendamentoConta,
   type FiltrosContas,
 } from './financeiro-contas'
@@ -66,5 +68,25 @@ describe('filtros', () => {
     expect(lerFiltrosContas(new URLSearchParams('tipo=x'))).toBeNull()
     const lidos = lerFiltrosContas(new URLSearchParams('tipo=despesa&de=2026-02-30&ate=2026-10-27&situacao=atrasado&formaId=abc'))
     expect(lidos).toMatchObject({ tipo: 'despesa', de: null, ate: '2026-10-27', situacao: 'atrasado', formaId: '' })
+  })
+})
+
+describe('recebimento lançado no caixa', () => {
+  const credito = recebimentoCaixaConta({ id: 'm1', descricao: 'Teste cartão', valor: 300, forma: 'cartao_credito', bandeira: 'Visa', parcelas: 3, dia: '2026-10-27' })
+  const dinheiro = recebimentoCaixaConta({ id: 'm2', descricao: 'Venda suplemento', valor: 89.9, forma: 'dinheiro', bandeira: null, parcelas: null, dia: '2026-10-14' })
+
+  it('entra como liquidado, só leitura, com bandeira e parcelas na forma', () => {
+    expect(credito).toMatchObject({ id: 'cx:m1', origem: 'caixa', situacao: 'liquidado', somenteLeitura: true, valor: 300 })
+    expect(credito.forma).toBe('Cartão de crédito · Visa 3x')
+    expect(dinheiro.forma).toBe('Dinheiro')
+  })
+
+  it('filtra por período, texto e situação; filtros que o caixa não responde o escondem', () => {
+    const base: FiltrosContas = { tipo: 'receita', de: null, ate: null, pessoa: '', produto: '', formaId: '', situacao: '', categoriaId: '', profissionalId: '', procedimentoId: '' }
+    const todos = [credito, dinheiro]
+    expect(filtrarRecebimentosCaixa(todos, { ...base, de: '2026-10-20' })).toEqual([credito])
+    expect(filtrarRecebimentosCaixa(todos, { ...base, pessoa: 'suplemento' })).toEqual([dinheiro])
+    expect(filtrarRecebimentosCaixa(todos, { ...base, situacao: 'a_vencer' })).toEqual([])
+    expect(filtrarRecebimentosCaixa(todos, { ...base, profissionalId: '11111111-1111-1111-1111-111111111111' })).toEqual([])
   })
 })

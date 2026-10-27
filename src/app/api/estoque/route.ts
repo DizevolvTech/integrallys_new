@@ -97,6 +97,10 @@ function pickJoinedName(value: unknown): string {
   return obj?.nome ? String(obj.nome) : ''
 }
 
+/** Filtro por data é o dia de Brasília (UTC-3), não o dia UTC. */
+const inicioDoDia = (dia: string) => (/^\d{4}-\d{2}-\d{2}$/.test(dia) ? `${dia}T00:00:00-03:00` : dia)
+const fimDoDia = (dia: string) => `${dia.slice(0, 10)}T23:59:59.999-03:00`
+
 async function listMovimentacoes(
   request: NextRequest,
   session: Awaited<ReturnType<typeof getRequestAuth>>,
@@ -119,8 +123,8 @@ async function listMovimentacoes(
   if (tipo === 'entrada' || tipo === 'saida') countQuery = countQuery.eq('tipo', tipo)
   if (tipo === 'consumo_interno') countQuery = countQuery.eq('tipo_movimentacao', 'consumo_interno')
   if (produtoId) countQuery = countQuery.eq('produto_id', produtoId)
-  if (de) countQuery = countQuery.gte('created_at', de)
-  if (ate) countQuery = countQuery.lte('created_at', `${ate}T23:59:59.999Z`)
+  if (de) countQuery = countQuery.gte('created_at', inicioDoDia(de))
+  if (ate) countQuery = countQuery.lte('created_at', fimDoDia(ate))
   const countResult = await countQuery
 
   if (countResult.error) {
@@ -138,8 +142,8 @@ async function listMovimentacoes(
   if (tipo === 'entrada' || tipo === 'saida') query = query.eq('tipo', tipo)
   if (tipo === 'consumo_interno') query = query.eq('tipo_movimentacao', 'consumo_interno')
   if (produtoId) query = query.eq('produto_id', produtoId)
-  if (de) query = query.gte('created_at', de)
-  if (ate) query = query.lte('created_at', `${ate}T23:59:59.999Z`)
+  if (de) query = query.gte('created_at', inicioDoDia(de))
+  if (ate) query = query.lte('created_at', fimDoDia(ate))
 
   const { data, error } = await query
 

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatMoeda as formatMoney } from '@/features/relatorios/format'
 
@@ -142,6 +143,23 @@ export function CaixaGestorTab() {
                 <h3 className="text-base font-medium">
                   Movimentos do dia ({caixaGestor.data.data})
                 </h3>
+                <ListaCartoesMobile className="p-0">
+                  {caixaGestor.data.movimentos.length === 0 && (
+                    <p className="py-4 text-center text-sm text-app-text-muted">Sem movimentos de caixa hoje.</p>
+                  )}
+                  {caixaGestor.data.movimentos.map((mov) => (
+                    <CartaoMobile
+                      key={mov.id}
+                      titulo={mov.descricao || '—'}
+                      valor={caixaGestor.valoresVisiveis ? formatMoney(mov.valor) : '—'}
+                      campos={[
+                        { rotulo: 'Tipo', valor: mov.tipo },
+                        { rotulo: 'Forma', valor: mov.forma || '—' },
+                      ]}
+                    />
+                  ))}
+                </ListaCartoesMobile>
+                <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -172,6 +190,7 @@ export function CaixaGestorTab() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </>

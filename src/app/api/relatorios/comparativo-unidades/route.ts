@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const scoped = await getScopedUnitId(session)
   if (scoped.error) return supabaseErrorResponse(scoped.error, 'Falha ao carregar comparativo')
 
-  let unidadesQuery = supabase.from('unidades').select('id,nome').eq('ativo', true).order('nome')
+  let unidadesQuery = supabase.from('unidades').select('id,nome').eq('status', 'Ativa').order('nome')
   if (scoped.unidadeId && !['master', 'admin'].includes(session.role)) {
     unidadesQuery = unidadesQuery.eq('id', scoped.unidadeId)
   }

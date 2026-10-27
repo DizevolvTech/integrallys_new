@@ -1,26 +1,11 @@
 'use client'
 
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  DollarSign,
-  Edit,
-  Eye,
-  FileText,
-  MoreVertical,
-  RotateCcw,
-  Wallet,
-} from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, DollarSign, Wallet } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DataTable } from '@/components/shared/data-table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import {
   Table,
   TableBody,
@@ -41,6 +26,7 @@ import {
 } from '../financeiro.utils'
 import type { useFinanceiroStats } from '../hooks/use-financeiro-stats'
 import { CardClicavel } from '../contas/card-clicavel'
+import { AcoesCaixa, AcoesLancamento } from './financeiro-acoes'
 import type { TipoDetalheCaixa, TipoDetalheFinanceiro } from '../contas/detalhes-cards'
 
 interface Props {
@@ -231,7 +217,34 @@ export function FinanceiroTabContent({
                   Movimentações da sessão
                 </h3>
               </div>
-              <div className="overflow-x-auto">
+              <ListaCartoesMobile>
+                {caixaTodayData.length === 0 && (
+                  <p className="py-6 text-center text-sm text-app-text-secondary">Nenhuma movimentação registrada na sessão de hoje.</p>
+                )}
+                {caixaTodayData.map((move) => (
+                  <CartaoMobile
+                    key={move.id}
+                    titulo={move.descricao}
+                    subtitulo={`${diaDoMovimento(move)} · ${move.hora || move.data.split(' ')[1] || '--:--'}`}
+                    valor={
+                      <span className={move.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}>
+                        {formatCurrency(move.valor)}
+                      </span>
+                    }
+                    selo={
+                      <Badge className={`${move.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} border-none font-normal`}>
+                        {move.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                      </Badge>
+                    }
+                    acoes={<AcoesCaixa move={move} onView={onCaixaView} onEdit={onCaixaEdit} onDelete={onCaixaDelete} />}
+                    campos={[
+                      { rotulo: 'Forma', valor: formaCaixaLabel(move.forma) },
+                      { rotulo: 'Operador', valor: move.operador || '—' },
+                    ]}
+                  />
+                ))}
+              </ListaCartoesMobile>
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-none bg-app-bg-secondary/50 dark:bg-app-card/[0.02]">
@@ -295,39 +308,7 @@ export function FinanceiroTabContent({
                           {move.operador || '—'}
                         </TableCell>
                         <TableCell className="text-center">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                aria-label="Ações"
-                                className="mx-auto h-9 w-9 rounded-xl border-app-border dark:border-app-border-dark"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => onCaixaView(move)}>
-                                <Eye className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                <span>Visualizar</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => onCaixaEdit(move)}>
-                                <Edit className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                <span>Editar</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => onCaixaView(move)}>
-                                <FileText className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                <span>Comprovante</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-[var(--app-danger-text)]"
-                                onClick={() => onCaixaDelete(move)}
-                              >
-                                <RotateCcw className="mr-2 h-4 w-4" />
-                                <span>Estornar</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <AcoesCaixa move={move} onView={onCaixaView} onEdit={onCaixaEdit} onDelete={onCaixaDelete} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -478,7 +459,53 @@ export function FinanceiroTabContent({
         ) : (
           <DataTable data={filteredData}>
             {(pageData) => (
-              <div className="overflow-x-auto">
+              <>
+              <ListaCartoesMobile>
+                {pageData.map((item) => {
+                  const status = item.status || 'Pendente'
+                  const liquidado = isLiquidado(status)
+                  const entrada = item.tipo === 'receita'
+                  const lancamentos = tab === 'lancamentos'
+                  return (
+                    <CartaoMobile
+                      key={item.id}
+                      titulo={item.descricao}
+                      subtitulo={[item.categoria, lancamentos ? item.data : null].filter(Boolean).join(' · ') || undefined}
+                      valor={formatCurrency(item.valor)}
+                      selo={
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Badge className={`rounded-full px-3 py-1 text-xs font-medium ${entrada ? 'app-status-success text-white' : 'app-status-danger text-white'}`}>
+                            {lancamentos ? (entrada ? 'Entrada' : 'Saída') : entrada ? 'Receita' : 'Despesa'}
+                          </Badge>
+                          {lancamentos && (
+                            <Badge className={`font-normal ${getFinanceStatusBadgeClass(status)}`}>{getFinanceStatusLabel(status)}</Badge>
+                          )}
+                        </span>
+                      }
+                      acoes={
+                        <AcoesLancamento
+                          item={item}
+                          onView={onLancamentoView}
+                          onEdit={onLancamentoEdit}
+                          onRecebimento={onLancamentoRecebimento}
+                          onComprovante={onLancamentoComprovante}
+                          onDelete={onLancamentoDelete}
+                        />
+                      }
+                      campos={
+                        lancamentos
+                          ? [
+                              { rotulo: 'Forma', valor: item.metodo || '-' },
+                              { rotulo: 'Valor pago', valor: formatCurrency(liquidado ? item.valor : 0) },
+                              { rotulo: 'Saldo', valor: formatCurrency(liquidado ? 0 : item.valor) },
+                            ]
+                          : []
+                      }
+                    />
+                  )
+                })}
+              </ListaCartoesMobile>
+              <div className="hidden overflow-x-auto md:block">
                 {tab === 'lancamentos' && (
                   <Table>
                     <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
@@ -561,45 +588,7 @@ export function FinanceiroTabContent({
                               </Badge>
                             </TableCell>
                             <TableCell className="px-6 py-4 text-center">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    aria-label="Ações"
-                                    className="mx-auto h-9 w-9 rounded-xl border-app-border dark:border-app-border-dark"
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => onLancamentoView(item)}>
-                                    <Eye className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Visualizar</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => onLancamentoEdit(item)}>
-                                    <Edit className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Editar</span>
-                                  </DropdownMenuItem>
-                                  {!liquidado && item.tipo === 'receita' && (
-                                    <DropdownMenuItem onClick={() => onLancamentoRecebimento(item)}>
-                                      <DollarSign className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                      <span>Registrar recebimento</span>
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuItem onClick={() => onLancamentoComprovante(item)}>
-                                    <FileText className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Comprovante</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-[var(--app-danger-text)]"
-                                    onClick={() => onLancamentoDelete(item)}
-                                  >
-                                    <RotateCcw className="mr-2 h-4 w-4" />
-                                    <span>Excluir</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <AcoesLancamento item={item} onView={onLancamentoView} onEdit={onLancamentoEdit} onRecebimento={onLancamentoRecebimento} onComprovante={onLancamentoComprovante} onDelete={onLancamentoDelete} />
                             </TableCell>
                           </TableRow>
                         )
@@ -656,45 +645,7 @@ export function FinanceiroTabContent({
                             {formatCurrency(item.valor)}
                           </TableCell>
                           <TableCell className="px-6 py-4 text-center">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  aria-label="Ações"
-                                  className="mx-auto h-9 w-9 rounded-xl border-app-border dark:border-app-border-dark"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => onLancamentoView(item)}>
-                                  <Eye className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                  <span>Visualizar</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => onLancamentoEdit(item)}>
-                                  <Edit className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                  <span>Editar</span>
-                                </DropdownMenuItem>
-                                {item.tipo === 'receita' && !isLiquidado(item.status) && (
-                                  <DropdownMenuItem onClick={() => onLancamentoRecebimento(item)}>
-                                    <DollarSign className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                    <span>Registrar recebimento</span>
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem onClick={() => onLancamentoComprovante(item)}>
-                                  <FileText className="mr-2 h-4 w-4 text-app-text-secondary" />
-                                  <span>Comprovante</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-[var(--app-danger-text)]"
-                                  onClick={() => onLancamentoDelete(item)}
-                                >
-                                  <RotateCcw className="mr-2 h-4 w-4" />
-                                  <span>Excluir</span>
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <AcoesLancamento item={item} onView={onLancamentoView} onEdit={onLancamentoEdit} onRecebimento={onLancamentoRecebimento} onComprovante={onLancamentoComprovante} onDelete={onLancamentoDelete} />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -702,6 +653,7 @@ export function FinanceiroTabContent({
                   </Table>
                 )}
               </div>
+              </>
             )}
           </DataTable>
         )}

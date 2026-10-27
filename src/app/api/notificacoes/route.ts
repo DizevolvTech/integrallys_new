@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getPacienteIdByUserId, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { authErrorResponse, getRequestAuth, type RequestAuth } from '@/lib/request-auth'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 interface NotificationItem {
   id: string
@@ -27,9 +28,7 @@ interface NotificationDraft {
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('pt-BR')
+  return formatarDataHoraClinica(value)
 }
 
 function normalizeTimestamp(value: string) {

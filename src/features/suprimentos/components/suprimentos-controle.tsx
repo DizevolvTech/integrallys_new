@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useControleSuprimentos, type SuprimentoItem } from '../hooks/use-suprimentos'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 const PAGE = 20
 const reais = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -143,7 +144,7 @@ export function SuprimentosControle({ suprimentos }: { suprimentos: SuprimentoIt
                 ) : (
                   data.movimentos.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell className="whitespace-nowrap">{new Date(m.criadoEm).toLocaleString('pt-BR')}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatarDataHoraClinica(m.criadoEm)}</TableCell>
                       <TableCell>{m.suprimento}</TableCell>
                       <TableCell>{m.tipo === 'entrada' ? 'Entrada' : 'Saída'}</TableCell>
                       <TableCell className="text-right">{m.quantidade}</TableCell>

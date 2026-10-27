@@ -56,6 +56,7 @@ import { LabelEditorModal } from './components/label-editor-modal'
 import type { LabelData } from './components/label-editor-modal'
 import { GerarDocumentoModal, DocumentosEmitidosPanel } from '@/features/documentacao-gerar'
 import { ExamesPacienteCard } from '@/features/gestao-pacientes/components/exames-paciente-card'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -717,7 +718,7 @@ function ProntuarioSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-app-text-primary dark:text-white truncate">{doc.titulo}</p>
                               <p className="text-xs text-app-text-muted">
-                                {new Date(doc.geradoEm).toLocaleString('pt-BR')}
+                                {formatarDataHoraClinica(doc.geradoEm)}
                               </p>
                             </div>
                             {doc.pdfUrl ? (

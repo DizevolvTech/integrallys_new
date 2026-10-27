@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Download, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ComissaoItensDialog } from '@/features/relatorios/components/comissao-itens-dialog'
+import { RelatorioCartoesMobile } from '@/features/relatorios/components/relatorio-cartoes-mobile'
 import { RelatorioCartoes, RelatorioResumos } from '@/features/relatorios/components/relatorio-cartoes'
 import { RelatorioCelula } from '@/features/relatorios/components/relatorio-celula'
 import { RelatorioFiltros } from '@/features/relatorios/components/relatorio-filtros'
@@ -56,9 +57,31 @@ export function RelatorioTabela({ tipo, proprio = false }: Props) {
       <p className="text-sm text-app-text-secondary dark:text-white/60">{config.descricao}</p>
       <RelatorioFiltros filtros={config.filtros} valores={valores} onChange={alterar} opcoes={opcoes} proprio={proprio} />
       <RelatorioCartoes cartoes={cartoes} />
+      {config.legenda && cartoes.length > 0 && <p className="text-xs text-app-text-muted">{config.legenda}</p>}
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
 
-      <div className="overflow-hidden rounded-xl border border-app-border dark:border-app-border-dark">
+      <div className="md:hidden">
+        {isLoading && linhas.length === 0 && <p className="py-6 text-center text-sm text-app-text-secondary">Carregando relatório...</p>}
+        {!isLoading && linhas.length === 0 && (
+          <p className="py-6 text-center text-sm text-app-text-secondary">Nenhum registro encontrado para os filtros selecionados.</p>
+        )}
+        <RelatorioCartoesMobile
+          config={config}
+          linhas={linhas}
+          acao={
+            config.detalheItens
+              ? (linha) => (
+                  <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setDetalhe(linha)}>
+                    <Eye className="mr-1 h-4 w-4" />
+                    Ver produtos
+                  </Button>
+                )
+              : undefined
+          }
+        />
+      </div>
+
+      <div className="hidden overflow-hidden rounded-xl border border-app-border dark:border-app-border-dark md:block">
         <div className="w-full overflow-x-auto">
           <Table style={{ minWidth: Math.max(720, colSpan * 130) }}>
             <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">

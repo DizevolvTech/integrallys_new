@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { CalendarDays, CheckCircle2, Edit, Eye, MoreVertical, Paperclip, RotateCcw } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Edit, Eye, MoreVertical, Paperclip, RotateCcw, Wallet } from 'lucide-react'
 import { DataTable } from '@/components/shared/data-table'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -34,6 +35,49 @@ interface Props {
   onExcluir: (item: ContaItem) => void
 }
 
+type Acoes = Pick<Props, 'onVisualizar' | 'onEditar' | 'onLiquidar' | 'onAnexos' | 'onExcluir'>
+
+function AcoesConta({ item, receita, ...acoes }: Acoes & { item: ContaItem; receita: boolean }) {
+  const { onVisualizar, onEditar, onLiquidar, onAnexos, onExcluir } = acoes
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" aria-label="Ações" className="mx-auto h-9 w-9 rounded-xl">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {item.somenteLeitura ? (
+          <DropdownMenuItem asChild>
+            {item.origem === 'caixa' ? (
+              <Link href="/caixa"><Wallet className="mr-2 h-4 w-4" />Ver no caixa</Link>
+            ) : (
+              <Link href="/agenda"><CalendarDays className="mr-2 h-4 w-4" />Receber na agenda</Link>
+            )}
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuItem onClick={() => onVisualizar(item)}><Eye className="mr-2 h-4 w-4" />Visualizar</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEditar(item)}><Edit className="mr-2 h-4 w-4" />Editar</DropdownMenuItem>
+            {item.situacao !== 'liquidado' && item.situacao !== 'cancelado' && (
+              <DropdownMenuItem onClick={() => onLiquidar(item)}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {receita ? 'Registrar recebimento' : 'Marcar como pago'}
+              </DropdownMenuItem>
+            )}
+            {!receita && (
+              <DropdownMenuItem onClick={() => onAnexos(item)}><Paperclip className="mr-2 h-4 w-4" />Documentos (nota, cupom, recibo)</DropdownMenuItem>
+            )}
+            <DropdownMenuItem className="text-[var(--app-danger-text)]" onClick={() => onExcluir(item)}>
+              <RotateCcw className="mr-2 h-4 w-4" />Excluir
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 const CABECALHO = 'px-3 text-xs font-medium uppercase tracking-wider text-app-text-secondary whitespace-nowrap'
 
 export function ContasTabela({ tipo, itens, onVisualizar, onEditar, onLiquidar, onAnexos, onExcluir }: Props) {
@@ -41,7 +85,27 @@ export function ContasTabela({ tipo, itens, onVisualizar, onEditar, onLiquidar, 
   return (
     <DataTable data={itens}>
       {(pagina) => (
-        <div className="overflow-x-auto">
+        <>
+        <ListaCartoesMobile>
+          {pagina.map((item) => (
+            <CartaoMobile
+              key={item.id}
+              titulo={item.descricao}
+              subtitulo={[item.pessoa, item.categoria].filter(Boolean).join(' · ') || undefined}
+              valor={formatCurrency(item.valor)}
+              selo={<Badge className={`font-normal ${COR_SITUACAO[item.situacao]}`}>{item.situacaoLabel}</Badge>}
+              acoes={<AcoesConta item={item} receita={receita} onVisualizar={onVisualizar} onEditar={onEditar} onLiquidar={onLiquidar} onAnexos={onAnexos} onExcluir={onExcluir} />}
+              campos={[
+                { rotulo: 'Vencimento', valor: formatarData(item.vencimento ?? item.dataReferencia) },
+                { rotulo: 'Forma', valor: item.forma },
+                ...(item.parcela ? [{ rotulo: 'Parcela', valor: item.parcela }] : []),
+                ...(item.numeroDocumento ? [{ rotulo: 'Nº doc.', valor: item.numeroDocumento }] : []),
+                { rotulo: 'Emissão', valor: formatarData(item.emissao) },
+              ]}
+            />
+          ))}
+        </ListaCartoesMobile>
+        <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
               <TableRow>
@@ -81,43 +145,14 @@ export function ContasTabela({ tipo, itens, onVisualizar, onEditar, onLiquidar, 
                     )}
                   </TableCell>
                   <TableCell className="px-3 py-3 text-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" aria-label="Ações" className="mx-auto h-9 w-9 rounded-xl">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {item.somenteLeitura ? (
-                          <DropdownMenuItem asChild>
-                            <Link href="/agenda"><CalendarDays className="mr-2 h-4 w-4" />Receber na agenda</Link>
-                          </DropdownMenuItem>
-                        ) : (
-                          <>
-                            <DropdownMenuItem onClick={() => onVisualizar(item)}><Eye className="mr-2 h-4 w-4" />Visualizar</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onEditar(item)}><Edit className="mr-2 h-4 w-4" />Editar</DropdownMenuItem>
-                            {item.situacao !== 'liquidado' && item.situacao !== 'cancelado' && (
-                              <DropdownMenuItem onClick={() => onLiquidar(item)}>
-                                <CheckCircle2 className="mr-2 h-4 w-4" />
-                                {receita ? 'Registrar recebimento' : 'Marcar como pago'}
-                              </DropdownMenuItem>
-                            )}
-                            {!receita && (
-                              <DropdownMenuItem onClick={() => onAnexos(item)}><Paperclip className="mr-2 h-4 w-4" />Documentos (nota, cupom, recibo)</DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem className="text-[var(--app-danger-text)]" onClick={() => onExcluir(item)}>
-                              <RotateCcw className="mr-2 h-4 w-4" />Excluir
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <AcoesConta item={item} receita={receita} onVisualizar={onVisualizar} onEditar={onEditar} onLiquidar={onLiquidar} onAnexos={onAnexos} onExcluir={onExcluir} />
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </DataTable>
   )

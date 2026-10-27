@@ -10,7 +10,33 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatMoeda as formatMoney } from '@/features/relatorios/format'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
+import { formatData, formatMoeda as formatMoney } from '@/features/relatorios/format'
+
+const BADGE_SEM_VALIDADE =
+  'border-app-border bg-app-bg-secondary/40 text-app-text-secondary dark:border-app-border-dark dark:bg-app-hover/40 dark:text-white/70'
+
+function badgeSituacao(situacao: string) {
+  if (situacao === 'no_prazo') {
+    return {
+      tone: 'border-emerald-300/70 bg-emerald-100/60 text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/30 dark:text-emerald-200',
+      label: 'No prazo',
+    }
+  }
+  if (situacao === 'limite_prazo') {
+    return {
+      tone: 'border-amber-300/70 bg-amber-100/70 text-amber-700 dark:border-amber-700/40 dark:bg-amber-900/30 dark:text-amber-200',
+      label: '⚠ Vence em breve',
+    }
+  }
+  if (situacao === 'vencido') {
+    return {
+      tone: 'border-red-300/70 bg-red-100/70 text-red-700 dark:border-red-700/40 dark:bg-red-900/30 dark:text-red-200',
+      label: 'Vencido',
+    }
+  }
+  return { tone: BADGE_SEM_VALIDADE, label: 'Sem validade' }
+}
 
 export function PrescricoesTab() {
   const prescricoesRelatorio = usePrescricoesRelatorio()
@@ -199,7 +225,39 @@ export function PrescricoesTab() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-app-border dark:border-app-border-dark overflow-hidden">
+        <div className="md:hidden">
+          {prescricoesRelatorio.isLoading && <p className="py-6 text-center text-sm text-app-text-secondary">Carregando prescrições...</p>}
+          {!prescricoesRelatorio.isLoading && prescricoesRelatorio.data.length === 0 && (
+            <p className="py-6 text-center text-sm text-app-text-secondary">Nenhuma prescrição encontrada para os filtros selecionados.</p>
+          )}
+          <ListaCartoesMobile className="p-0">
+            {prescricoesRelatorio.data.map((item) => {
+              const situacaoBadge = badgeSituacao(item.situacao)
+              return (
+                <CartaoMobile
+                  key={item.id}
+                  titulo={item.pacienteNome || '—'}
+                  subtitulo={item.numero ? `Nº ${item.numero}` : undefined}
+                  valor={formatMoney(item.valorTotal)}
+                  selo={
+                    <Badge variant="outline" className={`font-normal text-xs ${situacaoBadge.tone}`}>
+                      {situacaoBadge.label}
+                    </Badge>
+                  }
+                  campos={[
+                    { rotulo: 'Profissional', valor: item.profissionalNome || '—' },
+                    { rotulo: 'Tipo', valor: item.tipo || '—' },
+                    { rotulo: 'Data', valor: formatData(item.dataPrescricao) },
+                    { rotulo: 'Validade', valor: formatData(item.validade) },
+                    { rotulo: 'Status', valor: item.status || '—' },
+                  ]}
+                />
+              )
+            })}
+          </ListaCartoesMobile>
+        </div>
+
+        <div className="hidden overflow-hidden rounded-xl border border-app-border dark:border-app-border-dark md:block">
           <div className="w-full overflow-x-auto">
             <Table className="min-w-[1100px] xl:min-w-full">
               <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
@@ -232,30 +290,7 @@ export function PrescricoesTab() {
                 )}
                 {!prescricoesRelatorio.isLoading &&
                   prescricoesRelatorio.data.map((item) => {
-                    const situacaoBadge = (() => {
-                      if (item.situacao === 'no_prazo') {
-                        return {
-                          tone: 'border-emerald-300/70 bg-emerald-100/60 text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/30 dark:text-emerald-200',
-                          label: 'No prazo',
-                        }
-                      }
-                      if (item.situacao === 'limite_prazo') {
-                        return {
-                          tone: 'border-amber-300/70 bg-amber-100/70 text-amber-700 dark:border-amber-700/40 dark:bg-amber-900/30 dark:text-amber-200',
-                          label: '⚠ Vence em breve',
-                        }
-                      }
-                      if (item.situacao === 'vencido') {
-                        return {
-                          tone: 'border-red-300/70 bg-red-100/70 text-red-700 dark:border-red-700/40 dark:bg-red-900/30 dark:text-red-200',
-                          label: 'Vencido',
-                        }
-                      }
-                      return {
-                        tone: 'border-app-border bg-app-bg-secondary/40 text-app-text-secondary dark:border-app-border-dark dark:bg-app-hover/40 dark:text-white/70',
-                        label: 'Sem validade',
-                      }
-                    })()
+                    const situacaoBadge = badgeSituacao(item.situacao)
                     return (
                       <TableRow
                         key={item.id}
@@ -271,14 +306,10 @@ export function PrescricoesTab() {
                           {item.profissionalNome || '—'}
                         </TableCell>
                         <TableCell className="py-4 text-app-text-secondary dark:text-white/70">
-                          {item.dataPrescricao
-                            ? new Date(item.dataPrescricao).toLocaleDateString('pt-BR')
-                            : '—'}
+                          {formatData(item.dataPrescricao)}
                         </TableCell>
                         <TableCell className="py-4 text-app-text-secondary dark:text-white/70">
-                          {item.validade
-                            ? new Date(item.validade).toLocaleDateString('pt-BR')
-                            : '—'}
+                          {formatData(item.validade)}
                         </TableCell>
                         <TableCell className="py-4 text-app-text-secondary dark:text-white/70">
                           {item.tipo || '—'}

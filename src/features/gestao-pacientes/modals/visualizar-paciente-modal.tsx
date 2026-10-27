@@ -26,6 +26,7 @@ import type { Patient } from '@/types/patient'
 import { DocumentosDoPacienteCard } from '@/features/documentacao-gerar'
 import { ExamesPacienteCard } from '@/features/gestao-pacientes/components/exames-paciente-card'
 import { apiClient } from '@/lib/api-client'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 export interface PacienteCrm {
   estagio: string
@@ -69,9 +70,8 @@ const getVinculoLabel = (vinculo?: string) => {
 
 const formatDateTimeBR = (value?: string | null) => {
   if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  const texto = formatarDataHoraClinica(value, '')
+  return Number.isNaN(new Date(value).getTime()) ? null : texto
 }
 
 interface CrmFormState {
