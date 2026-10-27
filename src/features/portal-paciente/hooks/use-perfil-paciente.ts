@@ -31,6 +31,7 @@ export interface PatientPerfilData {
   // Mesmos campos do cadastro da recepção (item 13)
   indicacao: string
   origemDetalhe: string
+  convenio: string
   precisaNf: boolean
   notaFiscal: NotaFiscalForm
   specialNeeds: NecessidadeEspecialForm

@@ -75,6 +75,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
         status: 'Ativo',
         vinculoTipos: ['cliente'] as string[],
         origemDetalhe: '',
+        convenio: '',
         precisaNf: false,
         notaFiscal: { ...NOTA_FISCAL_VAZIA } as NotaFiscalForm,
         photoUrl: '',
@@ -166,6 +167,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 status: paciente.activeStatus || 'Ativo',
                 vinculoTipos: paciente.vinculoTipos && paciente.vinculoTipos.length > 0 ? paciente.vinculoTipos : ['cliente'],
                 origemDetalhe: paciente.origemDetalhe || '',
+                convenio: paciente.convenio || '',
                 indicadoPorId: paciente.indicadoPorId ?? null,
                 precisaNf: paciente.precisaNf === true,
                 notaFiscal: notaFiscalFromFinancial(paciente.financial),
@@ -360,6 +362,8 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 photoUrl: formData.photoUrl || undefined,
                 vinculoTipos: formData.vinculoTipos,
                 origemDetalhe: formData.origemDetalhe || undefined,
+                convenio: formData.convenio.trim() || undefined,
+                plan: formData.convenio.trim() || 'Particular',
                 indicadoPorId: formData.indicacao === 'indicacao' ? formData.indicadoPorId : null,
                 precisaNf: formData.precisaNf,
                 financial: notaFiscalToFinancial(formData.precisaNf, formData.notaFiscal),
@@ -506,7 +510,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                         </Select>
                                     </div>
                                     <OrigemNfFields
-                                        value={{ indicacao: formData.indicacao, origemDetalhe: formData.origemDetalhe, indicadoPorId: formData.indicadoPorId, precisaNf: formData.precisaNf, notaFiscal: formData.notaFiscal }}
+                                        value={{ indicacao: formData.indicacao, convenio: formData.convenio, origemDetalhe: formData.origemDetalhe, indicadoPorId: formData.indicadoPorId, precisaNf: formData.precisaNf, notaFiscal: formData.notaFiscal }}
                                         onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
                                         excluirId={paciente?.id ? String(paciente.id) : undefined}
                                     />

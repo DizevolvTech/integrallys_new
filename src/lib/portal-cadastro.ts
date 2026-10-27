@@ -1,11 +1,11 @@
 import { calcularIdade } from '@/features/gestao-pacientes/utils/idade'
 import { validarFinancialNotaFiscal } from '@/features/gestao-pacientes/utils/nota-fiscal'
+import { VALORES_ORIGEM } from '@/features/gestao-pacientes/utils/origem'
 import { validarCPF, validarTelefone } from '@/lib/validacao-br'
 
 // Item 13: o paciente edita no portal os mesmos campos do cadastro da recepção.
 // A validação roda no servidor (a tela pode ser contornada) e só devolve colunas do próprio paciente.
 
-const ORIGENS = new Set(['instagram', 'google', 'indicacao', 'outros'])
 const CATEGORIAS_NECESSIDADE = ['Física', 'Auditiva', 'Visual', 'Intelectual']
 const PARENTESCOS = ['Pai', 'Mãe', 'Irmão', 'Avô/Avó', 'Outro']
 
@@ -17,7 +17,7 @@ export type CadastroPortalResultado =
 
 export function montarCadastroPortal(body: Record<string, unknown>, dataNascimento: string): CadastroPortalResultado {
   const origem = texto(body.indicacao)
-  if (origem && !ORIGENS.has(origem)) return { ok: false, error: 'Origem inválida', code: 'PROFILE_INVALID_ORIGEM' }
+  if (origem && !VALORES_ORIGEM.has(origem)) return { ok: false, error: 'Origem inválida', code: 'PROFILE_INVALID_ORIGEM' }
   const precisaNf = body.precisaNf === true
 
   const financial = body.financial && typeof body.financial === 'object' ? (body.financial as Record<string, unknown>) : null
@@ -53,6 +53,7 @@ export function montarCadastroPortal(body: Record<string, unknown>, dataNascimen
     colunas: {
       origem: origem || null,
       origem_detalhe: texto(body.origemDetalhe) || null,
+      convenio: texto(body.convenio, 80) || null,
       precisa_nf: precisaNf,
       financeiro: precisaNf ? financial : { requiresReceipt: 'nao' },
       necessidades_especiais: necessidades,

@@ -53,6 +53,7 @@ function buildPacientePayload(body: Record<string, unknown>) {
     inscricao_estadual: pickString(body.inscricaoEstadual) || null,
     origem: pickString(body.indicacao) || null,
     origem_detalhe: pickString(body.origemDetalhe) || null,
+    ...('convenio' in body ? { convenio: pickString(body.convenio).slice(0, 80) || null } : {}),
     vinculo_tipos: normalizeVinculoTipos(body),
     precisa_nf: body.precisaNf === true,
     photo_url: (() => {
@@ -107,7 +108,7 @@ async function fetchPatientContext(unidadeId: string | null) {
   let pacientesQuery = supabase
     .from('pacientes')
     .select(
-      'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,origem_detalhe,vinculo_tipos,precisa_nf,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,indicado_por_id,created_at,updated_at,' +
+      'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,origem_detalhe,convenio,vinculo_tipos,precisa_nf,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,indicado_por_id,created_at,updated_at,' +
         'crm:crm_paciente_estagios(estagio,observacoes,proxima_acao,data_proxima_acao,updated_at)',
     )
     .order('nome', { ascending: true })
@@ -169,6 +170,7 @@ async function fetchPatientContext(unidadeId: string | null) {
         gender: paciente.sexo ? String(paciente.sexo) : '',
         source: paciente.origem ? String(paciente.origem) : '',
         origemDetalhe: paciente.origem_detalhe ? String(paciente.origem_detalhe) : '',
+        convenio: paciente.convenio ? String(paciente.convenio) : '',
         indicadoPorId: paciente.indicado_por_id ? String(paciente.indicado_por_id) : undefined,
         vinculoTipos: Array.isArray(paciente.vinculo_tipos)
           ? paciente.vinculo_tipos.map(String)

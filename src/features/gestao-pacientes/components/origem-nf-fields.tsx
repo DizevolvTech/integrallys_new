@@ -5,6 +5,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { NotaFiscalForm } from '../utils/nota-fiscal'
 import { NotaFiscalFields } from './nota-fiscal-fields'
+import { OPCOES_ORIGEM } from '../utils/origem'
+import { ConvenioField } from './convenio-field'
 import { QuemIndicouField } from './quem-indicou-field'
 
 const LABEL = 'text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight'
@@ -12,6 +14,7 @@ const INPUT = 'h-11 rounded-xl border-app-border dark:border-app-border-dark'
 
 export type OrigemNfValue = {
     indicacao: string
+    convenio: string
     origemDetalhe: string
     indicadoPorId: string | null
     precisaNf: boolean
@@ -31,11 +34,12 @@ interface OrigemNfFieldsProps {
 export function OrigemNfFields({ value, onChange, excluirId, buscarIndicador = true }: OrigemNfFieldsProps) {
     return (
         <>
+            <ConvenioField value={value.convenio} onChange={(convenio) => onChange({ convenio })} sugerir={buscarIndicador} />
             <div className="md:col-span-2 space-y-2">
                 <Label className={LABEL}>Origem *</Label>
                 <Select value={value.indicacao} onValueChange={(v) => onChange({ indicacao: v })}>
                     <SelectTrigger className={INPUT}><SelectValue preferPlaceholder placeholder="Como nos achou?" /></SelectTrigger>
-                    <SelectContent><SelectItem value="instagram">Instagram</SelectItem><SelectItem value="google">Google</SelectItem><SelectItem value="indicacao">Indicação</SelectItem><SelectItem value="outros">Outros</SelectItem></SelectContent>
+                    <SelectContent>{OPCOES_ORIGEM.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
             </div>
             {value.indicacao === 'indicacao' && (
