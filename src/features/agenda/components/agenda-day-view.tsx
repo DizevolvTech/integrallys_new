@@ -23,6 +23,7 @@ import {
   normalizeAgendaStatus,
   resolvePagamentoSituacao,
 } from '../agenda.utils'
+import { bloqueiosDoDia, corDoTipoBloqueio, isoDateLocal } from '../bloqueios.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
 
 interface AgendaDayViewProps {
@@ -40,13 +41,6 @@ interface AgendaDayViewProps {
   onOpenAvailableSlot?: (slot: AgendaSlot) => void
   onStartAtendimento?: (slot: AgendaSlot) => void
   onRemoveBloqueio?: (bloqueio: AgendaBloqueio) => void
-}
-
-function isoDateLocal(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
 export function AgendaDayView({
@@ -71,15 +65,7 @@ export function AgendaDayView({
   // Bloqueios do dia (filtrados por profissional quando um está selecionado).
   // Antes eram renderizados por linha do grid estático (repetindo o mesmo bloqueio
   // em cada faixa de 30min); agora saem uma vez cada, numa seção no topo do dia.
-  const bloqueiosDoDia = bloqueios.filter((b) => {
-    if (!todayIso) return false
-    if (b.dataInicio > todayIso || b.dataFim < todayIso) return false
-    if (selectedProfessional !== 'todos') {
-      const profissionalNome = b.profissionalId ? profIdToNome.get(b.profissionalId) : null
-      if (b.profissionalId && profissionalNome !== selectedProfessional) return false
-    }
-    return true
-  })
+  const bloqueiosDoDiaAtual = bloqueiosDoDia(bloqueios, todayIso, selectedProfessional, profIdToNome)
 
   // Item 11a+b — as linhas do dia derivam dos horários REALMENTE presentes nos
   // agendamentos/slots do dia, não mais de um grid fixo 08:00–17:30 de 30 em 30.
@@ -90,7 +76,7 @@ export function AgendaDayView({
   // qualquer horário fora de {:00,:30} não casava com nenhuma linha e sumia.
   const rowTimes = Array.from(new Set(dayFilteredItems.map((item) => item.hora))).sort()
 
-  const temConteudo = dayFilteredItems.length > 0 || bloqueiosDoDia.length > 0
+  const temConteudo = dayFilteredItems.length > 0 || bloqueiosDoDiaAtual.length > 0
   // Bloqueios e horários dividem a mesma linha do tempo: `order` (CSS) ordena por hora de início.
   const toMinutes = (value?: string | null) => {
     const m = /^(\d{1,2}):(\d{2})/.exec(value ?? '')
@@ -100,13 +86,14 @@ export function AgendaDayView({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        {bloqueiosDoDia.map((b) => {
+        {bloqueiosDoDiaAtual.map((b) => {
           const profissionalNome = b.profissionalId ? profIdToNome.get(b.profissionalId) : null
+          const cor = corDoTipoBloqueio(b.tipo)
           return (
             <div
               key={`bloq-${b.id}`}
               style={{ order: b.diaInteiro ? -1 : toMinutes(b.horarioInicio) }}
-              className="rounded-integrallys border border-red-200 bg-red-50/70 p-4 dark:border-red-900/40 dark:bg-red-950/20"
+              className={`rounded-integrallys border p-4 ${cor.card}`}
               title={b.justificativa ?? undefined}
             >
               <div className="flex flex-wrap items-center gap-3">
@@ -123,7 +110,7 @@ export function AgendaDayView({
                 </div>
                 <div className="flex-1 min-w-[200px]">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs font-medium text-red-900 dark:bg-red-900/50 dark:text-red-100">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cor.chip}`}>
                       {b.tipo}
                     </span>
                     <span className="text-sm font-normal text-red-900 dark:text-red-100">

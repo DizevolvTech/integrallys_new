@@ -22,6 +22,11 @@ export interface GerarSlotsParams {
   horarios: HorarioRegra[]
   dataInicio: Date
   dataFim: Date
+  /**
+   * Dias avulsos (Date locais). Quando informado, só estes dias são considerados
+   * (período e filtro de dias da semana são ignorados); a grade do dia da semana vale.
+   */
+  datasAvulsas?: Date[] | null
   /** Filtro opcional de dias (interseção com a grade); null/[] = sem restrição. */
   diasSemanaFiltro: number[] | null
   considerarFeriados: boolean
@@ -97,6 +102,7 @@ function contarSlotsDoDia(horarios: HorarioRegra[]): number {
 
 export function gerarSlots(params: GerarSlotsParams): GerarSlotsResult {
   const { horarios, dataInicio, dataFim, diasSemanaFiltro, considerarFeriados } = params
+  const avulsas = params.datasAvulsas && params.datasAvulsas.length > 0 ? params.datasAvulsas : null
 
   // Agrupa a grade ativa por dia da semana (mantém a ordem manhã→tarde).
   const porDia = new Map<number, HorarioRegra[]>()
@@ -107,7 +113,8 @@ export function gerarSlots(params: GerarSlotsParams): GerarSlotsResult {
     porDia.set(h.dia_semana, list)
   }
 
-  const filtro = diasSemanaFiltro && diasSemanaFiltro.length > 0 ? new Set(diasSemanaFiltro) : null
+  const filtro =
+    !avulsas && diasSemanaFiltro && diasSemanaFiltro.length > 0 ? new Set(diasSemanaFiltro) : null
 
   const alertas: string[] = []
 
@@ -125,26 +132,35 @@ export function gerarSlots(params: GerarSlotsParams): GerarSlotsResult {
   let puladosFeriado = 0
   const feriadosIgnorados: string[] = []
 
-  const cursor = new Date(dataInicio.getTime())
-  while (cursor.getTime() <= dataFim.getTime()) {
-    const dow = cursor.getDay()
+  const dias: Date[] = avulsas
+    ? [...avulsas].sort((x, y) => x.getTime() - y.getTime())
+    : (() => {
+        const lista: Date[] = []
+        const cursor = new Date(dataInicio.getTime())
+        while (cursor.getTime() <= dataFim.getTime()) {
+          lista.push(new Date(cursor.getTime()))
+          cursor.setDate(cursor.getDate() + 1)
+        }
+        return lista
+      })()
+
+  for (const dia of dias) {
+    const dow = dia.getDay()
     const doDia = porDia.get(dow)
 
-    // Sem grade nesse dia, OU restringido pelo filtro → não gera (resolve
-    // "Adelmo não abre sábado/domingo mesmo marcado").
+    // Sem grade nesse dia, OU restringido pelo filtro → não gera.
     if (!doDia || (filtro && !filtro.has(dow))) {
-      cursor.setDate(cursor.getDate() + 1)
+      if (avulsas && !doDia) alertas.push(`${formatBR(dia)} (${NOMES_DIA[dow]}) sem grade cadastrada: ignorado.`)
       continue
     }
 
-    if (considerarFeriados && isFeriadoFixo(cursor)) {
+    if (considerarFeriados && isFeriadoFixo(dia)) {
       puladosFeriado += contarSlotsDoDia(doDia)
-      feriadosIgnorados.push(formatBR(cursor))
-      cursor.setDate(cursor.getDate() + 1)
+      feriadosIgnorados.push(formatBR(dia))
       continue
     }
 
-    const isoData = isoDateLocal(cursor)
+    const isoData = isoDateLocal(dia)
     for (const h of doDia) {
       const inicio = parseTimeToMinutes(h.hora_inicio)
       const fim = parseTimeToMinutes(h.hora_fim)
@@ -158,8 +174,6 @@ export function gerarSlots(params: GerarSlotsParams): GerarSlotsResult {
         })
       }
     }
-
-    cursor.setDate(cursor.getDate() + 1)
   }
 
   if (feriadosIgnorados.length > 0) {

@@ -51,13 +51,14 @@ type TurnoForm = {
   horaInicio: string
   horaFim: string
   duracaoMin: string
+  duracaoRetornoMin: string
 }
 
 type DiaForm = Record<ProfissionalTurno, TurnoForm>
 
 type GradeForm = Record<number, DiaForm>
 
-const emptyTurno = (): TurnoForm => ({ ativo: false, horaInicio: '', horaFim: '', duracaoMin: '' })
+const emptyTurno = (): TurnoForm => ({ ativo: false, horaInicio: '', horaFim: '', duracaoMin: '', duracaoRetornoMin: '' })
 
 const emptyGrade = (): GradeForm => {
   const grade = {} as GradeForm
@@ -78,6 +79,7 @@ const gradeFromHorarios = (item: ProfissionalItem | null): GradeForm => {
       horaInicio: horario.horaInicio,
       horaFim: horario.horaFim,
       duracaoMin: String(horario.duracaoMin),
+      duracaoRetornoMin: horario.duracaoRetornoMin ? String(horario.duracaoRetornoMin) : '',
     }
   }
   return grade
@@ -263,12 +265,18 @@ export function ProfissionalModal({
           toast.error(`Informe uma duração válida (${turno.label} de ${dia.label}).`)
           return null
         }
+        const retornoMin = Number(cfg.duracaoRetornoMin)
+        if (cfg.duracaoRetornoMin && (!Number.isFinite(retornoMin) || retornoMin <= 0)) {
+          toast.error(`Informe uma duração de retorno válida (${turno.label} de ${dia.label}).`)
+          return null
+        }
         horarios.push({
           diaSemana: dia.value,
           turno: turno.key,
           horaInicio: cfg.horaInicio,
           horaFim: cfg.horaFim,
           duracaoMin: Math.round(duracaoMin),
+          duracaoRetornoMin: retornoMin > 0 ? Math.round(retornoMin) : null,
           ativo: true,
         })
       }
@@ -800,7 +808,7 @@ export function ProfissionalModal({
                             />
                           </div>
                           {cfg.ativo && (
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-xs font-normal text-app-text-muted">
                                   Início
@@ -829,7 +837,7 @@ export function ProfissionalModal({
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs font-normal text-app-text-muted">
-                                  Duração (min)
+                                  1ª consulta (min)
                                 </Label>
                                 <Input
                                   type="number"
@@ -839,6 +847,23 @@ export function ProfissionalModal({
                                   onChange={(e) =>
                                     setTurnoField(dia.value, turno.key, {
                                       duracaoMin: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs font-normal text-app-text-muted">
+                                  Retorno (min)
+                                </Label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  step={5}
+                                  placeholder="= 1ª consulta"
+                                  value={cfg.duracaoRetornoMin}
+                                  onChange={(e) =>
+                                    setTurnoField(dia.value, turno.key, {
+                                      duracaoRetornoMin: e.target.value,
                                     })
                                   }
                                 />

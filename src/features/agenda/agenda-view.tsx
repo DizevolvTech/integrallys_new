@@ -38,6 +38,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { SegmentedControl } from '@/components/shared/segmented-control'
 import type { AgendaSlot, ViewMode } from './agenda.types'
+import { RetornosAlerta } from '@/features/retornos'
 import { AtendimentoView } from './atendimento-view'
 import {
   formatAgendaDate,
@@ -136,6 +137,7 @@ export function AgendaView() {
       ? agendaProfessionals.find((item) => item.id === preselectedProfissionalId)?.nome ?? ''
       : '')
   const preselectedProcedimentoId = searchParams?.get('procedimentoId') ?? ''
+  const preselectedTipo = searchParams?.get('tipo') === 'retorno' ? 'retorno' : ''
   const shouldOpenNewFromQuery = searchParams?.get('modal') === 'novo'
 
   const aniversariantes = useMemo(
@@ -630,6 +632,7 @@ export function AgendaView() {
     dataInicio: string
     dataFim: string
     diasSemana: number[]
+    datasAvulsas: string[]
     considerarFeriados: boolean
   }) => {
     const result = await api.post<{ gerados: number; pulados: number; alertas?: string[] }>(
@@ -680,9 +683,14 @@ export function AgendaView() {
     )
   }
 
+  const profissionalDosBloqueios = agendaClinica
+    ? (agendaProfessionals.find((p) => p.id === user?.id)?.nome ?? user?.name ?? 'todos')
+    : selectedProfessional
+
   return (
     <div className="app-page">
       <div className="space-y-4">
+        {!isEspecialista && <RetornosAlerta />}
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <PageHeader
             title={isEspecialista ? 'Agenda médica' : 'Agenda'}
@@ -1064,13 +1072,7 @@ export function AgendaView() {
                 bloqueios={bloqueios}
                 bloqueiosProfissionais={agendaProfessionals}
                 currentDate={calendar.currentDate}
-                selectedProfessional={
-                  agendaClinica
-                    ? (agendaProfessionals.find((p) => p.id === user?.id)?.nome ??
-                        user?.name ??
-                        'todos')
-                    : selectedProfessional
-                }
+                selectedProfessional={profissionalDosBloqueios}
                 showDaySlots={showDaySlots}
                 onOpenSlotModal={actions.openSlotModal}
                 onOpenCharge={actions.handleOpenCharge}
@@ -1125,10 +1127,16 @@ export function AgendaView() {
                 showDaySlots={showDaySlots}
                 onOpenSlotModal={actions.openSlotModal}
                 onSetCurrentDate={calendar.setCurrentDate}
+                bloqueios={bloqueios}
+                bloqueiosProfissionais={agendaProfessionals}
+                selectedProfessional={profissionalDosBloqueios}
               />
             )}
             {activeTab === 'global' && !isLoading && calendar.viewMode === 'mes' && (
               <AgendaMonthView
+                bloqueios={bloqueios}
+                bloqueiosProfissionais={agendaProfessionals}
+                selectedProfessional={profissionalDosBloqueios}
                 monthAgendaSummary={calendar.monthAgendaSummary}
                 onSelectDay={(date) => {
                   calendar.setCurrentDate(date)
@@ -1158,6 +1166,9 @@ export function AgendaView() {
             )}
             {activeTab === 'ambas' && !isLoading && calendar.viewMode === 'mes' && (
               <AgendaMonthView
+                bloqueios={bloqueios}
+                bloqueiosProfissionais={agendaProfessionals}
+                selectedProfessional={profissionalDosBloqueios}
                 monthAgendaSummary={calendar.monthAgendaSummary}
                 onSelectDay={(date) => {
                   calendar.setCurrentDate(date)
@@ -1423,6 +1434,7 @@ export function AgendaView() {
         initialTime={novoAgendamentoPreset.horario}
         initialProfissional={novoAgendamentoPreset.profissional || preselectedProfissional || undefined}
         initialProcedimentoId={preselectedProcedimentoId || undefined}
+        initialTipo={preselectedTipo || undefined}
         createdPatient={createdPatientForAgenda}
         onRequestFullCadastro={(nomeHint) => {
           setNovoPacienteNomeHint(nomeHint)

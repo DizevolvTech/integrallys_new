@@ -239,3 +239,46 @@ describe('gerarSlots — último horário que começa antes do fim da janela', (
     expect(slots[4].horario_fim).toBe('11:20')
   })
 })
+
+describe('gerarSlots — dias avulsos', () => {
+  it('gera só nos dias escolhidos, ignorando período e filtro de dias da semana', () => {
+    const { slots } = gerarSlots({
+      horarios: gradeAdelmo,
+      dataInicio: d('2026-09-01'),
+      dataFim: d('2026-09-30'),
+      datasAvulsas: [d('2026-09-10'), d('2026-09-03'), d('2026-09-24')],
+      diasSemanaFiltro: [1],
+      considerarFeriados: true,
+    })
+    expect(new Set(slots.map((s) => s.data))).toEqual(
+      new Set(['2026-09-03', '2026-09-10', '2026-09-24']),
+    )
+    expect(slots).toHaveLength(27)
+  })
+
+  it('avisa quando o dia avulso cai em dia sem grade e respeita feriado', () => {
+    const { slots, alertas, puladosFeriado } = gerarSlots({
+      horarios: gradeAdelmo,
+      dataInicio: d('2026-09-05'),
+      dataFim: d('2026-09-07'),
+      datasAvulsas: [d('2026-09-05'), d('2026-09-07')],
+      diasSemanaFiltro: null,
+      considerarFeriados: true,
+    })
+    expect(slots).toHaveLength(0)
+    expect(puladosFeriado).toBe(9)
+    expect(alertas.some((a) => a.includes('05/09/2026'))).toBe(true)
+  })
+
+  it('com feriados desligados permite abrir 07/09 como dia avulso', () => {
+    const { slots } = gerarSlots({
+      horarios: gradeAdelmo,
+      dataInicio: d('2026-09-07'),
+      dataFim: d('2026-09-07'),
+      datasAvulsas: [d('2026-09-07')],
+      diasSemanaFiltro: null,
+      considerarFeriados: false,
+    })
+    expect(slots).toHaveLength(9)
+  })
+})

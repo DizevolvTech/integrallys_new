@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Clock, Edit, Eye, FileText, MoreVertical, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
 import { usePrescricoes, type PrescricaoInput, type PrescricaoItem } from '@/hooks/use-prescricoes'
+import { useApi } from '@/hooks/use-api'
+import { registrarRetornoMaisTarde, useRetornoPendentePacientes } from '@/features/retornos/hooks/use-retornos'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useUsuarios } from '@/hooks/use-usuarios'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
@@ -103,7 +105,8 @@ export function PrescricoesView() {
   const [isNovaVendaModalOpen, setIsNovaVendaModalOpen] = useState(false)
   const [isDetalhesModalOpen, setIsDetalhesModalOpen] = useState(false)
   const [isAgendarRetornoModalOpen, setIsAgendarRetornoModalOpen] = useState(false)
-  const [pendingReturns, setPendingReturns] = useState<string[]>([])
+  const api = useApi()
+  const { pacientesComRetornoPendente, reload: reloadRetornosPendentes } = useRetornoPendentePacientes()
 
   const prescriptions = useMemo(() => data.map(normalizePrescription), [data])
   const patientOptions = useMemo(
@@ -335,12 +338,21 @@ export function PrescricoesView() {
         isOpen={isAgendarRetornoModalOpen}
         onClose={() => setIsAgendarRetornoModalOpen(false)}
         patientName={selectedPrescription?.paciente}
-        onConfirm={() => { setIsAgendarRetornoModalOpen(false); router.push('/agenda') }}
-        onLater={() => {
-          if (selectedPrescription) {
-            setPendingReturns((prev) => [...prev, selectedPrescription.id])
-          }
+        onConfirm={() => {
           setIsAgendarRetornoModalOpen(false)
+          const pacienteId = selectedPrescription?.pacienteId
+          router.push(pacienteId ? `/agenda?modal=novo&tipo=retorno&patientId=${encodeURIComponent(pacienteId)}` : '/agenda')
+        }}
+        onLater={() => {
+          const alvo = selectedPrescription
+          setIsAgendarRetornoModalOpen(false)
+          if (!alvo?.pacienteId) return
+          // "Mais tarde" grava no banco: entra no relatório de retornos e a tag persiste.
+          registrarRetornoMaisTarde(api.post, { pacienteId: alvo.pacienteId, prescricaoId: alvo.id })
+            .then(() => reloadRetornosPendentes())
+            .catch((err) =>
+              toast.error(err instanceof Error ? err.message : 'Não foi possível registrar o retorno pendente.'),
+            )
         }}
       />
 
@@ -589,7 +601,7 @@ export function PrescricoesView() {
                                 <span className={`inline-flex min-h-8 items-center rounded-full border px-3.5 py-1 text-xs font-medium shadow-sm ${statusClass(item.status)}`}>
                                   {item.status}
                                 </span>
-                                {pendingReturns.includes(item.id) && (
+                                {item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) && (
                                   <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-1 text-xs font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
                                     Retorno Pendente
                                   </span>

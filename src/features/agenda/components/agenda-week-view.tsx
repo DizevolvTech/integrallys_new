@@ -8,6 +8,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Clock, MoreVertical } from 'lucide-react'
 import type { AgendaSlot } from '../agenda.types'
+import { bloqueiosDoDia, isoDateLocal } from '../bloqueios.utils'
+import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
+import { BloqueioChip } from './bloqueio-chip'
 import type { useAgendaCalendar } from '../hooks/use-agenda-calendar'
 import {
   formatSlotDuration,
@@ -22,6 +25,9 @@ interface AgendaWeekViewProps {
   showDaySlots: boolean
   onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes', slot: AgendaSlot) => void
   onSetCurrentDate: (date: Date) => void
+  bloqueios?: AgendaBloqueio[]
+  bloqueiosProfissionais?: Array<{ id: string; nome: string }>
+  selectedProfessional?: string
 }
 
 export function AgendaWeekView({
@@ -29,10 +35,16 @@ export function AgendaWeekView({
   showDaySlots,
   onOpenSlotModal,
   onSetCurrentDate,
+  bloqueios = [],
+  bloqueiosProfissionais = [],
+  selectedProfessional = 'todos',
 }: AgendaWeekViewProps) {
+  const profIdToNome = new Map(bloqueiosProfissionais.map((p) => [p.id, p.nome]))
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
-      {weekAgendaGroups.map((day) => (
+      {weekAgendaGroups.map((day) => {
+        const bloqueiosDia = bloqueiosDoDia(bloqueios, isoDateLocal(day.date), selectedProfessional, profIdToNome)
+        return (
         <div
           key={day.key}
           className="rounded-integrallys border border-app-border dark:border-app-border-dark bg-app-card dark:bg-app-bg-dark overflow-hidden"
@@ -69,7 +81,14 @@ export function AgendaWeekView({
           </button>
 
           <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
-            {day.items.length === 0 ? (
+            {bloqueiosDia.map((b) => (
+              <BloqueioChip
+                key={`bloq-${b.id}`}
+                bloqueio={b}
+                profissionalNome={b.profissionalId ? profIdToNome.get(b.profissionalId) : null}
+              />
+            ))}
+            {day.items.length === 0 && bloqueiosDia.length === 0 ? (
               <p className="text-xs text-center text-app-text-secondary dark:text-app-text-muted px-1 py-3">
                 {showDaySlots ? 'Nenhuma agenda gerada' : 'Nenhum agendamento encontrado'}
               </p>
@@ -135,7 +154,8 @@ export function AgendaWeekView({
             )}
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

@@ -58,6 +58,8 @@ interface NovoAgendamentoModalProps {
   initialTime?: string
   initialProfissional?: string
   initialProcedimentoId?: string
+  /** Tipo pré-selecionado ao abrir (ex.: 'retorno' vindo da lista de retornos). */
+  initialTipo?: string
   /** Paciente recém-criado no cadastro completo (seleciona no formulário). */
   createdPatient?: PacienteOption | null
   /** Abre o cadastro completo (modal Novo Paciente) em vez do formulário rápido. */
@@ -101,6 +103,7 @@ export function NovoAgendamentoModal({
   initialTime,
   initialProfissional,
   initialProcedimentoId,
+  initialTipo,
   createdPatient = null,
   onRequestFullCadastro,
   onSave,
@@ -277,11 +280,12 @@ export function NovoAgendamentoModal({
       setProfissional('')
     }
     setProcedimentoId(initialProcedimentoId || '')
+    if (initialTipo) setTipo(initialTipo)
     setUrlOnline('')
     setPlataformaOnline('google_meet')
     // patients intencionalmente omitido — lookup usa o valor do render da abertura
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open transition only
-  }, [isOpen, initialDate, initialPatientId, initialProfissional, initialProcedimentoId, initialTime])
+  }, [isOpen, initialDate, initialPatientId, initialProfissional, initialProcedimentoId, initialTime, initialTipo])
 
   // Se o modal abriu com preset antes da lista carregar, preenche o nome quando
   // `patients` chegar — sem limpar seleção feita pelo usuário/create.
