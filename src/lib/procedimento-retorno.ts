@@ -78,7 +78,7 @@ export function validateRetornoAgendamento(params: {
       ok: false,
       code: 'RETORNO_SEM_ATENDIMENTO_PREVIO',
       message:
-        'Este paciente não tem atendimento anterior concluído deste procedimento. Marque como 1ª consulta ou escolha um paciente com atendimento anterior.',
+        'Este paciente não tem atendimento anterior concluído para retornar. Marque como 1ª consulta ou escolha um paciente com atendimento anterior.',
     }
   }
 
