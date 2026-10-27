@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { margemPercentual } from '@/lib/relatorios/margem'
 import { isFinanciallyRestrictedRole } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
@@ -89,6 +90,8 @@ export async function GET(request: NextRequest) {
       receita,
       despesa,
       ticketMedio: hidePrices || agendamentos === 0 ? 0 : receita / agendamentos,
+      margem: receita - despesa,
+      margemPct: hidePrices ? null : margemPercentual(receita, despesa),
     }
   })
 

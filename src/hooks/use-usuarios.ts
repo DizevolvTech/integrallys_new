@@ -15,6 +15,8 @@ export interface UsuarioItem {
   tipoVinculo?: 'interno' | 'parceiro'
   especialistasPermitidos?: string[] | null
   agendaPessoalPermitidos?: string[]
+  isVendedor?: boolean
+  comissao?: number
 }
 
 export interface UsuarioInput {
@@ -29,6 +31,8 @@ export interface UsuarioInput {
   tipoVinculo?: 'interno' | 'parceiro'
   especialistasPermitidos?: string[] | null
   agendaPessoalPermitidos?: string[]
+  isVendedor?: boolean
+  comissao?: number
 }
 
 export function useUsuarios() {

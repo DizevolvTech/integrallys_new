@@ -9,12 +9,20 @@ export interface RankingProdutoRow {
   quantidade: number
   receita: number
   margem: number
+  margemPct: number | null
+}
+
+export interface RankingProdutoTotais {
+  receita: number
+  margem: number
+  margemPct: number | null
 }
 
 export function useRankingProdutos(dias = 90) {
   const api = useApi()
   const [vendidos, setVendidos] = useState<RankingProdutoRow[]>([])
   const [lucrativos, setLucrativos] = useState<RankingProdutoRow[]>([])
+  const [totais, setTotais] = useState<RankingProdutoTotais | null>(null)
   const [valoresVisiveis, setValoresVisiveis] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -24,11 +32,12 @@ export function useRankingProdutos(dias = 90) {
     setError(null)
     try {
       const res = await api.get<{
-        data: { vendidos: RankingProdutoRow[]; lucrativos: RankingProdutoRow[] }
+        data: { vendidos: RankingProdutoRow[]; lucrativos: RankingProdutoRow[]; totais?: RankingProdutoTotais }
         meta: { valoresVisiveis?: boolean }
       }>(`/api/relatorios/ranking-produtos?dias=${dias}`)
       setVendidos(res.data?.vendidos ?? [])
       setLucrativos(res.data?.lucrativos ?? [])
+      setTotais(res.data?.totais ?? null)
       setValoresVisiveis(res.meta?.valoresVisiveis !== false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar ranking')
@@ -41,7 +50,7 @@ export function useRankingProdutos(dias = 90) {
     void load()
   }, [load])
 
-  return { vendidos, lucrativos, valoresVisiveis, isLoading, error, reload: load }
+  return { vendidos, lucrativos, totais, valoresVisiveis, isLoading, error, reload: load }
 }
 
 export interface RankingProcedimentoRow {
@@ -148,6 +157,8 @@ export interface ComparativoUnidadeRow {
   receita: number
   despesa: number
   ticketMedio: number
+  margem: number
+  margemPct: number | null
 }
 
 export function useComparativoUnidades(dias = 30) {

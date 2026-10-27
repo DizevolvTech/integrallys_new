@@ -64,6 +64,8 @@ type FormState = {
   status: string
   senha: string
   unidadeId: string
+  isVendedor: boolean
+  comissao: string
 }
 
 const initialFormState: FormState = {
@@ -73,6 +75,8 @@ const initialFormState: FormState = {
   status: 'Ativo',
   senha: '',
   unidadeId: '',
+  isVendedor: false,
+  comissao: '',
 }
 
 // Perfis escopados por unidade. master/admin veem todas as unidades e paciente
@@ -202,6 +206,8 @@ export function UsuariosView() {
         status: selectedUser.status,
         senha: '',
         unidadeId: selectedUser.unidadeId ?? '',
+        isVendedor: Boolean(selectedUser.isVendedor),
+        comissao: selectedUser.comissao != null ? String(selectedUser.comissao) : '',
       })
       return
     }
@@ -227,6 +233,10 @@ export function UsuariosView() {
 
     // Só perfis escopados carregam unidade; para os demais a API grava null.
     const unidadeId = exigeUnidade ? form.unidadeId : null
+    const comissaoPayload = {
+      isVendedor: form.perfil === 'especialista' && form.isVendedor,
+      comissao: form.comissao.trim() === '' ? undefined : Number(form.comissao.replace(',', '.')),
+    }
 
     setIsSubmitting(true)
     try {
@@ -239,6 +249,7 @@ export function UsuariosView() {
           status: form.status,
           senha: form.senha || undefined,
           unidadeId,
+          ...comissaoPayload,
         })
         toast.success('Usuário atualizado com sucesso.')
       } else {
@@ -249,6 +260,7 @@ export function UsuariosView() {
           status: form.status,
           senha: form.senha,
           unidadeId,
+          ...comissaoPayload,
         })
         toast.success('Usuário criado com sucesso.')
       }
@@ -594,6 +606,35 @@ export function UsuariosView() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+                {form.perfil.toLowerCase() === 'especialista' && (
+                  <div className="space-y-3 md:col-span-2">
+                    <div className="flex items-center justify-between rounded-[12px] border border-app-border p-3 dark:border-app-border-dark">
+                      <div>
+                        <Label>Vendedor (recebe comissão)</Label>
+                        <p className="text-xs text-app-text-muted">Comissão sobre as Prescrições/Vendas que realizar.</p>
+                      </div>
+                      <Switch
+                        checked={form.isVendedor}
+                        onCheckedChange={(checked) => setForm((c) => ({ ...c, isVendedor: checked }))}
+                      />
+                    </div>
+                    {form.isVendedor && (
+                      <div className="space-y-3">
+                        <Label>Percentual de comissão (%)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={form.comissao}
+                          onChange={(e) => setForm((c) => ({ ...c, comissao: e.target.value }))}
+                          placeholder="Ex.: 10"
+                          className="h-12 rounded-[12px]"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="space-y-3 md:col-span-2">

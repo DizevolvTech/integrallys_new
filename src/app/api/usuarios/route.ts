@@ -15,7 +15,7 @@ async function listUsuarios(
   const supabase = getAppSupabase()
   const { data, error } = await supabase
     .from('usuarios')
-    .select('id,nome,email,perfil,status,tipo_vinculo,especialistas_permitidos,agenda_pessoal_permitidos,unidade_id')
+    .select('id,nome,email,perfil,status,tipo_vinculo,especialistas_permitidos,agenda_pessoal_permitidos,unidade_id,comissao_percentual,is_vendedor')
     .order('nome', { ascending: true })
 
   if (error) {
@@ -26,6 +26,14 @@ async function listUsuarios(
     data: (data ?? []).map((row) => mapUsuarioItem(row)),
     meta: session,
   })
+}
+
+/** Percentual de comissão cadastrado (base de "Minhas comissões"); só especialista vendedor tem. */
+function buildComissaoPayload(perfil: string, body: UsuarioBody) {
+  const vendedor = perfil === 'especialista' && body.isVendedor === true
+  const pct = Number(body.comissao)
+  const valido = vendedor && body.comissao !== '' && Number.isFinite(pct) && pct >= 0 && pct <= 100
+  return { is_vendedor: vendedor, comissao_percentual: valido ? pct : null }
 }
 
 function normalizeEspecialistasPermitidos(value: unknown): string[] | null {
@@ -138,6 +146,7 @@ export async function POST(request: NextRequest) {
   if (validated.payload.perfil === 'especialista' && validated.payload.tipoVinculo) {
     insertPayload.tipo_vinculo = validated.payload.tipoVinculo
   }
+  Object.assign(insertPayload, buildComissaoPayload(validated.payload.perfil, body))
   if (validated.payload.perfil === 'recepcao') {
     insertPayload.especialistas_permitidos = normalizeEspecialistasPermitidos(
       body.especialistasPermitidos,
@@ -186,6 +195,7 @@ export async function PUT(request: NextRequest) {
   if (validated.payload.perfil === 'especialista' && validated.payload.tipoVinculo) {
     updatePayload.tipo_vinculo = validated.payload.tipoVinculo
   }
+  Object.assign(updatePayload, buildComissaoPayload(validated.payload.perfil, body))
 
   if (validated.payload.perfil === 'recepcao') {
     updatePayload.especialistas_permitidos = normalizeEspecialistasPermitidos(
