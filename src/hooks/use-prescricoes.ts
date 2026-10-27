@@ -54,6 +54,8 @@ export interface PrescricaoItem {
    * campos de valor vêm `undefined` — não exibir bloco de preço.
    */
   valoresOcultos?: boolean
+  /** Forma de pagamento da venda (rótulo pronto do servidor). */
+  formaPagamento?: string
   /** Só gestor/admin/master (decidido no servidor). */
   custoTotal?: number
   margemTotal?: number

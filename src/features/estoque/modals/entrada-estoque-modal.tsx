@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/hooks/use-auth'
-import { useFornecedores } from '@/features/fornecedores/hooks/use-fornecedores'
+import { useApi } from '@/hooks/use-api'
 import type { EstoqueItem, MovimentacaoEstoqueInput } from '../hooks/use-estoque'
 import { EntradaXmlBody } from './importar-nf-xml-modal'
 
@@ -54,7 +54,18 @@ const initialState: EntradaFormState = {
 function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
   const [form, setForm] = useState<EntradaFormState>(initialState)
   const [isSaving, setIsSaving] = useState(false)
-  const { data: fornecedores } = useFornecedores()
+  const api = useApi()
+  const [fornecedores, setFornecedores] = useState<Array<{ id: string; nome: string }>>([])
+  useEffect(() => {
+    let ativo = true
+    api
+      .get<{ data: Array<{ id: string; nome: string }> }>('/api/estoque/fornecedores')
+      .then((res) => ativo && setFornecedores(res.data))
+      .catch(() => ativo && setFornecedores([]))
+    return () => {
+      ativo = false
+    }
+  }, [api])
 
   const submit = async () => {
     if (!form.produtoId || form.quantidade <= 0) {

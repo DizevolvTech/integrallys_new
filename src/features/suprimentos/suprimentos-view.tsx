@@ -47,7 +47,7 @@ export function SuprimentosView() {
         <SegmentedControl
           options={[
             { value: 'estoque', label: 'Estoque' },
-            { value: 'movimentacoes', label: 'Entradas e saídas' },
+            { value: 'movimentacoes', label: 'Movimentos' },
             { value: 'suprimentos', label: 'Suprimentos' },
           ]}
           value="suprimentos"

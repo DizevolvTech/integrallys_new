@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { assinarUrlsExames, caminhoDoExame, EXAMES_BUCKET } from '@/lib/exames-storage'
+import { caminhoDoExame, EXAMES_BUCKET, urlDeAberturaExame } from '@/lib/exames-storage'
 import { authErrorResponse, assertPacienteInUnitScope, getRequestAuth } from '@/lib/request-auth'
 
 export interface PacienteExameItem {
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
   if (error) return supabaseErrorResponse(error, 'Falha ao carregar exames do paciente')
 
   return NextResponse.json({
-    data: (await assinarUrlsExames(supabase, (data ?? []).map((row) => mapRow(row as Row)))),
+    data: (data ?? []).map((row) => urlDeAberturaExame(mapRow(row as Row))),
     meta: session,
   })
 }

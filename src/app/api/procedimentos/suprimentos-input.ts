@@ -1,4 +1,4 @@
-import { getAppSupabase } from '@/lib/app-api'
+import type { getAppSupabase } from '@/lib/app-api'
 
 type Supabase = ReturnType<typeof getAppSupabase>
 

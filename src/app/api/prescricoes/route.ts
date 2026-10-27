@@ -4,6 +4,7 @@ import { requirePermission } from '@/lib/authz'
 import { mapPrescricaoItem } from '@/lib/domain-mappers'
 import { estoqueAplicarMovimentacao } from '@/lib/estoque-movimentacao'
 import { stripPrescricaoFinancialFields } from '@/lib/financial-sanitize'
+import { rotuloFormaPagamento } from '@/lib/recibo'
 import { emLotes } from '@/lib/em-lotes'
 import { margemDaPrescricao, margemDoItem, podeVerCustoMargem } from '@/lib/prescricao-margem'
 import { isPrescriptionImmutable } from '@/lib/prescricao-immutability'
@@ -136,7 +137,7 @@ async function listPrescricoes(session: Awaited<ReturnType<typeof getRequestAuth
   const { data, error } = await supabase
     .from('prescricoes')
     .select(
-      'id,paciente_id,numero,valor_total,valor_bruto,numero_parcelas,valor_parcela,desconto_tipo,desconto_percentual,desconto_valor,justificativa_desconto,vendedor_id,status,data_prescricao,tipo,validade,observacoes',
+      'id,paciente_id,numero,valor_total,valor_bruto,numero_parcelas,valor_parcela,desconto_tipo,desconto_percentual,desconto_valor,justificativa_desconto,vendedor_id,status,data_prescricao,tipo,validade,observacoes,forma_pagamento',
     )
     // CR-M05-D · ordenação padrão por data da prescrição (mais recente primeiro);
     // created_at como tiebreaker para casos onde data_prescricao é null/igual.
@@ -229,7 +230,8 @@ async function listPrescricoes(session: Awaited<ReturnType<typeof getRequestAuth
         }),
         session?.role,
       )
-      return verCusto ? { ...mapped, ...margemDaPrescricao(itens, mapped.valorTotal) } : mapped
+      const comForma = { ...mapped, formaPagamento: row.forma_pagamento ? rotuloFormaPagamento(String(row.forma_pagamento)) : undefined }
+      return verCusto ? { ...comForma, ...margemDaPrescricao(itens, mapped.valorTotal) } : comForma
     }),
     meta: session,
   })

@@ -78,11 +78,6 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse(upload.error.message ?? 'Falha no upload', 'UPLOAD_FAILED', 500)
   }
 
-  const { data: signed, error: signedError } = await supabase.storage.from(EXAMES_BUCKET).createSignedUrl(path, 600)
-  if (signedError || !signed) {
-    return serverErrorResponse('Falha ao gerar URL', 'SIGN_FAILED', 500)
-  }
-
   const { data: inserted, error: insertError } = await supabase
     .from('paciente_exames')
     .insert({
@@ -104,7 +99,7 @@ export async function POST(request: NextRequest) {
     {
       data: {
         id: String(inserted.id),
-        url: signed.signedUrl,
+        url: `/api/pacientes/exames/${String(inserted.id)}/arquivo`,
         nome: inserted.nome,
         tipo: inserted.tipo,
         pacienteId: inserted.paciente_id,

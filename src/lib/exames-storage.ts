@@ -1,8 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-
 export const EXAMES_BUCKET = 'exames-pacientes'
-/** Link de abertura curto: gerado a cada listagem, nunca guardado nem público. */
-export const EXAMES_URL_TTL_SEGUNDOS = 600
 const PREFIXO = `storage://${EXAMES_BUCKET}/`
 
 export function urlDeCaminho(caminho: string): string {
@@ -16,15 +12,13 @@ export function caminhoDoExame(url: string): string | null {
   return m ? decodeURIComponent(m[1]) : null
 }
 
-/** Troca o valor guardado por URLs assinadas novas (bucket privado). Links externos passam sem mudança. */
-export async function assinarUrlsExames<T extends { url: string }>(supabase: SupabaseClient, rows: T[]): Promise<T[]> {
-  const caminhos = rows.map((r) => caminhoDoExame(r.url))
-  const validos = caminhos.filter((c): c is string => !!c)
-  if (validos.length === 0) return rows
-  const { data } = await supabase.storage.from(EXAMES_BUCKET).createSignedUrls(validos, EXAMES_URL_TTL_SEGUNDOS)
-  const porCaminho = new Map((data ?? []).map((d) => [d.path ?? '', d.signedUrl]))
-  return rows.map((r, i) => {
-    const c = caminhos[i]
-    return c ? { ...r, url: porCaminho.get(c) || '' } : r
-  })
+/** Link de abertura na própria API (autenticada); links externos antigos passam sem mudança. */
+export function urlDeAberturaExame<T extends { id: string; url: string }>(row: T): T {
+  return caminhoDoExame(row.url) ? { ...row, url: `/api/pacientes/exames/${row.id}/arquivo` } : row
+}
+
+const MIMES: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' }
+
+export function mimeDoExame(caminho: string): string {
+  return MIMES[caminho.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream'
 }

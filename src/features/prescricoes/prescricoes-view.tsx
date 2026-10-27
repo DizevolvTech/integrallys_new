@@ -84,6 +84,7 @@ function normalizePrescription(item: PrescricaoItem): PrescriptionRow {
     generator: 'Sistema',
     validity: item.validade || '-',
     specialistName: '-',
+    paymentMethod: item.formaPagamento,
     items: (item.items ?? []).map((line) => ({
       productName: line.productName,
       quantity: line.quantity,
@@ -96,6 +97,8 @@ function normalizePrescription(item: PrescricaoItem): PrescriptionRow {
     })),
   }
 }
+
+const statusDe = (item: PrescriptionRow): StatusPrescricao => normalizarStatusPrescricao(item.status)
 
 export function PrescricoesView() {
   const router = useRouter()
@@ -119,7 +122,6 @@ export function PrescricoesView() {
   const [reciboVendaId, setReciboVendaId] = useState<string | null>(null)
 
   const prescriptions = useMemo(() => data.map(normalizePrescription), [data])
-  const statusDe = (item: PrescriptionRow): StatusPrescricao => normalizarStatusPrescricao(item.status)
   const temMargem = prescriptions.some((item) => item.margemTotal !== undefined)
   const patientOptions = useMemo(
     () => pacientes.map((patient) => ({ id: patient.id, nome: patient.nome })),
