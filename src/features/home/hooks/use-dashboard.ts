@@ -192,9 +192,11 @@ export function useDashboard(filters?: DashboardFilters) {
   useEffect(() => {
     let mounted = true
 
-    const load = async () => {
-      setIsLoading(true)
-      setError(null)
+    const load = async (silencioso = false) => {
+      if (!silencioso) {
+        setIsLoading(true)
+        setError(null)
+      }
       try {
         const params = new URLSearchParams()
         if (periodo) params.set('periodo', periodo)
@@ -207,16 +209,22 @@ export function useDashboard(filters?: DashboardFilters) {
         if (!mounted) return
         setData(response)
       } catch (err) {
-        if (!mounted) return
+        if (!mounted || silencioso) return
         setError(err instanceof Error ? err.message : 'Erro ao carregar dashboard')
       } finally {
-        if (mounted) setIsLoading(false)
+        if (mounted && !silencioso) setIsLoading(false)
       }
     }
 
     void load()
+    // Saldos de caixa mudam durante o dia: ao voltar para a aba, atualiza em silêncio (sem piscar a tela).
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') void load(true)
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
     return () => {
       mounted = false
+      document.removeEventListener('visibilitychange', aoVoltar)
     }
   }, [api, periodo, de, ate, unidadeId])
 

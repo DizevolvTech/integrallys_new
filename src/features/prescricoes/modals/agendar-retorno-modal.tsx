@@ -12,9 +12,17 @@ interface AgendarRetornoModalProps {
   onLater?: () => void
 }
 
+/** Fechar sem escolher (X, Esc, clique fora) equivale a "Mais tarde": a tag de retorno pendente não se perde. */
 export function AgendarRetornoModal({ isOpen, onClose, patientName, onConfirm, onLater }: AgendarRetornoModalProps) {
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (open) return
+        onLater?.()
+        onClose()
+      }}
+    >
       <DialogContent size="sm" className="p-0 overflow-hidden bg-app-card dark:bg-app-card-dark border-none rounded-[24px] shadow-2xl">
         <div className="p-8 flex flex-col items-center text-center space-y-6">
           <div className="h-20 w-20 app-status-info dark:bg-transparent rounded-full flex items-center justify-center mb-2">

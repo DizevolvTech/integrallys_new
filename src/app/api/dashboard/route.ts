@@ -877,7 +877,9 @@ export async function GET(request: NextRequest) {
           },
           {
             id: 'caixinha-troco',
-            type: caixaGestor?.aberto ? 'Caixa aberto' : caixaGestor ? 'Caixa fechado' : 'Sem caixa aberto ainda',
+            type: caixaGestor
+              ? `${unidadeNome(caixaGestor.unidadeId)} · ${caixaGestor.aberto ? 'caixa aberto' : 'caixa fechado'}`
+              : 'Sem caixa aberto ainda',
             name: 'Caixinha de troco',
             balance: formatBrl(caixaGestor?.troco ?? 0),
             color: 'bg-amber-500',
