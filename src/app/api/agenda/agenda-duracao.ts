@@ -66,3 +66,20 @@ export function vagasDaGradeNoIntervalo(
   }
   return out
 }
+
+export type RegraGradeRetorno = RegraGrade & { duracao_retorno_min?: number | null }
+
+/**
+ * Duração do RETORNO configurada na grade do profissional para o turno que contém `inicioMin`.
+ * null = turno sem duração de retorno (usa a regra geral: procedimento ou slot da grade).
+ */
+export function duracaoRetornoDaGrade(regras: RegraGradeRetorno[], inicioMin: number): number | null {
+  for (const r of regras) {
+    const ini = timeToMinutes(r.hora_inicio)
+    const fim = timeToMinutes(r.hora_fim)
+    const ret = Number(r.duracao_retorno_min)
+    if (ini === null || fim === null) continue
+    if (inicioMin >= ini && inicioMin < fim && Number.isFinite(ret) && ret > 0) return ret
+  }
+  return null
+}

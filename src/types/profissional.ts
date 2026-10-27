@@ -27,7 +27,10 @@ export interface ProfissionalHorario {
   horaInicio: string
   /** Formato HH:MM. */
   horaFim: string
+  /** Duração da 1ª consulta (min) e passo dos slots gerados. */
   duracaoMin: number
+  /** Duração do retorno (min); null = igual à da 1ª consulta. */
+  duracaoRetornoMin?: number | null
   ativo: boolean
 }
 

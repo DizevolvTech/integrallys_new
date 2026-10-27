@@ -14,7 +14,7 @@ import { resolveAgendamentoProcedimento } from '@/lib/agendamento-procedimento'
 import {
   resolvePagamentoAgendamentoInput,
 } from '@/lib/agendamento-pagamento'
-import { addDaysIso } from '@/lib/procedimento-retorno'
+import { addDaysIso, isTipoRetorno } from '@/lib/procedimento-retorno'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import {
   type AgendaRowIntervalo,
@@ -22,6 +22,8 @@ import {
   planejarOcupacao,
   timeToMinutes,
   vagasDaGradeNoIntervalo,
+  duracaoRetornoDaGrade,
+  type RegraGradeRetorno,
 } from './agenda-duracao'
 import { isHorarioPassado, STATUS_ELEGIVEIS_ATRASO } from '@/features/agenda/agenda.utils'
 import {
@@ -444,6 +446,23 @@ async function getDuracaoProcedimento(
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
+/** Duração de retorno do turno da grade do profissional no dia/horário; null = não configurada. */
+async function getDuracaoRetornoGrade(
+  supabase: ReturnType<typeof getAppSupabase>,
+  profissionalId: string,
+  dataIso: string,
+  inicioMin: number,
+): Promise<number | null> {
+  const dow = new Date(`${dataIso}T12:00:00Z`).getUTCDay()
+  const { data } = await supabase
+    .from('profissional_horarios')
+    .select('hora_inicio,hora_fim,duracao_min,duracao_retorno_min')
+    .eq('profissional_id', profissionalId)
+    .eq('dia_semana', dow)
+    .eq('ativo', true)
+  return duracaoRetornoDaGrade((data ?? []) as RegraGradeRetorno[], inicioMin)
+}
+
 async function getLinhasDoDia(
   supabase: ReturnType<typeof getAppSupabase>,
   profissionalId: string,
@@ -778,8 +797,14 @@ export async function POST(request: NextRequest) {
     // Regra de duração: o atendimento ocupa [início, início + duração do procedimento ou da grade).
     const dataSlot = String(enrichedBody.data)
     const horarioSlot = String(enrichedBody.horario)
-    const duracaoProc = await getDuracaoProcedimento(supabase, procResolved.data.procedimentoId)
     const inicioMin = timeToMinutes(horarioSlot)
+    // Retorno: a duração própria do profissional (grade) vale sobre a do procedimento.
+    const duracaoRetorno =
+      isTipoRetorno(body.tipo) && profissionalId && inicioMin !== null
+        ? await getDuracaoRetornoGrade(supabase, profissionalId, dataSlot, inicioMin)
+        : null
+    const duracaoProc =
+      duracaoRetorno ?? (await getDuracaoProcedimento(supabase, procResolved.data.procedimentoId))
     const occupyUpdate = buildOccupyUpdate(enrichedBody, pacienteId)
     let liberarSlotIds: string[] = []
     if (profissionalId && inicioMin !== null) {
@@ -1048,10 +1073,15 @@ export async function PUT(request: NextRequest) {
       )
       // Duração: procedimento > slot de destino (grade) > duração anterior, só se plausível (≤ 4h;
       // registros antigos podem ter fim inconsistente por causa do remarcar antigo).
-      const duracaoProc = await getDuracaoProcedimento(
-        supabase,
-        existing.procedimento_id ? String(existing.procedimento_id) : null,
-      )
+      const duracaoRetorno = isTipoRetorno(existing.tipo)
+        ? await getDuracaoRetornoGrade(supabase, String(profissionalId), dataAgendamento, inicioMin)
+        : null
+      const duracaoProc =
+        duracaoRetorno ??
+        (await getDuracaoProcedimento(
+          supabase,
+          existing.procedimento_id ? String(existing.procedimento_id) : null,
+        ))
       const duracaoSlot = slotAlvo
         ? (timeToMinutes(slotAlvo.horario_fim) ?? inicioMin) - inicioMin
         : 0

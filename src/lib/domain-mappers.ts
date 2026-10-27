@@ -223,6 +223,7 @@ export function mapProfissionalHorario(row: Record<string, unknown>) {
     horaInicio: horaInicio.slice(0, 5),
     horaFim: horaFim.slice(0, 5),
     duracaoMin: Number(row.duracao_min ?? 0),
+    duracaoRetornoMin: row.duracao_retorno_min != null ? Number(row.duracao_retorno_min) : null,
     ativo: row.ativo !== false,
   }
 }

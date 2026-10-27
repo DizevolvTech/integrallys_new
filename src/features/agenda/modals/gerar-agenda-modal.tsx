@@ -32,6 +32,7 @@ interface GerarAgendaModalProps {
     dataInicio: string
     dataFim: string
     diasSemana: number[]
+    datasAvulsas: string[]
     considerarFeriados: boolean
   }) => Promise<GerarAgendaResumo>
 }
@@ -49,6 +50,8 @@ const DIAS = [
 
 const TODOS_OS_DIAS = DIAS.map((dia) => dia.value)
 
+const formatarDataBR = (iso: string) => iso.split('-').reverse().join('/')
+
 export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalProps) {
   const { data: usuarios } = useUsuarios()
   const [especialistaId, setEspecialistaId] = useState('')
@@ -56,6 +59,9 @@ export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalPr
   const [dataFim, setDataFim] = useState('')
   // Filtro de dias (restrição). Padrão: todos marcados = toda a grade do profissional.
   const [diasSemana, setDiasSemana] = useState<number[]>(TODOS_OS_DIAS)
+  const [modo, setModo] = useState<'periodo' | 'avulsos'>('periodo')
+  const [datasAvulsas, setDatasAvulsas] = useState<string[]>([])
+  const [novaData, setNovaData] = useState('')
   const [considerarFeriados, setConsiderarFeriados] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [resumo, setResumo] = useState<GerarAgendaResumo | null>(null)
@@ -70,8 +76,19 @@ export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalPr
     setDataInicio('')
     setDataFim('')
     setDiasSemana(TODOS_OS_DIAS)
+    setModo('periodo')
+    setDatasAvulsas([])
+    setNovaData('')
     setConsiderarFeriados(true)
     setResumo(null)
+  }
+
+  const adicionarData = () => {
+    if (!novaData) return
+    setDatasAvulsas((current) =>
+      current.includes(novaData) ? current : [...current, novaData].sort(),
+    )
+    setNovaData('')
   }
 
   const handleClose = () => {
@@ -88,8 +105,17 @@ export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalPr
   }
 
   const handleSave = async () => {
-    if (!especialistaId || !dataInicio || !dataFim || diasSemana.length === 0) {
-      toast.error('Preencha especialista, período e ao menos um dia da semana.')
+    const avulsos = modo === 'avulsos'
+    if (!especialistaId) {
+      toast.error('Selecione o especialista.')
+      return
+    }
+    if (avulsos && datasAvulsas.length === 0) {
+      toast.error('Adicione ao menos um dia.')
+      return
+    }
+    if (!avulsos && (!dataInicio || !dataFim || diasSemana.length === 0)) {
+      toast.error('Preencha o período e ao menos um dia da semana.')
       return
     }
 
@@ -97,9 +123,10 @@ export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalPr
     try {
       const result = await onSave({
         especialistaId,
-        dataInicio,
-        dataFim,
-        diasSemana,
+        dataInicio: avulsos ? '' : dataInicio,
+        dataFim: avulsos ? '' : dataFim,
+        diasSemana: avulsos ? [] : diasSemana,
+        datasAvulsas: avulsos ? datasAvulsas : [],
         considerarFeriados,
       })
       setResumo(result)
@@ -126,7 +153,7 @@ export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalPr
               <p className="text-sm text-app-text-muted">
                 {resumo
                   ? 'Resumo da geração.'
-                  : 'Gera os slots a partir da grade de horários do profissional.'}
+                  : 'Gera os horários a partir da grade do profissional. Depois de gerada, o encaixe manual em feriados continua possível.'}
               </p>
             </div>
             <button
@@ -194,6 +221,67 @@ export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalPr
                   </Select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-app-border p-1 dark:border-app-border-dark">
+                  {(
+                    [
+                      ['periodo', 'Período'],
+                      ['avulsos', 'Dias avulsos'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setModo(key)}
+                      className={`h-10 rounded-lg text-sm transition-colors ${
+                        modo === key
+                          ? 'bg-app-primary text-white'
+                          : 'text-app-text-primary dark:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {modo === 'avulsos' ? (
+                  <div className="space-y-3">
+                    <Label>Dias do atendimento</Label>
+                    <p className="text-xs text-app-text-muted">
+                      Escolha só os dias em que o profissional vai atender (ex.: 3 dias do mês). A
+                      grade de horários do dia da semana é usada em cada dia.
+                    </p>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <DateInput value={novaData} onChange={setNovaData} />
+                      </div>
+                      <Button type="button" variant="outline" onClick={adicionarData}>
+                        Adicionar dia
+                      </Button>
+                    </div>
+                    {datasAvulsas.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {datasAvulsas.map((data) => (
+                          <span
+                            key={data}
+                            className="inline-flex items-center gap-2 rounded-full border border-app-border bg-app-bg-secondary/50 px-3 py-1 text-sm dark:border-app-border-dark"
+                          >
+                            {formatarDataBR(data)}
+                            <button
+                              type="button"
+                              aria-label={`Remover ${formatarDataBR(data)}`}
+                              onClick={() =>
+                                setDatasAvulsas((current) => current.filter((item) => item !== data))
+                              }
+                            >
+                              <X className="h-3.5 w-3.5 text-app-text-muted" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
                 <div className="space-y-3">
                   <Label>Período</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -228,6 +316,9 @@ export function GerarAgendaModal({ isOpen, onClose, onSave }: GerarAgendaModalPr
                     })}
                   </div>
                 </div>
+
+                  </>
+                )}
 
                 <div className="flex items-center justify-between rounded-xl border border-app-border bg-app-bg-secondary/50 px-4 py-3 dark:border-app-border-dark dark:bg-app-bg-dark">
                   <div className="space-y-1">

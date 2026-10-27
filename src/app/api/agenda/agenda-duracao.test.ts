@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { minutesToHHMM, planejarOcupacao, timeToMinutes, vagasDaGradeNoIntervalo } from './agenda-duracao'
+import { duracaoRetornoDaGrade, minutesToHHMM, planejarOcupacao, timeToMinutes, vagasDaGradeNoIntervalo } from './agenda-duracao'
 
 const r = (id: string, status: string, i: string, f: string) => ({
   id,
@@ -75,5 +75,19 @@ describe('vagasDaGradeNoIntervalo', () => {
   })
   it('sem grade devolve vazio', () => {
     expect(vagasDaGradeNoIntervalo([], 570, 630)).toEqual([])
+  })
+})
+
+describe('duracaoRetornoDaGrade', () => {
+  const regras = [
+    { hora_inicio: '08:00:00', hora_fim: '12:00:00', duracao_min: 60, duracao_retorno_min: 45 },
+    { hora_inicio: '14:00:00', hora_fim: '18:00:00', duracao_min: 60, duracao_retorno_min: null },
+  ]
+  it('usa a duração de retorno do turno que contém o início', () => {
+    expect(duracaoRetornoDaGrade(regras, 9 * 60)).toBe(45)
+  })
+  it('turno sem retorno configurado ou fora da grade devolve null', () => {
+    expect(duracaoRetornoDaGrade(regras, 15 * 60)).toBeNull()
+    expect(duracaoRetornoDaGrade(regras, 13 * 60)).toBeNull()
   })
 })

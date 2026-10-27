@@ -13,7 +13,11 @@ interface GerarBody {
   // janela e a duração vêm de profissional_horarios (migration 079).
   diasSemana?: unknown
   considerarFeriados?: unknown
+  // Dias avulsos YYYY-MM-DD (ex.: só 3 dias do mês). Se informado, substitui período + dias da semana.
+  datasAvulsas?: unknown
 }
+
+const MAX_DATAS_AVULSAS = 366
 
 function parseDateLocal(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
@@ -66,8 +70,21 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Especialista é obrigatório', 'INVALID_PARAMS', 400)
   }
 
-  const dataInicio = parseDateLocal(dataInicioStr)
-  const dataFim = parseDateLocal(dataFimStr)
+  const avulsasRaw = Array.isArray(body.datasAvulsas) ? body.datasAvulsas : []
+  const avulsasStrs = Array.from(
+    new Set(avulsasRaw.filter((v): v is string => typeof v === 'string')),
+  )
+  const datasAvulsas = avulsasStrs.map(parseDateLocal)
+  if (avulsasRaw.length > 0 && (datasAvulsas.some((d) => !d) || avulsasStrs.length > MAX_DATAS_AVULSAS)) {
+    return serverErrorResponse('Dias avulsos inválidos', 'INVALID_PARAMS', 400)
+  }
+  const avulsas = datasAvulsas.filter((d): d is Date => d !== null)
+  const usaAvulsas = avulsas.length > 0
+
+  // Com dias avulsos o período é derivado do menor/maior dia escolhido.
+  const ordenadas = [...avulsas].sort((x, y) => x.getTime() - y.getTime())
+  const dataInicio = usaAvulsas ? ordenadas[0] : parseDateLocal(dataInicioStr)
+  const dataFim = usaAvulsas ? ordenadas[ordenadas.length - 1] : parseDateLocal(dataFimStr)
   if (!dataInicio || !dataFim) {
     return serverErrorResponse('Datas inválidas', 'INVALID_PARAMS', 400)
   }
@@ -79,7 +96,7 @@ export async function POST(request: NextRequest) {
   const diasSemana = diasSemanaRaw
     .map((value) => Number(value))
     .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
-  const diasSemanaFiltro = diasSemana.length > 0 ? diasSemana : null
+  const diasSemanaFiltro = !usaAvulsas && diasSemana.length > 0 ? diasSemana : null
 
   const supabase = getAppSupabase()
 
@@ -144,6 +161,7 @@ export async function POST(request: NextRequest) {
     dataFim,
     diasSemanaFiltro,
     considerarFeriados,
+    datasAvulsas: usaAvulsas ? avulsas : null,
   })
 
   let pulados = puladosFeriado
@@ -163,7 +181,9 @@ export async function POST(request: NextRequest) {
   // (item 7a / profissional_unidades), limpar sem esse filtro apagaria os
   // 'Disponível' dele em OUTRAS unidades nas mesmas datas. unidadeId null precisa
   // de IS NULL (`.eq(col, null)` nunca casa no PostgREST).
-  const datasParaLimpar = enumerarDatas(dataInicio, dataFim, diasSemanaFiltro)
+  const datasParaLimpar = usaAvulsas
+    ? avulsasStrs
+    : enumerarDatas(dataInicio, dataFim, diasSemanaFiltro)
   if (datasParaLimpar.length > 0) {
     const limpezaQuery = supabase
       .from('agendamentos')

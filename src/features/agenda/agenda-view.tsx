@@ -630,6 +630,7 @@ export function AgendaView() {
     dataInicio: string
     dataFim: string
     diasSemana: number[]
+    datasAvulsas: string[]
     considerarFeriados: boolean
   }) => {
     const result = await api.post<{ gerados: number; pulados: number; alertas?: string[] }>(

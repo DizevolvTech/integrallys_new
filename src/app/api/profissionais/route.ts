@@ -13,6 +13,7 @@ type NormalizedHorario = {
   horaInicio: string
   horaFim: string
   duracaoMin: number
+  duracaoRetornoMin: number | null
   ativo: boolean
 }
 
@@ -31,6 +32,11 @@ function normalizeHorarios(value: unknown): NormalizedHorario[] {
     const horaInicio = typeof h.horaInicio === 'string' ? h.horaInicio.trim() : ''
     const horaFim = typeof h.horaFim === 'string' ? h.horaFim.trim() : ''
     const duracaoMin = Number(h.duracaoMin)
+    const retornoRaw = Number(h.duracaoRetornoMin)
+    const duracaoRetornoMin =
+      h.duracaoRetornoMin != null && h.duracaoRetornoMin !== '' && Number.isFinite(retornoRaw) && retornoRaw > 0
+        ? Math.round(retornoRaw)
+        : null
 
     if (!Number.isInteger(diaSemana) || diaSemana < 0 || diaSemana > 6) continue
     if (!turno) continue
@@ -45,6 +51,7 @@ function normalizeHorarios(value: unknown): NormalizedHorario[] {
       horaInicio,
       horaFim,
       duracaoMin: Math.round(duracaoMin),
+      duracaoRetornoMin,
       ativo: h.ativo !== false,
     })
   }
@@ -162,7 +169,9 @@ async function listProfissionais(session: Awaited<ReturnType<typeof getRequestAu
     ] = await Promise.all([
       supabase
         .from('profissional_horarios')
-        .select('id,profissional_id,dia_semana,turno,hora_inicio,hora_fim,duracao_min,ativo')
+        .select(
+          'id,profissional_id,dia_semana,turno,hora_inicio,hora_fim,duracao_min,duracao_retorno_min,ativo',
+        )
         .in('profissional_id', ids)
         .order('dia_semana', { ascending: true }),
       supabase
@@ -249,6 +258,7 @@ function buildHorarioRows(profissionalId: string, payload: Payload) {
     hora_inicio: horario.horaInicio,
     hora_fim: horario.horaFim,
     duracao_min: horario.duracaoMin,
+    duracao_retorno_min: horario.duracaoRetornoMin,
     ativo: horario.ativo,
   }))
 }
@@ -549,7 +559,7 @@ export async function PUT(request: NextRequest) {
     supabase,
     'profissional_horarios',
     id,
-    'profissional_id,unidade_id,dia_semana,turno,hora_inicio,hora_fim,duracao_min,ativo',
+    'profissional_id,unidade_id,dia_semana,turno,hora_inicio,hora_fim,duracao_min,duracao_retorno_min,ativo',
     buildHorarioRows(id, payload),
   )
   if (horariosError) {
