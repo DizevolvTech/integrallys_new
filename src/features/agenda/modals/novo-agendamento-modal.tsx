@@ -131,6 +131,7 @@ export function NovoAgendamentoModal({
   const [pagamentoBandeira, setPagamentoBandeira] = useState('')
   const [pagamentoParcelas, setPagamentoParcelas] = useState('1')
   const [pagamentoContaId, setPagamentoContaId] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { data: procedimentosCatalogo } = useProcedimentos()
   const { data: contasBancarias } = useContasBancarias()
   const contasAtivas = useMemo(() => contasBancarias.filter((item) => item.ativo), [contasBancarias])
@@ -280,12 +281,19 @@ export function NovoAgendamentoModal({
       setProfissional('')
     }
     setProcedimentoId(initialProcedimentoId || '')
-    if (initialTipo) setTipo(initialTipo)
+    setTipo(initialTipo || 'consulta')
     setUrlOnline('')
     setPlataformaOnline('google_meet')
     // patients intencionalmente omitido — lookup usa o valor do render da abertura
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open transition only
   }, [isOpen, initialDate, initialPatientId, initialProfissional, initialProcedimentoId, initialTime, initialTipo])
+
+  // Profissional do preset (ex.: vindo de /retornos) pode chegar depois da abertura,
+  // quando a lista de profissionais termina de carregar — preenche só se ainda vazio.
+  useEffect(() => {
+    if (!isOpen || !initialProfissional) return
+    setProfissional((current) => current || initialProfissional)
+  }, [isOpen, initialProfissional])
 
   // Se o modal abriu com preset antes da lista carregar, preenche o nome quando
   // `patients` chegar — sem limpar seleção feita pelo usuário/create.
@@ -346,7 +354,7 @@ export function NovoAgendamentoModal({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!pacienteId || !data || !horario) return
+    if (isSubmitting || !pacienteId || !data || !horario) return
 
     if (isHorarioPassado(data, horario)) {
       toast.error('Não é possível agendar em horário já passado.')
@@ -414,6 +422,7 @@ export function NovoAgendamentoModal({
         return
       }
     }
+    setIsSubmitting(true)
     try {
       await onSave?.({
         pacienteId,
@@ -444,6 +453,8 @@ export function NovoAgendamentoModal({
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível criar o agendamento.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -891,9 +902,10 @@ export function NovoAgendamentoModal({
             <Button
               type="button"
               onClick={() => formRef.current?.requestSubmit()}
+              disabled={isSubmitting}
               className="h-11 w-full rounded-integrallys bg-app-primary px-8 font-normal text-white shadow-sm hover:bg-app-primary-hover sm:w-auto"
             >
-              Agendar
+              {isSubmitting ? 'Agendando…' : 'Agendar'}
             </Button>
           </DialogFooter>
         </form>

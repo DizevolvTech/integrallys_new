@@ -1,5 +1,6 @@
 'use client'
 
+import { RetornoPendenteBadge } from '@/features/retornos/retorno-pendente-badge'
 import { calcularIdade } from '../utils/idade'
 import { descreverNotaFiscal, notaFiscalFromFinancial } from '../utils/nota-fiscal'
 import { descreverConvenio, descreverOrigem } from '../utils/origem'
@@ -47,6 +48,8 @@ interface VisualizarPacienteModalProps {
   isOpen: boolean
   onClose: () => void
   paciente: Patient | null
+  /** Paciente com retorno pendente: mostra a etiqueta na ficha. */
+  retornoPendente?: boolean
   /** Dados CRM atuais do paciente (vindos da listagem). */
   crm?: PacienteCrm | null
   /** Aba a abrir por padrão. Default: 'dados'. */
@@ -96,6 +99,7 @@ export function VisualizarPacienteModal({
   isOpen,
   onClose,
   paciente,
+  retornoPendente = false,
   crm = null,
   initialTab = 'dados',
   onCrmSaved,
@@ -165,6 +169,7 @@ export function VisualizarPacienteModal({
             <div>
               <p className="text-base font-normal text-app-text-primary dark:text-white">{paciente?.name || '-'}</p>
               <p className="text-sm text-app-text-secondary dark:text-white/70">CPF: {paciente?.cpf || '-'}</p>
+              {retornoPendente && <div className="mt-1"><RetornoPendenteBadge /></div>}
             </div>
           </div>
 

@@ -26,7 +26,7 @@ export function isForbiddenError(err: unknown): boolean {
   )
 }
 
-export async function apiClient<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+async function executarRequisicao<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     ...init,
     cache: 'no-store',
@@ -71,4 +71,24 @@ export async function apiClient<T>(input: RequestInfo | URL, init?: RequestInit)
   }
 
   return response.json() as Promise<T>
+}
+
+// Várias partes da tela pedem o mesmo GET ao mesmo tempo (hooks independentes, efeitos duplicados em
+// desenvolvimento). Enquanto a primeira requisição está em andamento, as demais reaproveitam a resposta.
+const getsEmAndamento = new Map<string, Promise<unknown>>()
+
+function copiar<T>(valor: T): T {
+  return typeof structuredClone === 'function' ? structuredClone(valor) : valor
+}
+
+export function apiClient<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const ehGetSimples = typeof input === 'string' && (!init || (!init.method && !init.body && !init.headers && !init.signal))
+  if (!ehGetSimples) return executarRequisicao<T>(input, init)
+
+  let emAndamento = getsEmAndamento.get(input) as Promise<T> | undefined
+  if (!emAndamento) {
+    emAndamento = executarRequisicao<T>(input, init).finally(() => getsEmAndamento.delete(input))
+    getsEmAndamento.set(input, emAndamento)
+  }
+  return emAndamento.then(copiar)
 }

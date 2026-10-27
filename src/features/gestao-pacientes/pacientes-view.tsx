@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useRetornoPendentePacientes } from '@/features/retornos/hooks/use-retornos'
+import { RetornoPendenteBadge } from '@/features/retornos/retorno-pendente-badge'
 import {
   Table,
   TableBody,
@@ -134,6 +136,7 @@ type PacienteWithCrm = PacienteItem & { crm?: PacienteCrm | null }
 
 export function PacientesView() {
   const api = useApi()
+  const { pacientesComRetornoPendente } = useRetornoPendentePacientes()
   const { data, units, error, isLoading, load, createPaciente, updatePaciente, deletePaciente } = usePacientes()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
@@ -376,6 +379,7 @@ export function PacientesView() {
         isOpen={isViewOpen}
         onClose={() => setIsViewOpen(false)}
         paciente={selectedPaciente}
+        retornoPendente={selectedPaciente ? pacientesComRetornoPendente.has(String(selectedPaciente.id)) : false}
         crm={selectedCrm}
         initialTab={viewInitialTab}
         onCrmSaved={() => { void load() }}
@@ -511,6 +515,7 @@ export function PacientesView() {
                       <div className="flex flex-col gap-1.5 py-1">
                         <Badge className={`w-fit text-xs tracking-wider font-normal px-4 py-1 rounded-full border-none shadow-sm text-white ${p.status === 'complete' ? 'bg-app-primary dark:bg-blue-900/60 dark:text-[var(--app-info-text)]' : 'bg-[var(--app-warning-text)] dark:bg-amber-900/60 dark:text-[var(--app-warning-text)]'}`}>{p.status === 'complete' ? 'Cadastro completo' : 'Cadastro incompleto'}</Badge>
                         <Badge className={`w-fit text-xs tracking-wider font-normal px-4 py-1 rounded-full border-none transition-all shadow-sm text-white ${['Obito', 'Óbito'].includes(String(p.activeStatus || 'Ativo')) ? 'bg-purple-800 dark:bg-purple-900 dark:text-purple-100' : String(p.activeStatus || 'Ativo') === 'Inativo' ? 'bg-slate-500 dark:bg-slate-800 dark:text-slate-300' : 'bg-[var(--app-success-text)] dark:bg-emerald-900/60 dark:text-[var(--app-success-text)]'}`}>{String(p.activeStatus || 'Ativo')}</Badge>
+                        {pacientesComRetornoPendente.has(String(p.id)) && <RetornoPendenteBadge />}
                       </div>
                     </TableCell>
                     <TableCell><span className="text-sm text-app-text-secondary dark:text-white/60 font-normal">---</span></TableCell>

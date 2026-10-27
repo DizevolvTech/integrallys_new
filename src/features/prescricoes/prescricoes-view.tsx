@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Clock, Edit, Eye, FileText, MoreVertical, Plus, Receipt, Search, ShoppingCart, Trash2 } from 'lucide-react'
 import { usePrescricoes, type PrescricaoInput, type PrescricaoItem } from '@/hooks/use-prescricoes'
 import { useApi } from '@/hooks/use-api'
+import { RetornoPendenteBadge } from '@/features/retornos/retorno-pendente-badge'
 import { registrarRetornoMaisTarde, useRetornoPendentePacientes } from '@/features/retornos/hooks/use-retornos'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useUsuarios } from '@/hooks/use-usuarios'
@@ -656,9 +657,7 @@ export function PrescricoesView() {
                                   {item.status}
                                 </span>
                                 {item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) && (
-                                  <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3.5 py-1 text-xs font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
-                                    Retorno Pendente
-                                  </span>
+                                  <RetornoPendenteBadge />
                                 )}
                               </div>
                             </TableCell>
