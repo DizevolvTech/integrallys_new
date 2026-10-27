@@ -25,6 +25,8 @@ function parseDateLocal(value: string): Date | null {
   const [, y, m, d] = match
   const date = new Date(Number(y), Number(m) - 1, Number(d))
   if (Number.isNaN(date.getTime())) return null
+  // Rejeita datas inexistentes (ex.: 2027-13-45), que o Date normalizaria em silêncio.
+  if (date.getMonth() !== Number(m) - 1 || date.getDate() !== Number(d)) return null
   return date
 }
 

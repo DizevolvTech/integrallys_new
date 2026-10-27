@@ -300,8 +300,8 @@ function ProntuarioViewList() {
             <div className="bg-app-card dark:bg-app-card-dark">
               {/* Patient Header */}
               <div className="p-8 space-y-6 border-b border-app-border dark:border-app-border-dark">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1 space-y-3">
+                <div className="flex flex-col gap-4">
+                  <div className="min-w-0 space-y-3">
                     <PacienteCadastroCard
                       pacienteId={selectedItem.pacienteId}
                       nomeFallback={selectedItem.paciente}
@@ -312,7 +312,7 @@ function ProntuarioViewList() {
                     </div>
                   </div>
                   <Badge
-                    className={`shrink-0 rounded-lg border-none px-3 py-1.5 text-xs font-normal tracking-wider shadow-sm ${
+                    className={`order-first w-fit shrink-0 rounded-lg border-none px-3 py-1.5 text-xs font-normal tracking-wider shadow-sm ${
                       selectedItem.status === 'Finalizado'
                         ? 'bg-[var(--app-success-text)] text-white dark:bg-transparent dark:text-[var(--app-success-text)]'
                         : 'app-status-info text-white'

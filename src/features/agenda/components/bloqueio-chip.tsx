@@ -32,7 +32,7 @@ export function BloqueioChip({
     <div title={detalhe} className={`space-y-1 rounded-[8px] border p-3 ${cor.card}`}>
       <div className="flex items-center gap-2">
         <Lock className={`h-3 w-3 shrink-0 ${cor.text}`} />
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cor.chip}`}>{bloqueio.tipo}</span>
+        <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${cor.chip}`}>{bloqueio.tipo}</span>
       </div>
       <p className={`text-xs ${cor.text}`}>{rotuloHorarioBloqueio(bloqueio)}</p>
       <p className={`text-xs ${cor.text}`}>{quem}</p>
