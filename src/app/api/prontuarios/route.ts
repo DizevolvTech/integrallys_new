@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { dataBrParaIso } from '@/lib/data-br'
 import { mapProntuarioItem } from '@/lib/domain-mappers'
 import { authErrorResponse, assertPacienteInUnitScope, getRequestAuth } from '@/lib/request-auth'
 
@@ -87,6 +88,9 @@ export async function PUT(request: NextRequest) {
     return serverErrorResponse('Prontuário inválido', 'INVALID_MEDICAL_RECORD', 400)
   }
 
+  const dataIso = dataBrParaIso(body.data)
+  if (!dataIso) return serverErrorResponse('Data do prontuário inválida', 'INVALID_MEDICAL_RECORD_DATE', 400)
+
   const supabase = getAppSupabase()
 
   // Snapshot da versão anterior antes de sobrescrever (auditoria).
@@ -132,7 +136,7 @@ export async function PUT(request: NextRequest) {
     .from('prontuarios')
     .update({
       paciente_id: body.pacienteId,
-      data_registro: body.data,
+      data_registro: dataIso,
       tipo: body.tipo,
       status: body.status,
       updated_by: session.userId,

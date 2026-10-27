@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { getAuthUser } from '@/lib/auth'
 import { buildAuthPayloadFromUserId } from '@/lib/auth-payload'
+import { memoizeShort } from '@/lib/short-cache'
 import type { AuthUser } from '@/types/auth'
 
 export interface RequestAuth {
@@ -10,6 +11,8 @@ export interface RequestAuth {
   role: AuthUser['role']
   user: AuthUser
 }
+
+const AUTH_CACHE_MS = 10_000
 
 /**
  * Sempre valida o JWT — nunca confia em headers que o cliente pode forjar.
@@ -22,7 +25,13 @@ export async function getRequestAuth(request: NextRequest): Promise<RequestAuth 
     return null
   }
 
-  const payload = await buildAuthPayloadFromUserId(jwtUser.id)
+  // Cache curto (10 s) com dedupe: a abertura de uma tela dispara ~12 chamadas paralelas do mesmo usuário.
+  const payload = await memoizeShort(
+    `auth:${jwtUser.id}`,
+    AUTH_CACHE_MS,
+    () => buildAuthPayloadFromUserId(jwtUser.id),
+    (valor) => valor !== null,
+  )
   const user = payload?.user
   if (!user) {
     return null

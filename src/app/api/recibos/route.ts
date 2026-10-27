@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { perfilPodeEmitirRecibo } from '@/lib/recibo-perfis'
 import { consultaQuitada, numeroRecibo, rotuloFormaPagamento, vendaEmitiveis, type ReciboDados, type ReciboTipo } from '@/lib/recibo'
 import { assertPacienteInUnitScope, authErrorResponse, forbiddenResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import { notaFiscalFromFinancial } from '@/features/gestao-pacientes/utils/nota-fiscal'
 
 const UUID = /^[0-9a-f-]{36}$/i
-const PERFIS_RECIBO = new Set(['master', 'admin', 'gestor', 'recepcao'])
 
 type Supabase = ReturnType<typeof getAppSupabase>
 
@@ -161,7 +161,7 @@ async function reciboAgendamento(supabase: Supabase, session: NonNullable<Awaite
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
-  if (!PERFIS_RECIBO.has(session.role)) return forbiddenResponse()
+  if (!perfilPodeEmitirRecibo(session.role)) return forbiddenResponse()
 
   const params = new URL(request.url).searchParams
   const tipo = params.get('tipo')

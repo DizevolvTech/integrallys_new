@@ -79,6 +79,7 @@ export interface AgendaPagamentoInicial {
 
 interface AgendaListResponse extends ApiListResponse<AgendaItem> {
   meta: {
+    podeEmitirRecibo?: boolean
     patients?: Array<{ id: string; nome: string; procedimentoIds?: string[] }>
     professionals?: Array<{ id: string; nome: string; procedimentoIds?: string[] }>
   } & Record<string, unknown>
@@ -89,8 +90,15 @@ export function useAgenda() {
   const [data, setData] = useState<AgendaItem[]>([])
   const [patients, setPatients] = useState<Array<{ id: string; nome: string; procedimentoIds?: string[] }>>([])
   const [professionals, setProfessionals] = useState<Array<{ id: string; nome: string; procedimentoIds?: string[] }>>([])
+  const [podeEmitirRecibo, setPodeEmitirRecibo] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const applyMeta = (meta: AgendaListResponse['meta']) => {
+    setPatients(Array.isArray(meta.patients) ? meta.patients.map((item) => ({ id: String(item.id), nome: String(item.nome) })) : [])
+    setProfessionals(Array.isArray(meta.professionals) ? meta.professionals.map((item) => ({ id: String(item.id), nome: String(item.nome), procedimentoIds: Array.isArray(item.procedimentoIds) ? item.procedimentoIds.map(String) : [] })) : [])
+    setPodeEmitirRecibo(meta.podeEmitirRecibo === true)
+  }
 
   const load = async () => {
     setIsLoading(true)
@@ -98,8 +106,7 @@ export function useAgenda() {
     try {
       const response = await api.get<AgendaListResponse>('/api/agenda')
       setData(response.data)
-      setPatients(Array.isArray(response.meta.patients) ? response.meta.patients.map((item) => ({ id: String(item.id), nome: String(item.nome) })) : [])
-      setProfessionals(Array.isArray(response.meta.professionals) ? response.meta.professionals.map((item) => ({ id: String(item.id), nome: String(item.nome), procedimentoIds: Array.isArray(item.procedimentoIds) ? item.procedimentoIds.map(String) : [] })) : [])
+      applyMeta(response.meta)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar agenda')
     } finally {
@@ -117,8 +124,7 @@ export function useAgenda() {
         const response = await api.get<AgendaListResponse>('/api/agenda')
         if (!mounted) return
         setData(response.data)
-        setPatients(Array.isArray(response.meta.patients) ? response.meta.patients.map((item) => ({ id: String(item.id), nome: String(item.nome) })) : [])
-        setProfessionals(Array.isArray(response.meta.professionals) ? response.meta.professionals.map((item) => ({ id: String(item.id), nome: String(item.nome), procedimentoIds: Array.isArray(item.procedimentoIds) ? item.procedimentoIds.map(String) : [] })) : [])
+        applyMeta(response.meta)
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : 'Erro ao carregar agenda')
@@ -138,26 +144,23 @@ export function useAgenda() {
   const createAgendamento = async (payload: AgendaInput) => {
     const response = await api.post<AgendaListResponse>('/api/agenda', payload)
     setData(response.data)
-    setPatients(Array.isArray(response.meta.patients) ? response.meta.patients.map((item) => ({ id: String(item.id), nome: String(item.nome) })) : [])
-    setProfessionals(Array.isArray(response.meta.professionals) ? response.meta.professionals.map((item) => ({ id: String(item.id), nome: String(item.nome), procedimentoIds: Array.isArray(item.procedimentoIds) ? item.procedimentoIds.map(String) : [] })) : [])
+    applyMeta(response.meta)
     return response.data
   }
 
   const updateAgendamento = async (payload: AgendaInput) => {
     const response = await api.put<AgendaListResponse>('/api/agenda', payload)
     setData(response.data)
-    setPatients(Array.isArray(response.meta.patients) ? response.meta.patients.map((item) => ({ id: String(item.id), nome: String(item.nome) })) : [])
-    setProfessionals(Array.isArray(response.meta.professionals) ? response.meta.professionals.map((item) => ({ id: String(item.id), nome: String(item.nome), procedimentoIds: Array.isArray(item.procedimentoIds) ? item.procedimentoIds.map(String) : [] })) : [])
+    applyMeta(response.meta)
     return response.data
   }
 
   const deleteAgendamento = async (id: string, reason?: string) => {
     const response = await api.delete<AgendaListResponse>('/api/agenda', { id, reason })
     setData(response.data)
-    setPatients(Array.isArray(response.meta.patients) ? response.meta.patients.map((item) => ({ id: String(item.id), nome: String(item.nome) })) : [])
-    setProfessionals(Array.isArray(response.meta.professionals) ? response.meta.professionals.map((item) => ({ id: String(item.id), nome: String(item.nome), procedimentoIds: Array.isArray(item.procedimentoIds) ? item.procedimentoIds.map(String) : [] })) : [])
+    applyMeta(response.meta)
     return response.data
   }
 
-  return { data, patients, professionals, isLoading, error, load, createAgendamento, updateAgendamento, deleteAgendamento }
+  return { data, patients, professionals, podeEmitirRecibo, isLoading, error, load, createAgendamento, updateAgendamento, deleteAgendamento }
 }

@@ -26,7 +26,7 @@ import type { GeneratedDoc, HistoricoItem, PatientDetails } from '@/contexts/ate
 import { useAtendimentoHistorico } from '@/hooks/use-atendimento-historico'
 import { useProntuarioLivePublish } from '@/hooks/use-prontuario-live-sync'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
-import { PRAZOS_RETORNO } from '@/lib/retorno-prazo'
+import { PrazoRetornoModal, type PrazoRetornoEscolhido } from '@/features/retornos/prazo-retorno-modal'
 import { useApi } from '@/hooks/use-api'
 import { usePacientes } from '@/hooks/use-pacientes'
 import {
@@ -1478,13 +1478,9 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     evolucaoAtual,
   } = useAtendimento()
   const api = useApi()
-  const [isSavingReturn, setIsSavingReturn] = useState(false)
   useProntuarioLivePublish(pacienteId, evolucaoAtual)
   const [showFinalizeModal, setShowFinalizeModal] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
-  const [returnOption, setReturnOption] = useState('30')
-  const [returnCustomDays, setReturnCustomDays] = useState('')
-  const [returnError, setReturnError] = useState('')
 
   const handleNext = () => {
     if (currentStep < 5) setCurrentStep(currentStep + 1)
@@ -1508,36 +1504,10 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     onBack()
   }
 
-  const handleConfirmReturn = async () => {
-    if (returnOption === 'custom') {
-      const days = Number(returnCustomDays)
-      if (!days || days <= 0) {
-        setReturnError('Informe um prazo válido em dias.')
-        return
-      }
-    }
-    if (!pacienteId) {
-      setShowReturnModal(false)
-      await doFinalize()
-      return
-    }
-    // O prazo é gravado antes de finalizar: se falhar, o atendimento continua aberto.
-    setIsSavingReturn(true)
-    try {
-      await api.post('/api/retornos', {
-        origem: 'atendimento',
-        pacienteId,
-        agendamentoId: appointmentId,
-        prazo: {
-          tipo: returnOption,
-          dias: returnOption === 'custom' ? Number(returnCustomDays) : undefined,
-        },
-      })
-    } catch (err) {
-      setReturnError(err instanceof Error ? err.message : 'Não foi possível salvar o prazo de retorno.')
-      return
-    } finally {
-      setIsSavingReturn(false)
+  const handleConfirmReturn = async (prazo: PrazoRetornoEscolhido) => {
+    if (pacienteId) {
+      // O prazo é gravado antes de finalizar: se falhar, o atendimento continua aberto.
+      await api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo })
     }
     setShowReturnModal(false)
     await doFinalize()
@@ -1617,58 +1587,12 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
         </DialogContent>
       </Dialog>
 
-      {/* Return deadline modal */}
-      <Dialog open={showReturnModal} onOpenChange={setShowReturnModal}>
-        <DialogContent size="lg" className="p-8">
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-xl font-normal text-app-text-primary dark:text-white">Definir prazo de retorno</h2>
-              <p className="text-sm text-app-text-muted font-normal">Informe em quanto tempo o paciente deve voltar. O prazo alimenta a lista de retornos da recepção.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {PRAZOS_RETORNO.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => { setReturnOption(option.id); setReturnError('') }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-normal border transition-all ${
-                    returnOption === option.id
-                      ? 'bg-app-primary border-[var(--app-primary)] text-white'
-                      : 'border-app-border text-app-text-secondary hover:border-[var(--app-primary)]/40 hover:text-[var(--app-primary)]'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            {returnOption === 'custom' && (
-              <div className="space-y-2">
-                <Label className="text-xs font-normal text-app-text-muted uppercase tracking-wider">
-                  Informe o prazo em dias
-                </Label>
-                <Input
-                  value={returnCustomDays}
-                  onChange={(e) => setReturnCustomDays(e.target.value.replace(/[^\d]/g, ''))}
-                  placeholder="Ex: 45"
-                  className="h-11 rounded-integrallys bg-app-bg-secondary/50 dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark"
-                />
-                {returnError && <p className="text-xs text-[var(--app-danger-text)]">{returnError}</p>}
-              </div>
-            )}
-            {returnOption !== 'custom' && returnError && (
-              <p className="text-xs text-[var(--app-danger-text)]">{returnError}</p>
-            )}
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1 font-normal" onClick={() => { setShowReturnModal(false); void doFinalize() }}>
-                Finalizar sem prazo
-              </Button>
-              <Button className="flex-1 bg-app-primary font-normal" onClick={handleConfirmReturn} disabled={isSavingReturn}>
-                {isSavingReturn ? 'Salvando...' : 'Salvar retorno'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PrazoRetornoModal
+        open={showReturnModal}
+        onOpenChange={setShowReturnModal}
+        onConfirm={handleConfirmReturn}
+        onSkip={() => { setShowReturnModal(false); void doFinalize() }}
+      />
     </div>
   )
 }

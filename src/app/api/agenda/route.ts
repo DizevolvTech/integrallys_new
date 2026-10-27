@@ -14,6 +14,7 @@ import { resolveAgendamentoProcedimento } from '@/lib/agendamento-procedimento'
 import {
   resolvePagamentoAgendamentoInput,
 } from '@/lib/agendamento-pagamento'
+import { perfilPodeEmitirRecibo } from '@/lib/recibo-perfis'
 import { limparTagRetornoPendente } from '@/lib/retornos-server'
 import { addDaysIso, isTipoRetorno } from '@/lib/procedimento-retorno'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
@@ -332,6 +333,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
     }),
     meta: {
       ...session,
+      podeEmitirRecibo: perfilPodeEmitirRecibo(session?.role),
       patients: (patientOptionsData ?? []).map((row) => ({
         id: String(row.id ?? ''),
         nome: String(row.nome ?? ''),
