@@ -10,35 +10,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useApi } from '@/hooks/use-api'
-import type { ApiListResponse } from '@/types/api'
 
-const TIPOS_BLOQUEIO_KEY = 'agenda.tipos_bloqueio'
-const TIPOS_BLOQUEIO_CATEGORIA = 'agenda'
 const DEFAULT_TIPOS_BLOQUEIO = ['Férias', 'Folga', 'Reunião', 'Outro']
 const NEW_TYPE_SENTINEL = '__new_tipo__'
-
-interface ConfiguracaoItem {
-  id: string
-  chave: string
-  valor: string
-  categoria: string
-}
-
-function parseTipos(valor: string | undefined | null): string[] {
-  if (!valor) return DEFAULT_TIPOS_BLOQUEIO
-  try {
-    const parsed = JSON.parse(valor)
-    if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) {
-      const filtered = parsed.map((item) => item.trim()).filter(Boolean)
-      return filtered.length > 0 ? filtered : DEFAULT_TIPOS_BLOQUEIO
-    }
-  } catch {
-    // valor não é JSON — fallback para split por vírgula (compatibilidade)
-    const fallback = valor.split(',').map((item) => item.trim()).filter(Boolean)
-    if (fallback.length > 0) return fallback
-  }
-  return DEFAULT_TIPOS_BLOQUEIO
-}
 
 interface BloqueioAgendaModalProps {
   isOpen: boolean
@@ -95,10 +69,9 @@ export function BloqueioAgendaModal({
     let cancelled = false
     const load = async () => {
       try {
-        const response = await api.get<ApiListResponse<ConfiguracaoItem>>('/api/configuracoes')
+        const response = await api.get<{ data: string[] }>('/api/agenda/bloqueios/tipos')
         if (cancelled) return
-        const entry = response.data.find((item) => item.chave === TIPOS_BLOQUEIO_KEY)
-        setTiposDisponiveis(parseTipos(entry?.valor))
+        setTiposDisponiveis(response.data)
       } catch {
         if (!cancelled) setTiposDisponiveis(DEFAULT_TIPOS_BLOQUEIO)
       }
@@ -175,15 +148,8 @@ export function BloqueioAgendaModal({
 
     setIsSavingNewTipo(true)
     try {
-      const updated = [...tiposDisponiveis, trimmed]
-      await api.put<ApiListResponse<ConfiguracaoItem>>('/api/configuracoes', [
-        {
-          chave: TIPOS_BLOQUEIO_KEY,
-          categoria: TIPOS_BLOQUEIO_CATEGORIA,
-          valor: JSON.stringify(updated),
-        },
-      ])
-      setTiposDisponiveis(updated)
+      const response = await api.post<{ data: string[] }>('/api/agenda/bloqueios/tipos', { nome: trimmed })
+      setTiposDisponiveis(response.data)
       setFormData((current) => ({ ...current, tipo: trimmed }))
       setIsCreatingNewTipo(false)
       setNewTipoLabel('')

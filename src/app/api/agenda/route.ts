@@ -142,12 +142,61 @@ async function buscarResumoPagamentos(supabase: ReturnType<typeof getAppSupabase
   return { data: resultados.flatMap((r) => r.data ?? []), error: erro }
 }
 
+/**
+ * Opções da agenda (pacientes, especialistas e seus procedimentos). Independem das linhas da agenda,
+ * então rodam em paralelo com a consulta principal em vez de depois dela.
+ */
+async function carregarOpcoesAgenda(
+  supabase: ReturnType<typeof getAppSupabase>,
+  scopedContext: { unidadeId: string | null; especialistasPermitidos: string[] | null },
+) {
+  let patientOptionsQuery = supabase.from('pacientes').select('id,nome,unidade_id').order('nome', { ascending: true })
+  let professionalOptionsQuery = supabase
+    .from('usuarios')
+    .select('id,nome,unidade_id')
+    .eq('perfil', 'especialista')
+    .eq('status', 'Ativo')
+    .order('nome', { ascending: true })
+
+  if (scopedContext.unidadeId) {
+    patientOptionsQuery = patientOptionsQuery.eq('unidade_id', scopedContext.unidadeId)
+    professionalOptionsQuery = professionalOptionsQuery.eq('unidade_id', scopedContext.unidadeId)
+  }
+  if (scopedContext.especialistasPermitidos?.length) {
+    professionalOptionsQuery = professionalOptionsQuery.in('id', scopedContext.especialistasPermitidos)
+  }
+
+  const [patients, professionals] = await Promise.all([patientOptionsQuery, professionalOptionsQuery])
+  if (patients.error) return { error: patients.error }
+  if (professionals.error) return { error: professionals.error }
+
+  const profissionalIds = (professionals.data ?? []).map((row) => String(row.id ?? ''))
+  const { data: vinculosData, error: vinculosError } = profissionalIds.length
+    ? await supabase
+        .from('profissional_procedimentos')
+        .select('profissional_id,procedimento_id')
+        .in('profissional_id', profissionalIds)
+    : { data: [] as Array<{ profissional_id: string; procedimento_id: string }>, error: null }
+  if (vinculosError) return { error: vinculosError }
+  const procedimentosPorProfissional = new Map<string, string[]>()
+  for (const vinculo of vinculosData ?? []) {
+    const key = String(vinculo.profissional_id)
+    procedimentosPorProfissional.set(key, [...(procedimentosPorProfissional.get(key) ?? []), String(vinculo.procedimento_id)])
+  }
+  return {
+    patientOptionsData: patients.data,
+    professionalOptionsData: professionals.data,
+    procedimentosPorProfissional,
+  }
+}
+
 async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
   const scopedContext = await getScopedAgendaContext(session)
   if (scopedContext.error) {
     return supabaseErrorResponse(scopedContext.error, 'Falha ao carregar agenda')
   }
+  const optionsPromise = carregarOpcoesAgenda(supabase, scopedContext)
 
   let query = supabase
     .from('agendamentos')
@@ -202,15 +251,17 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
       row.status = 'Em Atraso'
     }
   }
-  if (overdueIds.length > 0) {
-    const { error: overdueError } = await supabase
-      .from('agendamentos')
-      .update({ status: 'Em Atraso', updated_at: new Date().toISOString() })
-      .in('id', overdueIds)
-    if (overdueError) {
-      console.error('[agenda] falha ao marcar em atraso', overdueError)
-    }
-  }
+  // Persistência do atraso não bloqueia a resposta: o status já foi aplicado nas linhas acima.
+  const overduePromise =
+    overdueIds.length > 0
+      ? supabase
+          .from('agendamentos')
+          .update({ status: 'Em Atraso', updated_at: new Date().toISOString() })
+          .in('id', overdueIds)
+          .then(({ error: overdueError }) => {
+            if (overdueError) console.error('[agenda] falha ao marcar em atraso', overdueError)
+          })
+      : Promise.resolve()
 
   const agendaIds = (data ?? []).map((row) => String(row.id ?? ''))
 
@@ -261,56 +312,9 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
     }
   }
 
-  let patientOptionsQuery = supabase
-    .from('pacientes')
-    .select('id,nome,unidade_id')
-    .order('nome', { ascending: true })
-
-  let professionalOptionsQuery = supabase
-    .from('usuarios')
-    .select('id,nome,unidade_id')
-    .eq('perfil', 'especialista')
-    .eq('status', 'Ativo')
-    .order('nome', { ascending: true })
-
-  if (scopedContext.unidadeId) {
-    patientOptionsQuery = patientOptionsQuery.eq('unidade_id', scopedContext.unidadeId)
-    professionalOptionsQuery = professionalOptionsQuery.eq('unidade_id', scopedContext.unidadeId)
-  }
-
-  if (scopedContext.especialistasPermitidos?.length) {
-    professionalOptionsQuery = professionalOptionsQuery.in(
-      'id',
-      scopedContext.especialistasPermitidos,
-    )
-  }
-
-  const [
-    { data: patientOptionsData, error: patientOptionsError },
-    { data: professionalOptionsData, error: professionalOptionsError },
-  ] = await Promise.all([patientOptionsQuery, professionalOptionsQuery])
-
-  if (patientOptionsError)
-    return supabaseErrorResponse(patientOptionsError, 'Falha ao carregar agenda')
-  if (professionalOptionsError)
-    return supabaseErrorResponse(professionalOptionsError, 'Falha ao carregar agenda')
-
-  const profissionalIds = (professionalOptionsData ?? []).map((row) => String(row.id ?? ''))
-  const { data: vinculosData, error: vinculosError } = profissionalIds.length
-    ? await supabase
-        .from('profissional_procedimentos')
-        .select('profissional_id,procedimento_id')
-        .in('profissional_id', profissionalIds)
-    : { data: [] as Array<{ profissional_id: string; procedimento_id: string }>, error: null }
-  if (vinculosError) return supabaseErrorResponse(vinculosError, 'Falha ao carregar agenda')
-  const procedimentosPorProfissional = new Map<string, string[]>()
-  for (const vinculo of vinculosData ?? []) {
-    const key = String(vinculo.profissional_id)
-    procedimentosPorProfissional.set(key, [
-      ...(procedimentosPorProfissional.get(key) ?? []),
-      String(vinculo.procedimento_id),
-    ])
-  }
+  const [options] = await Promise.all([optionsPromise, overduePromise])
+  if (options.error) return supabaseErrorResponse(options.error, 'Falha ao carregar agenda')
+  const { patientOptionsData, professionalOptionsData, procedimentosPorProfissional } = options
 
   return NextResponse.json({
     data: (data ?? []).map((row) => {
@@ -519,6 +523,11 @@ async function desfazerAgendamentoCriado(
   id: string,
   modo: 'liberar' | 'excluir',
 ) {
+  // Nunca deixa recebimento órfão: o agendamento falhou, então o pagamento/lançamento desta tentativa sai junto.
+  await Promise.all([
+    supabase.from('agendamentos_pagamentos').delete().eq('agendamento_id', id),
+    supabase.from('financeiro_lancamentos').delete().eq('agendamento_id', id),
+  ])
   if (modo === 'excluir') {
     await supabase.from('agendamentos').delete().eq('id', id)
     return

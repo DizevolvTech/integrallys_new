@@ -3,7 +3,7 @@ import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/li
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
-const TIPO_BLOQUEIO_REGEX = /^[\p{L}\p{N}\s\-_+/]{1,80}$/u
+import { TIPO_BLOQUEIO_REGEX } from './tipos/tipos-bloqueio'
 
 interface BloqueioInput {
   profissionalId?: string | null

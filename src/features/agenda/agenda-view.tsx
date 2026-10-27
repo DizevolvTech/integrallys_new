@@ -438,7 +438,8 @@ export function AgendaView() {
       actions.setActiveModal(null)
       if (shouldOpenNewFromQuery) router.replace('/agenda')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível criar o agendamento.')
+      // Repassa o erro ao modal: ele mostra a mensagem e continua aberto com os dados preenchidos.
+      throw err instanceof Error ? err : new Error('Não foi possível criar o agendamento.')
     }
   }
 
