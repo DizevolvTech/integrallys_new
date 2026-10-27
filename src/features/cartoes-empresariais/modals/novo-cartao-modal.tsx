@@ -32,6 +32,7 @@ interface FormState {
   ultimosDigitos: string
   limiteTotal: string
   diaVencimento: string
+  diaFechamento: string
   contaBancariaId: string
 }
 
@@ -41,6 +42,7 @@ const INITIAL: FormState = {
   ultimosDigitos: '',
   limiteTotal: '',
   diaVencimento: '',
+  diaFechamento: '',
   contaBancariaId: '',
 }
 
@@ -57,12 +59,14 @@ export function NovoCartaoModal({ open, onClose, onSubmit, isSubmitting }: Props
     if (!form.nome.trim()) return
     const limiteTotal = Number(form.limiteTotal.replace(/[^\d.,]/g, '').replace(',', '.')) || 0
     const diaVencimento = form.diaVencimento ? Math.max(1, Math.min(31, Number(form.diaVencimento))) : null
+    const diaFechamento = form.diaFechamento ? Math.max(1, Math.min(31, Number(form.diaFechamento))) : null
     await onSubmit({
       nome: form.nome.trim(),
       bandeira: form.bandeira || null,
       ultimosDigitos: form.ultimosDigitos.replace(/\D/g, '').slice(-4) || null,
       limiteTotal,
       diaVencimento,
+      diaFechamento,
       contaBancariaId: form.contaBancariaId || null,
     })
   }
@@ -147,6 +151,22 @@ export function NovoCartaoModal({ open, onClose, onSubmit, isSubmitting }: Props
                     }))
                   }
                   placeholder="Ex.: 10"
+                  inputMode="numeric"
+                  className="h-11 rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label>Dia de fechamento da fatura</Label>
+                <Input
+                  value={form.diaFechamento}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      diaFechamento: event.target.value.replace(/\D/g, '').slice(0, 2),
+                    }))
+                  }
+                  placeholder="Ex.: 3"
                   inputMode="numeric"
                   className="h-11 rounded-xl"
                 />
