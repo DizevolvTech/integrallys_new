@@ -51,7 +51,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { useDashboard, type DashboardEspecialistaCharts } from '@/features/home/hooks/use-dashboard'
+import { AtalhoCard } from '@/features/home/components/atalho-card'
+import { PerformancePanel } from '@/features/home/components/performance-panel'
+import { RetornosCards } from '@/features/home/components/retornos-cards'
+import { useDashboard, type DashboardCardItem, type DashboardEspecialistaCharts, type DashboardPerformance, type TipoFaturamento } from '@/features/home/hooks/use-dashboard'
 
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6']
 
@@ -68,7 +71,6 @@ const iconByCardId = {
   especialistas: Stethoscope,
   pacientes: Users,
   receita: CreditCard,
-  'pacientes-unicos': Users,
   pendentes: Clock,
   concluidas: TrendingUp,
   notas: Receipt,
@@ -95,7 +97,7 @@ function DashboardCardsGrid({
   cards,
   columns = 'lg:grid-cols-4',
 }: {
-  cards: Array<{ id: string; label: string; value: string; description?: string }>
+  cards: DashboardCardItem[]
   columns?: string
 }) {
   return (
@@ -103,13 +105,15 @@ function DashboardCardsGrid({
       {cards.map((card) => {
         const Icon = iconByCardId[card.id as keyof typeof iconByCardId] ?? DollarSign
         return (
-          <StatCard
-            key={card.id}
-            label={card.label}
-            value={card.value}
-            {...(card.description ? { sub: card.description } : {})}
-            icon={Icon}
-          />
+          <AtalhoCard key={card.id} href={card.href}>
+            <StatCard
+              label={card.label}
+              value={card.value}
+              {...(card.description ? { sub: card.description } : {})}
+              icon={Icon}
+              className="h-full"
+            />
+          </AtalhoCard>
         )
       })}
     </div>
@@ -121,7 +125,7 @@ function RecepcaoDashboard({
   appointments,
   retornos,
 }: {
-  cards: Array<{ id: string; label: string; value: string; description?: string }>
+  cards: DashboardCardItem[]
   appointments: Array<{ id: string; patient: string; professional: string; procedure: string; status: string; time: string }>
   retornos: { limitePrazo: number; vencidos: number }
 }) {
@@ -159,40 +163,7 @@ function RecepcaoDashboard({
 
       <DashboardCardsGrid cards={cards} />
 
-      {(retornos.limitePrazo > 0 || retornos.vencidos > 0) && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Link
-            href="/relatorios?aba=retornos&situacao=limite"
-            className="group rounded-[24px] border border-amber-200 bg-amber-50 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/40 dark:bg-amber-950/20"
-          >
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">Retornos em limite de prazo</p>
-                <h3 className="text-3xl font-medium text-amber-700 dark:text-amber-300">{retornos.limitePrazo}</h3>
-                <p className="text-sm text-amber-600/80 dark:text-amber-400/70">Vencem nos próximos 10 dias</p>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30">
-                <Clock size={24} className="text-amber-600 dark:text-amber-400" />
-              </div>
-            </div>
-          </Link>
-          <Link
-            href="/relatorios?aba=retornos&situacao=vencido"
-            className="group rounded-[24px] border border-red-200 bg-red-50 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-red-900/40 dark:bg-red-950/20"
-          >
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-600 dark:text-red-400">Retornos vencidos</p>
-                <h3 className="text-3xl font-medium text-red-700 dark:text-red-300">{retornos.vencidos}</h3>
-                <p className="text-sm text-red-600/80 dark:text-red-400/70">Prazo de retorno expirado</p>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-900/30">
-                <Clock size={24} className="text-red-600 dark:text-red-400" />
-              </div>
-            </div>
-          </Link>
-        </div>
-      )}
+      <RetornosCards retornos={retornos} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         {[
@@ -298,10 +269,12 @@ function EspecialistaDashboard({
   cards,
   recentPatients,
   charts,
+  performance,
 }: {
-  cards: Array<{ id: string; label: string; value: string; description?: string }>
+  cards: DashboardCardItem[]
   recentPatients: Array<{ id: string; initials: string; name: string; type: string; time: string; status: string }>
   charts?: DashboardEspecialistaCharts
+  performance?: DashboardPerformance
 }) {
   const semanaData = charts?.atendimentosPorSemana ?? []
   const tiposData = charts?.tiposConsulta ?? []
@@ -319,16 +292,26 @@ function EspecialistaDashboard({
         {cards.map((card) => {
           const Icon = iconByCardId[card.id as keyof typeof iconByCardId] ?? Calendar
           return (
-            <StatCard
-              key={card.id}
-              label={card.label.charAt(0).toUpperCase() + card.label.slice(1).toLowerCase()}
-              value={card.value}
-              {...(card.description ? { sub: card.description } : {})}
-              icon={Icon}
-            />
+            <AtalhoCard key={card.id} href={card.href}>
+              <StatCard
+                label={card.label.charAt(0).toUpperCase() + card.label.slice(1).toLowerCase()}
+                value={card.value}
+                {...(card.description ? { sub: card.description } : {})}
+                icon={Icon}
+                className="h-full"
+              />
+            </AtalhoCard>
           )
         })}
       </div>
+
+      {performance && (
+        <PerformancePanel
+          performance={performance}
+          titulo="Minha performance no mês"
+          links={{ agenda: '/agenda', prescricoes: '/prescricoes' }}
+        />
+      )}
 
       {hasChartData && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -436,8 +419,10 @@ function GestorDashboard({
   paymentsDue,
   receivables,
   appointments,
+  retornos,
 }: {
-  accounts: Array<{ id: string; type: string; name: string; balance: string; color: string }>
+  retornos: { limitePrazo: number; vencidos: number }
+  accounts: Array<{ id: string; type: string; name: string; balance: string; color: string; href?: string }>
   paymentsDue: Array<{ title: string; cat: string; date: string; value: string }>
   receivables: Array<{ title: string; cat: string; date: string; value: string }>
   appointments: Array<{ id: string; patient: string; professional: string; procedure: string; status: string; time: string }>
@@ -496,7 +481,8 @@ function GestorDashboard({
         ].map((metric) => {
           const Icon = metric.icon
           return (
-            <Card key={metric.id} className="rounded-integrallys-lg border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
+            <AtalhoCard key={metric.id} href="/financeiro">
+            <Card className="h-full rounded-integrallys-lg border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
               <CardContent className="p-8">
                 <div className="flex items-start justify-between">
                   <div className="space-y-4">
@@ -513,9 +499,12 @@ function GestorDashboard({
                 </div>
               </CardContent>
             </Card>
+            </AtalhoCard>
           )
         })}
       </div>
+
+      <RetornosCards retornos={retornos} />
 
       <div className="space-y-4">
         <h3 className="flex items-center gap-2 text-xl font-normal text-app-text-primary dark:text-white">
@@ -524,16 +513,18 @@ function GestorDashboard({
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((account) => (
-            <div key={account.id} className="rounded-integrallys-lg border border-app-border bg-app-card p-6 shadow-sm transition-all hover:border-app-primary/20 dark:border-app-border-dark dark:bg-app-card-dark">
-              <div className="mb-4 flex items-center gap-3">
-                <div className={`rounded-lg p-2 text-white ${account.color}`}>
-                  <Wallet size={18} />
+            <AtalhoCard key={account.id} href={account.href}>
+              <div className="h-full rounded-integrallys-lg border border-app-border bg-app-card p-6 shadow-sm transition-all hover:border-app-primary/20 dark:border-app-border-dark dark:bg-app-card-dark">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className={`rounded-lg p-2 text-white ${account.color}`}>
+                    <Wallet size={18} />
+                  </div>
+                  <span className="text-xs font-normal uppercase tracking-wider text-app-text-muted">{account.type}</span>
                 </div>
-                <span className="text-xs font-normal uppercase tracking-wider text-app-text-muted">{account.type}</span>
+                <h4 className="mb-1 text-sm font-normal text-app-text-muted">{account.name}</h4>
+                <p className="text-xl font-normal text-app-text-primary dark:text-white">{account.balance}</p>
               </div>
-              <h4 className="mb-1 text-sm font-normal text-app-text-muted">{account.name}</h4>
-              <p className="text-xl font-normal text-app-text-primary dark:text-white">{account.balance}</p>
-            </div>
+            </AtalhoCard>
           ))}
         </div>
       </div>
@@ -617,9 +608,11 @@ type AdminAdmin = {
   activities: Array<{ label: string; time: string; color: string }>
   unitStatus: { ativas: number; manutencao: number; agendamentosHoje: number }
   birthdays: Array<{ id: string; name: string; date: string }>
-  saldoCaixas: Array<{ id: string; unidade: string; status: string; saldo: number }>
+  saldoCaixas: Array<{ id: string; unidadeId: string; unidade: string; status: string; saldo: number; troco: number; cofre: number }>
   saldoBancos: Array<{ id: string; unidade: string; nome: string; banco: string; tipo: string; saldo: number }>
-  financeiroPorUnidade: Array<{ unidadeId: string | null; unidade: string; entradas: number; saidas: number; saldo: number }>
+  financeiroPorUnidade: Array<{ unidadeId: string | null; unidade: string; entradas: number; saidas: number; saldo: number; faturamento: Record<TipoFaturamento, number> }>
+  faturamentoTotal: Record<TipoFaturamento, number>
+  notasEmitidas: { registrado: boolean; aviso: string }
   unidadesComparativo: Array<{ unidadeId: string | null; unidadeNome: string; agendamentos: number; receita: number }>
   prescricoesPendentes: { limitePrazo: number; vencidos: number }
   retornosPendentes: { limitePrazo: number; vencidos: number }
@@ -664,11 +657,13 @@ function AdminDashboard({
   cards,
   admin,
   charts,
+  performance,
   filters,
 }: {
-  cards: Array<{ id: string; label: string; value: string; description?: string }>
+  cards: DashboardCardItem[]
   admin: AdminAdmin
   charts?: DashboardEspecialistaCharts
+  performance?: DashboardPerformance
   filters: AdminFiltersControls
 }) {
   const {
@@ -678,6 +673,8 @@ function AdminDashboard({
     saldoCaixas,
     saldoBancos,
     financeiroPorUnidade,
+    faturamentoTotal,
+    notasEmitidas,
     unidadesComparativo,
     prescricoesPendentes,
     retornosPendentes,
@@ -759,60 +756,45 @@ function AdminDashboard({
         {cards.map((card) => {
           const Icon = iconByCardId[card.id as keyof typeof iconByCardId] ?? Wallet
           return (
-            <StatCard
-              key={card.id}
-              label={card.label}
-              value={card.value}
-              sub={card.description ?? 'Dados reais'}
-              icon={Icon}
-            />
+            <AtalhoCard key={card.id} href={card.href}>
+              <StatCard
+                label={card.label}
+                value={card.value}
+                sub={card.description ?? 'Dados reais'}
+                icon={Icon}
+                className="h-full"
+              />
+            </AtalhoCard>
           )
         })}
       </div>
 
-      {/* Bloco crítico de atenção: cards visuais para retornos, prescrições e lista de espera */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Link
-          href="/relatorios?aba=retornos&situacao=vencido"
-          className="rounded-integrallys-lg border border-red-200 bg-red-50/60 p-4 transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-red-900/40 dark:bg-red-950/20"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-600 dark:text-red-400">Atenção crítica</p>
-              <h3 className="text-2xl font-medium text-red-700 dark:text-red-300">
-                {retornosPendentes.vencidos + prescricoesPendentes.vencidos}
-              </h3>
-              <p className="text-sm text-red-600/80 dark:text-red-400/70">
-                Retornos e prescrições vencidos
-              </p>
-              <p className="text-xs text-red-500/70 dark:text-red-400/60">
-                {retornosPendentes.vencidos} retornos · {prescricoesPendentes.vencidos} prescrições
-              </p>
-            </div>
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-          </div>
-        </Link>
-
-        <Link
-          href="/relatorios?aba=retornos&situacao=limite"
-          className="rounded-integrallys-lg border border-amber-200 bg-amber-50/60 p-4 transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/40 dark:bg-amber-950/20"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">No limite do prazo</p>
-              <h3 className="text-2xl font-medium text-amber-700 dark:text-amber-300">
-                {retornosPendentes.limitePrazo + prescricoesPendentes.limitePrazo}
-              </h3>
-              <p className="text-sm text-amber-600/80 dark:text-amber-400/70">
-                Retornos e prescrições a expirar
-              </p>
-              <p className="text-xs text-amber-500/70 dark:text-amber-400/60">
-                {retornosPendentes.limitePrazo} retornos · {prescricoesPendentes.limitePrazo} prescrições
-              </p>
-            </div>
-            <Clock className="h-5 w-5 text-amber-500" />
-          </div>
-        </Link>
+      {/* Atenção: retornos e prescrições no limite do prazo ou vencidos + lista de espera (cada card é atalho) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          { href: '/retornos?situacao=vencido', titulo: 'Retornos vencidos', valor: retornosPendentes.vencidos, sub: 'Prazo expirado, sem agendamento', tom: 'red', icon: AlertTriangle },
+          { href: '/retornos?situacao=limite', titulo: 'Retornos no limite', valor: retornosPendentes.limitePrazo, sub: 'Vencem nos próximos 10 dias', tom: 'amber', icon: Clock },
+          { href: '/relatorios?aba=prescricoes&situacao=vencido', titulo: 'Prescrições vencidas', valor: prescricoesPendentes.vencidos, sub: 'Validade expirada', tom: 'red', icon: FileText },
+          { href: '/relatorios?aba=prescricoes&situacao=limite', titulo: 'Prescrições no limite', valor: prescricoesPendentes.limitePrazo, sub: 'Vencem nos próximos 10 dias', tom: 'amber', icon: FileText },
+        ].map((item) => {
+          const Icon = item.icon
+          const cor = item.tom === 'red'
+            ? 'border-red-200 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20'
+            : 'border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
+          const texto = item.tom === 'red' ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'
+          return (
+            <Link key={item.titulo} href={item.href} className={`rounded-integrallys-lg border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md ${cor}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${texto}`}>{item.titulo}</p>
+                  <h3 className={`text-2xl font-medium ${texto}`}>{item.valor}</h3>
+                  <p className="text-sm text-app-text-muted">{item.sub}</p>
+                </div>
+                <Icon className={`h-5 w-5 ${texto}`} />
+              </div>
+            </Link>
+          )
+        })}
 
         <Link
           href="/lista-espera"
@@ -820,7 +802,7 @@ function AdminDashboard({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-text-muted">Lista de espera</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-app-text-muted">Lista de espera</p>
               <h3 className="text-2xl font-medium text-app-text-primary dark:text-white">{listaEsperaCount}</h3>
               <p className="text-sm text-app-text-muted">Pacientes aguardando agendamento</p>
             </div>
@@ -828,6 +810,14 @@ function AdminDashboard({
           </div>
         </Link>
       </div>
+
+      {performance && (
+        <PerformancePanel
+          performance={performance}
+          titulo="Performance de atendimentos"
+          links={{ agenda: '/agenda', retornos: '/retornos?situacao=vencido', receita: '/financeiro', prescricoes: '/prescricoes' }}
+        />
+      )}
 
       {/* Inadimplência / no-show / aniversariantes da semana */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -892,23 +882,25 @@ function AdminDashboard({
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Saldo de caixas</CardTitle>
-              <p className="mt-1 text-xs text-app-text-muted">Caixas atualmente abertos por unidade</p>
+              <p className="mt-1 text-xs text-app-text-muted">Último caixa de cada unidade, caixinha de troco e cofre</p>
             </div>
             <Badge variant="outline" className="text-[var(--app-info-text)]">{formatCurrency(totalCaixas)}</Badge>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {saldoCaixas.length === 0 && (
-                <p className="text-sm text-app-text-muted">Nenhum caixa aberto no momento.</p>
+                <p className="text-sm text-app-text-muted">Nenhum caixa foi aberto ainda.</p>
               )}
               {saldoCaixas.map((caixa) => (
-                <div key={caixa.id} className="flex items-center justify-between rounded-sm p-1 transition-colors hover:bg-app-bg-secondary dark:hover:bg-app-hover">
+                <Link key={caixa.id} href="/caixa" className="flex items-center justify-between rounded-sm p-1 transition-colors hover:bg-app-bg-secondary dark:hover:bg-app-hover">
                   <div className="space-y-0.5">
                     <span className="text-sm text-app-text-primary dark:text-white/90">{caixa.unidade}</span>
-                    <p className="text-xs text-app-text-muted">{caixa.status}</p>
+                    <p className="text-xs text-app-text-muted">
+                      Caixa {caixa.status} · troco {formatCurrency(caixa.troco)} · cofre {formatCurrency(caixa.cofre)}
+                    </p>
                   </div>
                   <span className="text-sm font-medium tabular-nums">{formatCurrency(caixa.saldo)}</span>
-                </div>
+                </Link>
               ))}
             </div>
           </CardContent>
@@ -928,13 +920,13 @@ function AdminDashboard({
                 <p className="text-sm text-app-text-muted">Nenhuma conta bancária ativa.</p>
               )}
               {saldoBancos.map((conta) => (
-                <div key={conta.id} className="flex items-center justify-between rounded-sm p-1 transition-colors hover:bg-app-bg-secondary dark:hover:bg-app-hover">
+                <Link key={conta.id} href="/gestao-bancaria" className="flex items-center justify-between rounded-sm p-1 transition-colors hover:bg-app-bg-secondary dark:hover:bg-app-hover">
                   <div className="space-y-0.5">
                     <span className="text-sm text-app-text-primary dark:text-white/90">{conta.nome}</span>
                     <p className="text-xs text-app-text-muted">{conta.banco || '—'} · {conta.tipo} · {conta.unidade}</p>
                   </div>
                   <span className="text-sm font-medium tabular-nums">{formatCurrency(conta.saldo)}</span>
-                </div>
+                </Link>
               ))}
               {saldoBancos.length > 0 && (
                 <p className="pt-2 text-xs text-app-text-muted">
@@ -949,8 +941,8 @@ function AdminDashboard({
       {/* Faturamento e saídas por unidade */}
       <Card>
         <CardHeader>
-          <CardTitle>Resultado por unidade (mês corrente)</CardTitle>
-          <p className="mt-1 text-xs text-app-text-muted">Faturamento (receitas) e saídas (despesas) por unidade</p>
+          <CardTitle>Faturamento e saídas por unidade</CardTitle>
+          <p className="mt-1 text-xs text-app-text-muted">Faturamento separado em procedimentos, consultas e vendas de produtos, e total de saídas (período selecionado)</p>
         </CardHeader>
         <CardContent>
           {financeiroPorUnidade.length === 0 ? (
@@ -961,6 +953,10 @@ function AdminDashboard({
                 <thead>
                   <tr className="border-b border-app-border text-left text-xs uppercase tracking-wide text-app-text-muted dark:border-app-border-dark">
                     <th className="px-2 py-2 font-medium">Unidade</th>
+                    <th className="px-2 py-2 text-right font-medium">Procedimentos</th>
+                    <th className="px-2 py-2 text-right font-medium">Consultas</th>
+                    <th className="px-2 py-2 text-right font-medium">Produtos</th>
+                    <th className="px-2 py-2 text-right font-medium">Outros</th>
                     <th className="px-2 py-2 text-right font-medium">Faturamento</th>
                     <th className="px-2 py-2 text-right font-medium">Saídas</th>
                     <th className="px-2 py-2 text-right font-medium">Saldo</th>
@@ -970,6 +966,10 @@ function AdminDashboard({
                   {financeiroPorUnidade.map((row) => (
                     <tr key={row.unidadeId ?? 'sem-unidade'} className="border-b border-app-border/40 last:border-b-0 dark:border-app-border-dark/40">
                       <td className="px-2 py-2 text-app-text-primary dark:text-white/90">{row.unidade}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(row.faturamento.procedimentos)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(row.faturamento.consultas)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(row.faturamento.produtos)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(row.faturamento.outros)}</td>
                       <td className="px-2 py-2 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(row.entradas)}</td>
                       <td className="px-2 py-2 text-right tabular-nums text-rose-600 dark:text-rose-400">{formatCurrency(row.saidas)}</td>
                       <td className={`px-2 py-2 text-right font-medium tabular-nums ${row.saldo < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-app-text-primary dark:text-white'}`}>
@@ -978,8 +978,23 @@ function AdminDashboard({
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t border-app-border text-xs text-app-text-muted dark:border-app-border-dark">
+                    <td className="px-2 py-2 font-medium">Total</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(faturamentoTotal.procedimentos)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(faturamentoTotal.consultas)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(faturamentoTotal.produtos)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(faturamentoTotal.outros)}</td>
+                    <td colSpan={3} />
+                  </tr>
+                </tfoot>
               </table>
             </div>
+          )}
+          {!notasEmitidas.registrado && (
+            <p className="mt-3 rounded-lg bg-app-bg-secondary px-3 py-2 text-xs text-app-text-muted dark:bg-app-hover/40">
+              <Receipt className="mr-1 inline h-3.5 w-3.5" aria-hidden /> {notasEmitidas.aviso}
+            </p>
           )}
         </CardContent>
       </Card>
@@ -1461,7 +1476,7 @@ export function AppHomeView() {
           }))}
         />
       ) : data.variant === 'admin' ? (
-        <AdminDashboard cards={data.cards} admin={data.admin} charts={data.adminCharts} filters={adminFiltersControls} />
+        <AdminDashboard cards={data.cards} admin={data.admin} charts={data.adminCharts} performance={data.performance} filters={adminFiltersControls} />
       ) : data.variant === 'master' ? (
         <MasterDashboard
           cards={data.cards}
@@ -1474,9 +1489,10 @@ export function AppHomeView() {
           paymentsDue={data.gestor.paymentsDue}
           receivables={data.gestor.receivables}
           appointments={data.appointments}
+          retornos={data.retornos}
         />
       ) : data.variant === 'especialista' ? (
-        <EspecialistaDashboard cards={data.cards} recentPatients={data.recentPatients} charts={data.especialistaCharts} />
+        <EspecialistaDashboard cards={data.cards} recentPatients={data.recentPatients} charts={data.especialistaCharts} performance={data.performance} />
       ) : (
         <RecepcaoDashboard cards={data.cards} appointments={data.appointments} retornos={data.retornos} />
       )}

@@ -8,6 +8,8 @@ export interface DashboardCardItem {
   label: string
   value: string
   description?: string
+  /** Atalho: o card abre esta tela ao clicar (definido no servidor). */
+  href?: string
 }
 
 export interface DashboardAppointment {
@@ -31,6 +33,21 @@ export interface DashboardRecentPatient {
 export interface DashboardEspecialistaCharts {
   atendimentosPorSemana: Array<{ semana: string; total: number }>
   tiposConsulta: Array<{ tipo: string; total: number }>
+}
+
+export type TipoFaturamento = 'procedimentos' | 'consultas' | 'produtos' | 'outros'
+
+export interface DashboardPerformance {
+  periodo: { de: string; ate: string }
+  realizados: number
+  faltas: number
+  cancelamentos: number
+  retornosAgendados: number
+  ocupacao: { ocupados: number; disponiveis: number; percentual: number }
+  receita: { atendimentos: number; prescricoes: number; total: number }
+  prescricoes: { total: number; convertidas: number; taxaConversao: number }
+  porStatus: Array<{ chave: 'realizados' | 'faltas' | 'cancelamentos'; nome: string; total: number }>
+  retornos: { limitePrazo: number; vencidos: number }
 }
 
 export interface DashboardInadimplencia {
@@ -66,9 +83,11 @@ export interface DashboardData {
   appointments: DashboardAppointment[]
   recentPatients: DashboardRecentPatient[]
   retornos: {
+    noPrazo: number
     limitePrazo: number
     vencidos: number
   }
+  performance?: DashboardPerformance
   finance: {
     recebimentosPendentes: string
     pagamentosPendentes: string
@@ -82,9 +101,11 @@ export interface DashboardData {
       agendamentosHoje: number
     }
     birthdays: Array<{ id: string; name: string; date: string }>
-    saldoCaixas: Array<{ id: string; unidade: string; status: string; saldo: number }>
+    saldoCaixas: Array<{ id: string; unidadeId: string; unidade: string; status: string; saldo: number; troco: number; cofre: number }>
     saldoBancos: Array<{ id: string; unidade: string; nome: string; banco: string; tipo: string; saldo: number }>
-    financeiroPorUnidade: Array<{ unidadeId: string | null; unidade: string; entradas: number; saidas: number; saldo: number }>
+    financeiroPorUnidade: Array<{ unidadeId: string | null; unidade: string; entradas: number; saidas: number; saldo: number; faturamento: Record<TipoFaturamento, number> }>
+    faturamentoTotal: Record<TipoFaturamento, number>
+    notasEmitidas: { registrado: boolean; aviso: string }
     unidadesComparativo: Array<{ unidadeId: string | null; unidadeNome: string; agendamentos: number; receita: number }>
     prescricoesPendentes: { limitePrazo: number; vencidos: number }
     retornosPendentes: { limitePrazo: number; vencidos: number }
@@ -96,7 +117,7 @@ export interface DashboardData {
     aniversariantesSemana: DashboardAniversarianteSemana[]
   }
   gestor: {
-    accounts: Array<{ id: string; type: string; name: string; balance: string; color: string }>
+    accounts: Array<{ id: string; type: string; name: string; balance: string; color: string; href?: string }>
     paymentsDue: Array<{ title: string; cat: string; date: string; value: string }>
     receivables: Array<{ title: string; cat: string; date: string; value: string }>
   }
@@ -111,6 +132,7 @@ const initialData: DashboardData = {
   appointments: [],
   recentPatients: [],
   retornos: {
+    noPrazo: 0,
     limitePrazo: 0,
     vencidos: 0,
   },
@@ -130,6 +152,8 @@ const initialData: DashboardData = {
     saldoCaixas: [],
     saldoBancos: [],
     financeiroPorUnidade: [],
+    faturamentoTotal: { procedimentos: 0, consultas: 0, produtos: 0, outros: 0 },
+    notasEmitidas: { registrado: false, aviso: '' },
     unidadesComparativo: [],
     prescricoesPendentes: { limitePrazo: 0, vencidos: 0 },
     retornosPendentes: { limitePrazo: 0, vencidos: 0 },
