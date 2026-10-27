@@ -10,25 +10,13 @@ import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 interface EstornarMovimentacaoModalProps {
   isOpen: boolean
   onClose: (open: boolean) => void
   movimentacao: MovimentacaoItem | null
   onConfirm: (movimentacaoId: string, motivo: string) => Promise<void>
-}
-
-function formatDateTime(value: string): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 export function EstornarMovimentacaoModal({
@@ -105,7 +93,7 @@ export function EstornarMovimentacaoModal({
                   <div>
                     <p className="uppercase tracking-wider text-app-text-muted">Data</p>
                     <p className="mt-0.5 text-app-text-primary dark:text-white">
-                      {formatDateTime(movimentacao.criadoEm)}
+                      {formatarDataHoraClinica(movimentacao.criadoEm)}
                     </p>
                   </div>
                 </div>

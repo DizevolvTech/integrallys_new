@@ -39,7 +39,18 @@ const itens: ItemResumivel[] = [
 describe('resumirPeriodo', () => {
   it('sem filtro mostra o dia de hoje e todo o atrasado', () => {
     const resumo = resumirPeriodo(itens, periodoEfetivo(null, null, hoje), hoje, false)
-    expect(resumo).toEqual({ liquidado: 100, aVencer: 70, atrasado: 40 })
+    expect(resumo.liquidado).toBe(100)
+    expect(resumo.atrasado).toBe(40)
+  })
+  it('sem filtro o a receber inclui tudo o que vence de hoje em diante (saldo de atendimento futuro)', () => {
+    const futuros: ItemResumivel[] = [
+      { valor: 70, situacao: 'a_vencer', forma: 'x', dataReferencia: hoje },
+      { valor: 100, situacao: 'a_vencer', forma: 'x', dataReferencia: '2026-11-05' },
+      { valor: 25, situacao: 'a_vencer', forma: 'x', dataReferencia: '2027-01-10' },
+    ]
+    expect(resumirPeriodo(futuros, periodoEfetivo(null, null, hoje), hoje, false).aVencer).toBe(195)
+    // com período informado, só o que cai nele
+    expect(resumirPeriodo(futuros, { de: '2026-10-01', ate: '2026-11-30' }, hoje, true).aVencer).toBe(170)
   })
   it('com período segue o filtro', () => {
     const resumo = resumirPeriodo(itens, { de: '2026-10-01', ate: '2026-11-30' }, hoje, true)

@@ -1,6 +1,7 @@
 'use client'
 
 import { Download } from 'lucide-react'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { useComparativoUnidades } from '@/features/relatorios/hooks/use-ranking-comparativo'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,29 @@ export function ComparativoTab() {
         {comparativo.isLoading ? (
           <p className="text-sm text-app-text-muted">Carregando comparativo…</p>
         ) : (
+          <>
+          <ListaCartoesMobile className="p-0">
+            {comparativo.data.length === 0 && <p className="py-6 text-center text-sm text-app-text-muted">Nenhuma unidade com dados no período.</p>}
+            {comparativo.data.map((row) => (
+              <CartaoMobile
+                key={row.unidadeId}
+                titulo={row.unidadeNome}
+                valor={comparativo.valoresVisiveis ? formatMoney(row.receita) : undefined}
+                campos={[
+                  { rotulo: 'Agendamentos', valor: row.agendamentos },
+                  ...(comparativo.valoresVisiveis
+                    ? [
+                        { rotulo: 'Despesa', valor: formatMoney(row.despesa) },
+                        { rotulo: 'Ticket médio', valor: formatMoney(row.ticketMedio) },
+                        { rotulo: 'Margem R$', valor: formatMoney(row.margem) },
+                        { rotulo: 'Margem %', valor: formatarMargemPct(row.margemPct) },
+                      ]
+                    : []),
+                ]}
+              />
+            ))}
+          </ListaCartoesMobile>
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -84,6 +108,8 @@ export function ComparativoTab() {
               )}
             </TableBody>
           </Table>
+          </div>
+          </>
         )}
       </div>
     </>

@@ -1,11 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  filtrarRecebimentosCaixa,
   filtrarSaldos,
   mapLancamentoConta,
+  recebimentoCaixaConta,
   saldoAgendamentoConta,
   type ContaItem,
   type FiltrosContas,
 } from '@/lib/financeiro-contas'
+import { hojeClinica } from '@/lib/recebimento-agendamento'
 
 const LIMITE = 1000
 const LOTE = 150
@@ -133,14 +136,50 @@ async function saldosAgendamentos(ctx: Contexto) {
   return { error: null, itens }
 }
 
+/** Recebimentos lançados direto no Caixa (manual / online). Os da agenda e das vendas já entram por lançamento. */
+async function recebimentosCaixa(ctx: Contexto, recorte: Recorte) {
+  let query = ctx.supabase
+    .from('caixa_movimentos')
+    .select('id,descricao,valor,forma,bandeira,parcelas,data_movimento')
+    .eq('tipo', 'entrada')
+    .in('origem', ['manual', 'pagamento_online'])
+    .not('descricao', 'ilike', 'suprimento%')
+    .order('data_movimento', { ascending: false })
+    .limit(LIMITE)
+  if (ctx.unidadeId) query = query.eq('unidade_id', ctx.unidadeId)
+  // Recorte em dias de Brasília (UTC-3), não em dias UTC.
+  if (recorte.de) query = query.gte('data_movimento', `${recorte.de}T00:00:00-03:00`)
+  if (recorte.ate) query = query.lte('data_movimento', `${recorte.ate}T23:59:59.999-03:00`)
+  const { data, error } = await query
+  if (error) return { error, itens: [] as ContaItem[] }
+  const itens = (data ?? []).map((row) =>
+    recebimentoCaixaConta({
+      id: String(row.id),
+      descricao: String(row.descricao ?? 'Recebimento no caixa'),
+      valor: Number(row.valor ?? 0),
+      forma: row.forma ? String(row.forma) : null,
+      bandeira: row.bandeira ? String(row.bandeira) : null,
+      parcelas: row.parcelas == null ? null : Number(row.parcelas),
+      dia: hojeClinica(new Date(String(row.data_movimento))),
+    }),
+  )
+  return { error: null, itens }
+}
+
 /** Contas do tipo pedido dentro do recorte: lançamentos + (recebimentos) saldo de agendamentos. */
 export async function buscarContas(ctx: Contexto, filtros: FiltrosContas, recorte: Recorte) {
   const formas = await catalogoFormas(ctx.supabase)
-  const [lanc, saldos] = await Promise.all([
+  const receita = filtros.tipo === 'receita'
+  const vazio = Promise.resolve({ error: null, itens: [] as ContaItem[] })
+  const [lanc, saldos, caixa] = await Promise.all([
     lancamentos(ctx, filtros, recorte, formas),
-    filtros.tipo === 'receita' ? saldosAgendamentos(ctx) : Promise.resolve({ error: null, itens: [] as ContaItem[] }),
+    receita ? saldosAgendamentos(ctx) : vazio,
+    // Recebimento do caixa só é "liquidado": fora de a vencer/atrasado e das contas só de atraso.
+    receita && !recorte.soAtrasadas && filtros.situacao !== 'a_vencer' && filtros.situacao !== 'atrasado'
+      ? recebimentosCaixa(ctx, recorte)
+      : vazio,
   ])
-  const error = lanc.error ?? saldos.error
+  const error = lanc.error ?? saldos.error ?? caixa.error
   if (error) return { error, itens: [] as ContaItem[], formas }
 
   const saldosFiltrados = filtrarSaldos(saldos.itens, {
@@ -148,6 +187,7 @@ export async function buscarContas(ctx: Contexto, filtros: FiltrosContas, recort
     de: recorte.de,
     ate: recorte.ate,
   }).filter((item) => !recorte.soAtrasadas || item.situacao === 'atrasado')
-  const itens = [...lanc.itens, ...saldosFiltrados].sort((a, b) => b.dataReferencia.localeCompare(a.dataReferencia))
+  const caixaFiltrado = filtrarRecebimentosCaixa(caixa.itens, filtros)
+  const itens = [...lanc.itens, ...saldosFiltrados, ...caixaFiltrado].sort((a, b) => b.dataReferencia.localeCompare(a.dataReferencia))
   return { error: null, itens, formas }
 }

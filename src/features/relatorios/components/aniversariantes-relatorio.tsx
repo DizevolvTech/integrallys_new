@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { CheckSquare, Square } from 'lucide-react'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { DateInput } from '@/components/shared/date-input'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -47,7 +48,33 @@ export function AniversariantesRelatorio() {
         </Select>
       </div>
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
-      <div className="overflow-x-auto rounded-xl border border-app-border dark:border-app-border-dark">
+      <div className="md:hidden">
+        {isLoading && linhas.length === 0 && <p className="py-6 text-center text-sm text-app-text-secondary">Carregando...</p>}
+        {!isLoading && linhas.length === 0 && (
+          <p className="py-6 text-center text-sm text-app-text-secondary">Nenhum aniversariante para o filtro selecionado.</p>
+        )}
+        <ListaCartoesMobile className="p-0">
+          {linhas.map((l) => (
+            <CartaoMobile
+              key={l.id}
+              titulo={l.nome}
+              subtitulo={`${formatData(l.nascimento)} · ${l.idade} anos`}
+              acoes={
+                <button
+                  type="button"
+                  onClick={() => void marcar(l.id, !l.enviado)}
+                  className="inline-flex items-center gap-2 rounded-lg px-2 py-1 text-xs hover:bg-app-bg-secondary dark:hover:bg-app-hover"
+                >
+                  {l.enviado ? <CheckSquare className="h-5 w-5 text-[var(--app-primary)]" /> : <Square className="h-5 w-5 text-app-text-muted" />}
+                  {l.enviado ? 'Mensagem enviada' : 'Marcar como enviada'}
+                </button>
+              }
+              campos={[{ rotulo: 'Telefone', valor: l.telefone || '—' }]}
+            />
+          ))}
+        </ListaCartoesMobile>
+      </div>
+      <div className="hidden overflow-x-auto rounded-xl border border-app-border md:block dark:border-app-border-dark">
         <Table className="min-w-[620px]">
           <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
             <TableRow>

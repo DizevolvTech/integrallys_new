@@ -10,12 +10,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useConversa } from '@/features/comunicacao/hooks/use-conversa'
+import { formatarHoraClinica } from '@/lib/fuso-clinica'
 
 const formatTime = (iso: string) => {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return formatarHoraClinica(iso)
 }
 const formatDay = (iso: string) => {
   const d = new Date(iso)

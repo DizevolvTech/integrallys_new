@@ -1,10 +1,10 @@
 import { SITUACAO_LABEL, situacaoLancamento, type SituacaoFinanceira } from './financeiro-situacao'
 import { isIsoDate } from './financeiro-parcelas'
 
-/** Uma linha de contas a receber ou a pagar (lançamento ou saldo de agendamento). */
+/** Uma linha de contas a receber ou a pagar (lançamento, saldo de agendamento ou recebimento lançado no caixa). */
 export type ContaItem = {
   id: string
-  origem: 'lancamento' | 'agendamento'
+  origem: 'lancamento' | 'agendamento' | 'caixa'
   descricao: string
   pessoa: string | null
   numeroDocumento: string | null
@@ -163,5 +163,61 @@ export function filtrarSaldos(itens: ContaItem[], filtros: FiltrosContas): Conta
     if (filtros.profissionalId && item.profissionalId !== filtros.profissionalId) return false
     if (filtros.procedimentoId && item.procedimentoId !== filtros.procedimentoId) return false
     return true
+  })
+}
+
+const ROTULO_FORMA_CAIXA: Record<string, string> = {
+  dinheiro: 'Dinheiro',
+  pix: 'Pix',
+  transferencia: 'Transferência',
+  cartao_credito: 'Cartão de crédito',
+  cartao_debito: 'Cartão de débito',
+}
+
+/** Recebimento lançado direto no Caixa (já entrou): aparece em Recebimentos como liquidado, só leitura. */
+export function recebimentoCaixaConta(params: {
+  id: string
+  descricao: string
+  valor: number
+  forma: string | null
+  bandeira: string | null
+  parcelas: number | null
+  dia: string
+}): ContaItem {
+  const base = ROTULO_FORMA_CAIXA[params.forma ?? ''] ?? 'Não informada'
+  const detalhes = [params.bandeira, params.parcelas && params.parcelas > 1 ? `${params.parcelas}x` : null].filter(Boolean)
+  return {
+    id: `cx:${params.id}`,
+    origem: 'caixa',
+    descricao: params.descricao,
+    pessoa: null,
+    numeroDocumento: null,
+    parcela: null,
+    forma: detalhes.length > 0 ? `${base} · ${detalhes.join(' ')}` : base,
+    emissao: params.dia,
+    vencimento: params.dia,
+    dataReferencia: params.dia,
+    valor: params.valor,
+    situacao: 'liquidado',
+    situacaoLabel: SITUACAO_LABEL.liquidado,
+    categoria: 'Caixa',
+    dreCategoriaId: null,
+    formaPagamentoId: null,
+    profissionalId: null,
+    procedimentoId: null,
+    anexos: 0,
+    somenteLeitura: true,
+  }
+}
+
+/** Filtros das linhas do caixa: só valem os que o caixa sabe responder (período, texto e situação). */
+export function filtrarRecebimentosCaixa(itens: ContaItem[], filtros: FiltrosContas): ContaItem[] {
+  if (filtros.formaId || filtros.categoriaId || filtros.profissionalId || filtros.procedimentoId) return []
+  const busca = (filtros.pessoa || filtros.produto).toLowerCase()
+  return itens.filter((item) => {
+    if (filtros.de && item.dataReferencia < filtros.de) return false
+    if (filtros.ate && item.dataReferencia > filtros.ate) return false
+    if (filtros.situacao && item.situacao !== filtros.situacao) return false
+    return !busca || item.descricao.toLowerCase().includes(busca)
   })
 }

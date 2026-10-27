@@ -52,6 +52,7 @@ import { useEstoqueCategorias } from './hooks/use-estoque-categorias'
 import { EstoqueIndicadores } from './components/estoque-indicadores'
 import { getValidadeStatus } from './estoque-validade'
 import { formatarMargem, totalizarMargem } from '@/lib/margem'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 type EstoqueModal =
   | 'entrada'
@@ -777,12 +778,6 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
   )
 }
 
-function formatDateTime(value: string): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
 
 function MovimentacaoRow({ mov, onEstornar }: { mov: MovimentacaoItem; onEstornar: () => void }) {
   const isEntrada = mov.tipo === 'entrada'
@@ -802,7 +797,7 @@ function MovimentacaoRow({ mov, onEstornar }: { mov: MovimentacaoItem; onEstorna
   return (
     <TableRow className={rowClass}>
       <TableCell className="text-app-text-secondary dark:text-white/70 text-sm whitespace-nowrap">
-        {formatDateTime(mov.criadoEm)}
+        {formatarDataHoraClinica(mov.criadoEm)}
       </TableCell>
       <TableCell className="font-normal text-app-text-primary dark:text-white">
         {mov.produtoNome || '—'}

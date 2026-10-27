@@ -105,7 +105,7 @@ export interface DashboardData {
     saldoBancos: Array<{ id: string; unidade: string; nome: string; banco: string; tipo: string; saldo: number }>
     financeiroPorUnidade: Array<{ unidadeId: string | null; unidade: string; entradas: number; saidas: number; saldo: number; faturamento: Record<TipoFaturamento, number> }>
     faturamentoTotal: Record<TipoFaturamento, number>
-    notasEmitidas: { registrado: boolean; aviso: string }
+    notasEmitidas: { registrado: boolean; aviso: string; pendentes?: number; emitidas?: number; valorPendente?: number; valorEmitido?: number }
     unidadesComparativo: Array<{ unidadeId: string | null; unidadeNome: string; agendamentos: number; receita: number }>
     prescricoesPendentes: { limitePrazo: number; vencidos: number }
     retornosPendentes: { limitePrazo: number; vencidos: number }

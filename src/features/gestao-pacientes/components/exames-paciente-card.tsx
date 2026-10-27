@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ExternalLink, FileText, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 export interface PacienteExame {
   id: string
@@ -171,7 +172,7 @@ export function ExamesPacienteCard({ pacienteId, readOnly = false }: Props) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-app-text-primary dark:text-white truncate">{exame.nome}</p>
                 <p className="text-xs text-app-text-muted">
-                  {new Date(exame.createdAt).toLocaleString('pt-BR')}
+                  {formatarDataHoraClinica(exame.createdAt)}
                   {exame.uploadedPeloPaciente && ' · enviado pelo paciente'}
                 </p>
               </div>

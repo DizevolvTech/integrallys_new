@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { useApi } from '@/hooks/use-api'
 import type { EstoqueItem, MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 interface HistoricoProdutoModalProps {
   isOpen: boolean
@@ -19,19 +20,6 @@ interface HistoricoProdutoModalProps {
 interface MovimentacoesResponse {
   data: MovimentacaoItem[]
   meta: { total: number; limit: number; offset: number }
-}
-
-function formatDateTime(value: string): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 export function HistoricoProdutoModal({ isOpen, onClose, produto }: HistoricoProdutoModalProps) {
@@ -149,7 +137,7 @@ export function HistoricoProdutoModal({ isOpen, onClose, produto }: HistoricoPro
                                 Estornada
                               </Badge>
                             )}
-                            <span className="text-xs text-app-text-muted">{formatDateTime(mov.criadoEm)}</span>
+                            <span className="text-xs text-app-text-muted">{formatarDataHoraClinica(mov.criadoEm)}</span>
                           </div>
                           <div className="flex items-baseline gap-3 tabular-nums">
                             <span className={`text-sm font-medium ${isEntrada ? 'text-[color:var(--app-success-text)]' : 'text-[color:var(--app-danger-text)]'}`}>

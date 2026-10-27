@@ -6,6 +6,8 @@ import type { AgendamentoStatus } from '@/types/agenda'
 import { carregarCaixasPorUnidade, type CaixaUnidade } from './caixas'
 import { calcularPerformance, classificarFaturamento, type TipoFaturamento } from './performance'
 import { agendamentoConta, contarSituacoes } from './retornos'
+import { descreverPedidosNf, resumirPedidosNf } from '@/lib/pedidos-nf'
+import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 type DashboardVariant = 'admin' | 'gestor' | 'recepcao' | 'especialista' | 'master'
 
@@ -55,7 +57,7 @@ const CARD_HREF: Record<string, string> = {
   'lista-espera': '/lista-espera',
   'pendentes-retorno': '/retornos?situacao=limite',
   'pendentes-presc': '/prescricoes',
-  notas: '/financeiro',
+  notas: '/notas-fiscais',
   unidades: '/unidades',
   usuarios: '/usuarios',
 }
@@ -202,6 +204,10 @@ export async function GET(request: NextRequest) {
       ? carregarCaixasPorUnidade(supabase, caixasUnidades)
       : Promise.resolve({ caixas: [] as CaixaUnidade[], error: null })
   const emptyPerf = Promise.resolve({ data: [] as never[], error: null })
+  // Pedidos de NF (recibo da venda/consulta): só o admin tem o card; a emissão da nota é feita fora do sistema.
+  const pedidosNfPromise = isAdmin
+    ? Promise.resolve(supabase.from('pedidos_nf').select('status,valor').in('status', ['pendente', 'emitida']).limit(1000))
+    : emptyPerf
 
   const [
     agendaCountResult,
@@ -219,6 +225,7 @@ export async function GET(request: NextRequest) {
     perfAgendaResult,
     perfPrescricoesResult,
     caixasResult,
+    pedidosNfResult,
   ] = await Promise.all([
     agendaCountQuery,
     agendaRowsQuery,
@@ -239,6 +246,7 @@ export async function GET(request: NextRequest) {
     needsPerformance ? perfAgendaQuery : emptyPerf,
     needsPerformance ? perfPrescricoesQuery : emptyPerf,
     caixasPromise,
+    pedidosNfPromise,
   ])
 
   const errors = [
@@ -257,6 +265,7 @@ export async function GET(request: NextRequest) {
     perfAgendaResult.error,
     perfPrescricoesResult.error,
     caixasResult.error,
+    pedidosNfResult.error,
   ].filter(Boolean)
 
   if (errors.length > 0) {
@@ -751,6 +760,7 @@ export async function GET(request: NextRequest) {
     for (const tipo of Object.keys(faturamentoTotal) as TipoFaturamento[]) faturamentoTotal[tipo] += item.faturamento[tipo]
   }
 
+  const pedidosNf = resumirPedidosNf((pedidosNfResult.data ?? []) as unknown as Array<{ status: string; valor: number | null }>)
   const caixaGestor = variant === 'gestor' ? caixasResult.caixas[0] : undefined
   const formatBrl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -763,7 +773,12 @@ export async function GET(request: NextRequest) {
             { id: 'saidas', label: 'Total de saídas', value: despesaMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), description: 'despesas do período' },
             { id: 'saldo', label: 'Saldo do período', value: saldoPrevisto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), description: 'resultado consolidado' },
             { id: 'agenda-hoje', label: 'Atendimentos hoje', value: String(agendaCountResult.count ?? 0), description: 'consultas na agenda do dia' },
-            { id: 'notas', label: 'Notas fiscais emitidas', value: '—', description: 'sem registro de emissão de NF no sistema' },
+            {
+              id: 'notas',
+              label: 'Notas fiscais (pedidos)',
+              value: String(pedidosNf.pendentes + pedidosNf.emitidas),
+              description: descreverPedidosNf(pedidosNf),
+            },
           ]
         : variant === 'master'
           ? [
@@ -810,7 +825,7 @@ export async function GET(request: NextRequest) {
     admin: {
       activities: (auditResult.data ?? []).map((row, index) => ({
         label: `${row.acao} em ${row.recurso}`,
-        time: row.created_at ? new Date(row.created_at).toLocaleString('pt-BR') : 'recentemente',
+        time: row.created_at ? formatarDataHoraClinica(row.created_at) : 'recentemente',
         color: index === 0 ? 'bg-app-primary' : index === 1 ? 'bg-[var(--app-success-text)]' : 'app-status-warning0',
       })),
       unitStatus: {
@@ -823,10 +838,7 @@ export async function GET(request: NextRequest) {
       saldoBancos,
       financeiroPorUnidade,
       faturamentoTotal,
-      notasEmitidas: {
-        registrado: false,
-        aviso: 'O sistema ainda não registra a emissão de notas fiscais; o valor total de notas emitidas não pode ser calculado.',
-      },
+      notasEmitidas: { registrado: true, ...pedidosNf, aviso: '' },
       unidadesComparativo,
       prescricoesPendentes,
       retornosPendentes: { limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },

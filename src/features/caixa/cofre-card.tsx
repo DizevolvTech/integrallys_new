@@ -2,6 +2,7 @@
 
 import { Landmark } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
 import { Card } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useApi } from '@/hooks/use-api'
@@ -73,7 +74,31 @@ export function CofreCard({ atualizarQuando }: { atualizarQuando?: string }) {
           <p className="text-2xl font-normal text-app-text-primary dark:text-white">{brl(estado.saldo)}</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <ListaCartoesMobile>
+        {estado.carregando && <p className="py-6 text-center text-sm text-app-text-secondary">Carregando cofre...</p>}
+        {!estado.carregando && estado.erro && <p className="py-6 text-center text-sm text-[var(--app-danger-text)]">{estado.erro}</p>}
+        {!estado.carregando && !estado.erro && estado.itens.length === 0 && (
+          <p className="py-6 text-center text-sm text-app-text-secondary">Nenhuma transferência ao cofre ainda.</p>
+        )}
+        {estado.itens.map((item) => {
+          const { dia, hora } = dataHora(item.dataMovimento)
+          return (
+            <CartaoMobile
+              key={item.id}
+              titulo={item.descricao}
+              subtitulo={`${dia} · ${hora}`}
+              valor={
+                <span className={item.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}>
+                  {item.tipo === 'saida' ? '-' : ''}
+                  {brl(item.valor)}
+                </span>
+              }
+              campos={[{ rotulo: 'Quem fechou', valor: item.operador || '—' }]}
+            />
+          )
+        })}
+      </ListaCartoesMobile>
+      <div className="hidden overflow-x-auto md:block">
         <Table>
           <TableHeader>
             <TableRow className="border-none bg-app-bg-secondary/50 dark:bg-app-card/[0.02]">

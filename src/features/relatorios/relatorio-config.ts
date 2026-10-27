@@ -41,6 +41,10 @@ export interface ConfigRelatorio {
   resumos?: (totais: Record<string, unknown>) => ResumoLista[]
   /** Linha com botão "Ver produtos" (Minhas comissões). */
   detalheItens?: boolean
+  /** Explica em uma frase como os números da tela foram calculados (aparece abaixo dos cartões). */
+  legenda?: string
+  /** Colunas em destaque no cartão do celular; o resto vira rótulo/valor. Padrão: primeira coluna de texto. */
+  mobile?: { titulo?: string; valor?: string; selo?: string }
 }
 
 const num = (v: unknown) => Number(v ?? 0)
@@ -104,6 +108,10 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { key: 'data', label: 'Data', tipo: 'data' },
       { key: 'hora', label: 'Hora' },
       { key: 'paciente', label: 'Paciente' },
+      { key: 'presencaPeriodoPct', label: 'Presença no período', tipo: 'pct', direita: true },
+      { key: 'realizadasPeriodo', label: 'Realizadas', tipo: 'numero', direita: true },
+      { key: 'agendadasPeriodo', label: 'Agendadas', tipo: 'numero', direita: true },
+      { key: 'retornos', label: 'Retornos', tipo: 'numero', direita: true },
       { key: 'procedimento', label: 'Procedimento' },
       { key: 'profissional', label: 'Profissional' },
       { key: 'especialistas', label: 'Especialistas que atenderam' },
@@ -111,7 +119,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { key: 'unidade', label: 'Unidade' },
       { key: 'status', label: 'Situação', tipo: 'badge' },
       { key: 'justificativa', label: 'Justificativa' },
-      { key: 'presencaPct', label: 'Presença', tipo: 'pct', direita: true },
+      { key: 'presencaPct', label: 'Presença (histórico)', tipo: 'pct', direita: true },
       { key: 'statusPagamento', label: 'Status pagamento', tipo: 'badge' },
       { key: 'formaPagamento', label: 'Forma de pagamento' },
       { key: 'valor', label: 'Valor', tipo: 'dinheiro', direita: true },
@@ -139,7 +147,19 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { label: 'Total recebido', valor: formatMoeda(t.recebido), tom: 'sucesso' },
       { label: 'Total em aberto', valor: formatMoeda(t.aberto), tom: 'alerta' },
       { label: 'Registros', valor: String(total), tom: 'neutro' },
+      {
+        label: `Presença na clínica (${num(t.realizadas)} de ${num(t.agendadas)})`,
+        valor: t.presencaPct == null ? '—' : `${num(t.presencaPct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`,
+        tom: 'sucesso',
+      },
+      { label: `Retornos · ${num(t.pacientes)} pacientes`, valor: String(num(t.retornos)), tom: 'neutro' },
     ],
+    legenda:
+      'Presença no período = consultas realizadas ÷ consultas agendadas do paciente no período e filtros escolhidos ' +
+      '(agendadas = marcadas até hoje, incluindo faltas e cancelamentos; adiadas não contam). ' +
+      'Retornos = consultas realizadas além da primeira consulta realizada do paciente. ' +
+      '"Presença (histórico)" considera todo o histórico do paciente.',
+    mobile: { titulo: 'paciente', valor: 'valor', selo: 'status' },
   },
   agendamentos: {
     descricao: 'Agenda por cliente, procedimento, convênio e unidade.',
@@ -239,6 +259,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
   },
   vendas: {
+    mobile: { titulo: 'cliente', valor: 'valor' },
     descricao: 'Quanto foi vendido no período, quantidade por produto e formas de pagamento.',
     colunas: [
       { key: 'data', label: 'Data', tipo: 'data' },
@@ -279,7 +300,8 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
   },
   recebimentos: {
-    descricao: 'Liquidado x a receber, com taxa de cartão conforme a configuração de pagamento.',
+    descricao:
+      'Liquidado x a receber (agenda, vendas e recebimentos lançados no Caixa), com taxa de cartão e data de compensação conforme a configuração de pagamento.',
     colunas: [
       { key: 'data', label: 'Data', tipo: 'data' },
       { key: 'origem', label: 'Origem' },
@@ -308,6 +330,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
         ],
       },
     ],
+    mobile: { titulo: 'cliente', valor: 'bruto', selo: 'situacao' },
     cartoes: (t) => {
       const l = obj(t.liquidado)
       const a = obj(t.aReceber)
@@ -321,6 +344,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     },
   },
   'estoque-posicao': {
+    mobile: { titulo: 'nome', valor: 'venda' },
     descricao: 'Quantidade, validade, lote, mínimo, custo, venda e margem de cada produto.',
     colunas: [
       { key: 'nome', label: 'Produto' },
@@ -359,6 +383,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
   },
   'estoque-movimentacao': {
+    mobile: { titulo: 'produto', valor: 'quantidade', selo: 'sentido' },
     descricao: 'Entradas e saídas do estoque dia a dia, com nota fiscal, fornecedor/cliente, custo, venda e margem.',
     colunas: [
       { key: 'data', label: 'Data', tipo: 'dataHora' },
@@ -410,6 +435,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
   },
   repasse: {
+    mobile: { titulo: 'paciente', valor: 'repasse', selo: 'situacao' },
     descricao: 'Atendimentos com o percentual de repasse cadastrado para o profissional.',
     colunas: [
       { key: 'data', label: 'Data', tipo: 'data' },
@@ -443,6 +469,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
   },
   comissoes: {
+    mobile: { titulo: 'cliente', valor: 'comissao' },
     descricao: 'Comissão por Prescrição/Venda: valor bruto vendido e percentual cadastrado do vendedor.',
     colunas: [
       { key: 'data', label: 'Data', tipo: 'data' },
@@ -466,6 +493,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     detalheItens: true,
   },
   financeiro: {
+    mobile: { titulo: 'descricao', valor: 'valor', selo: 'status' },
     descricao: 'Lançamentos financeiros por período, tipo e usuário.',
     colunas: [
       { key: 'data', label: 'Data', tipo: 'dataHora' },
