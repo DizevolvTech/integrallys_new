@@ -51,8 +51,9 @@ import { ImprimirEtiquetaModal } from './modals/imprimir-etiqueta-modal'
 import { useEstoqueCategorias } from './hooks/use-estoque-categorias'
 import { EstoqueIndicadores } from './components/estoque-indicadores'
 import { getValidadeStatus } from './estoque-validade'
-import { formatarMargem, totalizarMargem } from '@/lib/margem'
-import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
+import { EstoqueTotais } from './components/estoque-totais'
+import { MovimentacoesLista } from './components/movimentacoes-lista'
+import { useAtraso } from '@/hooks/use-atraso'
 
 type EstoqueModal =
   | 'entrada'
@@ -117,6 +118,8 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
   const [movFiltroDe, setMovFiltroDe] = useState<string>('')
   const [movFiltroAte, setMovFiltroAte] = useState<string>('')
   const [movPage, setMovPage] = useState<number>(0)
+  const [movBusca, setMovBusca] = useState('')
+  const movBuscaAtraso = useAtraso(movBusca, 350)
   const [estornarMov, setEstornarMov] = useState<MovimentacaoItem | null>(null)
 
   const filteredItems = useMemo(() => {
@@ -145,17 +148,6 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
       }).length,
     [data],
   )
-  const filteredMovimentacoes = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim()
-    if (!term) return movimentacoes
-    return movimentacoes.filter((item) =>
-      [item.produtoNome, item.observacoes ?? '', item.vinculoNome ?? '', item.operadorNome]
-        .join(' ')
-        .toLowerCase()
-        .includes(term),
-    )
-  }, [movimentacoes, searchTerm])
-
   const fetchMovimentacoes = useCallback(
     (page: number) => {
       const tipo = movFiltroTipo === 'todos' ? undefined : movFiltroTipo
@@ -165,11 +157,12 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
         produtoId,
         de: movFiltroDe || undefined,
         ate: movFiltroAte || undefined,
+        q: movBuscaAtraso.trim() || undefined,
         limit: PAGE_SIZE_MOVIMENTACOES,
         offset: page * PAGE_SIZE_MOVIMENTACOES,
       })
     },
-    [loadMovimentacoes, movFiltroAte, movFiltroDe, movFiltroProduto, movFiltroTipo],
+    [loadMovimentacoes, movBuscaAtraso, movFiltroAte, movFiltroDe, movFiltroProduto, movFiltroTipo],
   )
 
   useEffect(() => {
@@ -179,7 +172,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
 
   useEffect(() => {
     setMovPage(0)
-  }, [movFiltroTipo, movFiltroProduto, movFiltroDe, movFiltroAte])
+  }, [movFiltroTipo, movFiltroProduto, movFiltroDe, movFiltroAte, movBuscaAtraso])
 
   const totalMovPages = Math.max(1, Math.ceil(movimentacoesTotal / PAGE_SIZE_MOVIMENTACOES))
   const limparFiltrosMovimentacoes = () => {
@@ -187,6 +180,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     setMovFiltroProduto('todos')
     setMovFiltroDe('')
     setMovFiltroAte('')
+    setMovBusca('')
     setMovPage(0)
   }
 
@@ -337,8 +331,8 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-app-text-muted" />
                 <Input
                   placeholder="Buscar por produto, operador ou vínculo..."
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
+                  value={movBusca}
+                  onChange={(event) => setMovBusca(event.target.value)}
                   className="pl-12 h-12 rounded-integrallys-lg border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-bg-dark focus-visible:ring-[var(--app-primary)] transition-all w-full"
                 />
               </div>
@@ -397,7 +391,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
 
             {isLoadingMovimentacoes ? (
               <div className="py-12 text-center text-app-text-muted">Carregando movimentações...</div>
-            ) : filteredMovimentacoes.length === 0 ? (
+            ) : movimentacoes.length === 0 ? (
               <EmptyState
                 icon={Inbox}
                 title="Nenhuma movimentação registrada"
@@ -409,34 +403,13 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
               />
             ) : (
               <>
-                <div className="overflow-x-auto rounded-[16px] border border-app-border dark:border-app-border-dark">
-                  <Table>
-                    <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
-                      <TableRow>
-                        <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Data/Hora</TableHead>
-                        <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Produto</TableHead>
-                        <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Tipo</TableHead>
-                        <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Quantidade</TableHead>
-                        <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Operador</TableHead>
-                        <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Vínculo</TableHead>
-                        <TableHead className="text-xs font-medium uppercase tracking-wider text-app-text-secondary">Observação</TableHead>
-                        <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-app-text-secondary">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredMovimentacoes.map((mov) => (
-                        <MovimentacaoRow
-                          key={mov.id}
-                          mov={mov}
-                          onEstornar={() => {
-                            setEstornarMov(mov)
-                            setActiveModal('estornar')
-                          }}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <MovimentacoesLista
+                  movimentacoes={movimentacoes}
+                  onEstornar={(mov) => {
+                    setEstornarMov(mov)
+                    setActiveModal('estornar')
+                  }}
+                />
 
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs text-app-text-muted">
@@ -506,29 +479,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                 </div>
               </div>
 
-              {!isLoading && filteredItems.length > 0 && (() => {
-                const { quantidade: totalQtd, custo: totalCusto, venda: totalVenda, margem } = totalizarMargem(filteredItems)
-                return (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Card className="rounded-[16px] border-app-border dark:border-app-border-dark p-4">
-                      <p className="text-xs text-app-text-muted uppercase tracking-wider">Qtd Total</p>
-                      <p className="text-xl font-normal text-app-text-primary dark:text-white mt-1">{totalQtd}</p>
-                    </Card>
-                    <Card className="rounded-[16px] border-app-border dark:border-app-border-dark p-4">
-                      <p className="text-xs text-app-text-muted uppercase tracking-wider">Custo Total</p>
-                      <p className="text-xl font-normal text-app-text-primary dark:text-white mt-1">R$ {totalCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    </Card>
-                    <Card className="rounded-[16px] border-app-border dark:border-app-border-dark p-4">
-                      <p className="text-xs text-app-text-muted uppercase tracking-wider">Venda Total</p>
-                      <p className="text-xl font-normal text-[var(--app-success-text)] mt-1">R$ {totalVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    </Card>
-                    <Card className="rounded-[16px] border-app-border dark:border-app-border-dark p-4">
-                      <p className="text-xs text-app-text-muted uppercase tracking-wider">Margem Total (% sobre o custo)</p>
-                      <p className="text-xl font-normal text-[var(--app-success-text)] mt-1">{formatarMargem(margem)}</p>
-                    </Card>
-                  </div>
-                )
-              })()}
+              {!isLoading && filteredItems.length > 0 && <EstoqueTotais itens={filteredItems} />}
 
               <div className="grid grid-cols-1 gap-4">
               {isLoading && (
@@ -775,77 +726,5 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
         }}
       />
     </div>
-  )
-}
-
-
-function MovimentacaoRow({ mov, onEstornar }: { mov: MovimentacaoItem; onEstornar: () => void }) {
-  const isEntrada = mov.tipo === 'entrada'
-  const isConsumo = mov.tipoMovimentacao === 'consumo_interno'
-
-  const badgeClass = mov.estornada
-    ? 'rounded-full border-app-border bg-app-bg-secondary/60 text-app-text-muted dark:bg-app-hover'
-    : isEntrada
-      ? 'rounded-full app-status-success border-transparent text-[var(--app-success-text)] dark:bg-transparent'
-      : isConsumo
-        ? 'rounded-full app-status-warning border-transparent text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-        : 'rounded-full app-status-danger border-transparent text-[var(--app-danger-text)] dark:bg-transparent'
-
-  const tipoLabel = isEntrada ? 'Entrada' : isConsumo ? 'Consumo interno' : 'Saída'
-  const rowClass = mov.estornada ? 'opacity-50' : ''
-
-  return (
-    <TableRow className={rowClass}>
-      <TableCell className="text-app-text-secondary dark:text-white/70 text-sm whitespace-nowrap">
-        {formatarDataHoraClinica(mov.criadoEm)}
-      </TableCell>
-      <TableCell className="font-normal text-app-text-primary dark:text-white">
-        {mov.produtoNome || '—'}
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={`px-3 py-1 text-xs font-medium ${badgeClass}`}>
-            {tipoLabel}
-          </Badge>
-          {mov.estornada && (
-            <Badge variant="outline" className="rounded-full border-app-border bg-app-bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-app-text-muted">
-              Estornada
-            </Badge>
-          )}
-        </div>
-      </TableCell>
-      <TableCell className="tabular-nums text-app-text-primary dark:text-white">
-        {isEntrada ? '+' : '-'}{mov.quantidade}
-      </TableCell>
-      <TableCell className="text-app-text-secondary dark:text-white/70">{mov.operadorNome || '—'}</TableCell>
-      <TableCell className="text-app-text-secondary dark:text-white/70">
-        {mov.vinculoNome ? (
-          <span>
-            {mov.vinculoNome}
-            {mov.vinculoTipo && (
-              <span className="ml-1 text-[10px] uppercase tracking-wider text-app-text-muted">({mov.vinculoTipo})</span>
-            )}
-          </span>
-        ) : (
-          '—'
-        )}
-      </TableCell>
-      <TableCell className="max-w-xs truncate text-xs text-app-text-muted">
-        {mov.observacoes ?? '—'}
-      </TableCell>
-      <TableCell className="text-right">
-        {!mov.estornada && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onEstornar}
-            className="h-9 rounded-lg px-3 text-xs font-medium text-app-text-secondary hover:bg-app-bg-secondary dark:hover:bg-app-hover"
-          >
-            <Undo2 className="mr-1 h-3.5 w-3.5" />
-            Estornar
-          </Button>
-        )}
-      </TableCell>
-    </TableRow>
   )
 }
