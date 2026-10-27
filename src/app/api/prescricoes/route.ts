@@ -4,6 +4,9 @@ import { requirePermission } from '@/lib/authz'
 import { mapPrescricaoItem } from '@/lib/domain-mappers'
 import { estoqueAplicarMovimentacao } from '@/lib/estoque-movimentacao'
 import { stripPrescricaoFinancialFields } from '@/lib/financial-sanitize'
+import { rotuloFormaPagamento } from '@/lib/recibo'
+import { emLotes } from '@/lib/em-lotes'
+import { margemDaPrescricao, margemDoItem, podeVerCustoMargem } from '@/lib/prescricao-margem'
 import { isPrescriptionImmutable } from '@/lib/prescricao-immutability'
 import { authErrorResponse, forbiddenResponse, getRequestAuth } from '@/lib/request-auth'
 import { serverErrorResponse } from '@/lib/app-api'
@@ -134,7 +137,7 @@ async function listPrescricoes(session: Awaited<ReturnType<typeof getRequestAuth
   const { data, error } = await supabase
     .from('prescricoes')
     .select(
-      'id,paciente_id,numero,valor_total,valor_bruto,numero_parcelas,valor_parcela,desconto_tipo,desconto_percentual,desconto_valor,justificativa_desconto,vendedor_id,status,data_prescricao,tipo,validade,observacoes',
+      'id,paciente_id,numero,valor_total,valor_bruto,numero_parcelas,valor_parcela,desconto_tipo,desconto_percentual,desconto_valor,justificativa_desconto,vendedor_id,status,data_prescricao,tipo,validade,observacoes,forma_pagamento',
     )
     // CR-M05-D · ordenação padrão por data da prescrição (mais recente primeiro);
     // created_at como tiebreaker para casos onde data_prescricao é null/igual.
@@ -159,45 +162,77 @@ async function listPrescricoes(session: Awaited<ReturnType<typeof getRequestAuth
 
   const prescricaoIds = rows.map((row) => String(row.id))
   const itemsByPrescricao = new Map<string, Array<Record<string, unknown>>>()
+  const verCusto = podeVerCustoMargem(session?.role)
 
-  if (prescricaoIds.length > 0) {
-    const itemsQuery = await supabase
-      .from('prescricao_itens')
-      .select('prescricao_id,produto_id,descricao,quantidade,valor_unitario,posologia')
-      .in('prescricao_id', prescricaoIds)
+  // Lotes de 150 ids em paralelo: `.in()` sem limite estoura a URL do PostgREST.
+  const resultadosItens = await Promise.all(
+    emLotes(prescricaoIds).map((lote) =>
+      supabase
+        .from('prescricao_itens')
+        .select('prescricao_id,produto_id,descricao,quantidade,valor_unitario,posologia,custo_unitario')
+        .in('prescricao_id', lote),
+    ),
+  )
+  const itemRows: Array<Record<string, unknown>> = []
+  for (const r of resultadosItens) {
+    if (r.error) return supabaseErrorResponse(r.error, 'Falha ao carregar itens da prescrição')
+    itemRows.push(...((r.data ?? []) as Array<Record<string, unknown>>))
+  }
 
-    if (itemsQuery.error) {
-      return supabaseErrorResponse(itemsQuery.error, 'Falha ao carregar itens da prescrição')
-    }
-
-    for (const raw of itemsQuery.data ?? []) {
-      const key = String(raw.prescricao_id)
-      const existing = itemsByPrescricao.get(key) ?? []
-      const quantity = Number(raw.quantidade ?? 0)
-      const unitPrice = raw.valor_unitario != null ? Number(raw.valor_unitario) : 0
-      existing.push({
-        productId: raw.produto_id ? String(raw.produto_id) : undefined,
-        productName: String(raw.descricao ?? ''),
-        quantity,
-        posology: raw.posologia ? String(raw.posologia) : undefined,
-        unitPrice,
-        total: unitPrice * quantity,
-      })
-      itemsByPrescricao.set(key, existing)
+  // Custo atual do produto só como reserva para itens antigos, sem custo gravado (apenas gestor/admin/master).
+  const custoAtual = new Map<string, number>()
+  if (verCusto) {
+    const semCusto = [
+      ...new Set(itemRows.filter((r) => r.custo_unitario == null && r.produto_id).map((r) => String(r.produto_id))),
+    ]
+    const produtosLotes = await Promise.all(
+      emLotes(semCusto).map((lote) => supabase.from('produtos_estoque').select('id,preco_custo').in('id', lote)),
+    )
+    for (const { data: produtos } of produtosLotes) {
+      for (const p of produtos ?? []) {
+        if (p.preco_custo != null) custoAtual.set(String(p.id), Number(p.preco_custo))
+      }
     }
   }
 
+  for (const raw of itemRows) {
+    const key = String(raw.prescricao_id)
+    const existing = itemsByPrescricao.get(key) ?? []
+    const quantity = Number(raw.quantidade ?? 0)
+    const unitPrice = raw.valor_unitario != null ? Number(raw.valor_unitario) : 0
+    const custoUnitario = verCusto
+      ? raw.custo_unitario != null
+        ? Number(raw.custo_unitario)
+        : raw.produto_id
+          ? custoAtual.get(String(raw.produto_id)) ?? null
+          : null
+      : null
+    existing.push({
+      productId: raw.produto_id ? String(raw.produto_id) : undefined,
+      productName: String(raw.descricao ?? ''),
+      quantity,
+      posology: raw.posologia ? String(raw.posologia) : undefined,
+      unitPrice,
+      total: unitPrice * quantity,
+      ...(verCusto ? margemDoItem({ quantity, unitPrice, custoUnitario }) : {}),
+    })
+    itemsByPrescricao.set(key, existing)
+  }
+
   return NextResponse.json({
-    data: rows.map((row) =>
-      sanitizeForRole(
+    data: rows.map((row) => {
+      const itens = (itemsByPrescricao.get(String(row.id)) ?? []) as Array<{ quantity: number; unitPrice: number; custoUnitario?: number }>
+      const mapped = sanitizeForRole(
         mapPrescricaoItem({
           ...row,
           paciente_nome: map[String(row.paciente_id ?? '')] ?? '',
-          items: itemsByPrescricao.get(String(row.id)) ?? [],
+          items: itens,
         }),
         session?.role,
-      ),
-    ),
+      )
+      const comForma = { ...mapped, formaPagamento: row.forma_pagamento ? rotuloFormaPagamento(String(row.forma_pagamento)) : undefined }
+      return verCusto ? { ...comForma, ...margemDaPrescricao(itens, mapped.valorTotal) } : comForma
+    }),
     meta: session,
   })
 }
@@ -300,6 +335,16 @@ async function applyItemsAndEstoque(
 ) {
   if (items.length === 0) return { error: null as unknown as null }
 
+  // Grava o custo do produto no momento da venda: a margem do gestor não muda se o custo mudar depois.
+  const produtoIds = [...new Set(items.map((it) => it.productId).filter((id): id is string => !!id))]
+  const custos = new Map<string, number>()
+  const custosLotes = await Promise.all(
+    emLotes(produtoIds).map((lote) => supabase.from('produtos_estoque').select('id,preco_custo').in('id', lote)),
+  )
+  for (const { data } of custosLotes) {
+    for (const p of data ?? []) if (p.preco_custo != null) custos.set(String(p.id), Number(p.preco_custo))
+  }
+
   const insertRows = items.map((it) => ({
     prescricao_id: prescricaoId,
     produto_id: it.productId ?? null,
@@ -307,6 +352,7 @@ async function applyItemsAndEstoque(
     quantidade: it.quantidade,
     valor_unitario: it.valorUnitario ?? null,
     posologia: it.posologia ?? null,
+    custo_unitario: it.productId ? custos.get(it.productId) ?? null : null,
   }))
 
   const { error: insertError } = await supabase.from('prescricao_itens').insert(insertRows)
@@ -471,6 +517,7 @@ export async function POST(request: NextRequest) {
       numero,
       valor_total: valorTotal,
       status: String(body.status),
+      forma_pagamento: formaPagamento,
       tipo: body.tipo ? String(body.tipo) : null,
       data_prescricao: body.data ? String(body.data) : null,
       validade: body.validade ? String(body.validade) : null,
@@ -639,6 +686,7 @@ export async function PUT(request: NextRequest) {
       numero: body.numero ? String(body.numero) : generateNumero(),
       valor_total: Number(body.valorTotal),
       status: nextStatus,
+      ...(typeof body.formaPagamento === 'string' && body.formaPagamento.trim() ? { forma_pagamento: body.formaPagamento.trim() } : {}),
       tipo: body.tipo ? String(body.tipo) : null,
       data_prescricao: body.data ? String(body.data) : null,
       validade: body.validade ? String(body.validade) : null,

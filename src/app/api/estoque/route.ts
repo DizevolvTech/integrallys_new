@@ -6,10 +6,12 @@ import { buildAutoSku, resolveEstoqueStatus } from '@/lib/estoque-status'
 import {
   estoqueAplicarMovimentacao,
   estoqueEstornarMovimentacao,
+  estoqueRegistrarEntrada,
   estoqueRpcHttpStatus,
 } from '@/lib/estoque-movimentacao'
 import { stripEstoquePrices } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+import { montarEntrada } from './entrada-input'
 
 // SCOPED UNIT — `getScopedUnitId` agora vem centralizado de `request-auth.ts`
 // (Agente 20, 2026-05-21). Substitui a convenção anterior "helper por rota"
@@ -295,6 +297,23 @@ export async function POST(request: NextRequest) {
         ? body.cnpjEmitente.replace(/\D/g, '') || null
         : null
     const force = body.force === true
+
+    if (action === 'entrada') {
+      const entrada = await montarEntrada(supabase, body, {
+        produtoId: String(body.produtoId),
+        usuarioId: session.userId,
+        quantidade,
+        numeroNf,
+        cnpjEmitente,
+        forceNf: force,
+      })
+      if (!entrada.ok) return serverErrorResponse(entrada.error, entrada.code, 400)
+      const result = await estoqueRegistrarEntrada(supabase, entrada.params)
+      if (!result.ok) {
+        return serverErrorResponse(result.message, result.code, estoqueRpcHttpStatus(result.code))
+      }
+      return listEstoque(request, session)
+    }
 
     const result = await estoqueAplicarMovimentacao(supabase, {
       produtoId: String(body.produtoId),

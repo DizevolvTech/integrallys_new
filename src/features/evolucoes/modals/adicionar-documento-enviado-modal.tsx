@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { FileText, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -16,12 +16,15 @@ interface AdicionarDocumentoEnviadoModalProps {
   isOpen: boolean
   onClose: () => void
   evolucaoId: string
+  /** Paciente da evolução: o arquivo anexado fica nos exames/documentos dele. */
+  pacienteId?: string
   onSave: (payload: {
     evolucaoId: string
     tipo: string
     meio: string
     dataEnvio: string
     recebido: boolean
+    anexo?: string
   }) => Promise<void>
 }
 
@@ -29,8 +32,12 @@ export function AdicionarDocumentoEnviadoModal({
   isOpen,
   onClose,
   evolucaoId,
+  pacienteId,
   onSave,
 }: AdicionarDocumentoEnviadoModalProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [link, setLink] = useState('')
   const [tipo, setTipo] = useState('')
   const [meio, setMeio] = useState('whatsapp')
   const [dataEnvio, setDataEnvio] = useState('')
@@ -43,6 +50,8 @@ export function AdicionarDocumentoEnviadoModal({
     setDataEnvio('')
     setRecebido(false)
     setIsSaving(false)
+    setArquivo(null)
+    setLink('')
   }
 
   const handleClose = () => {
@@ -57,9 +66,28 @@ export function AdicionarDocumentoEnviadoModal({
       return
     }
 
+    if (arquivo && !pacienteId) {
+      toast.error('Não foi possível localizar o paciente para anexar o arquivo.')
+      return
+    }
+
     setIsSaving(true)
     try {
-      await onSave({ evolucaoId, tipo, meio, dataEnvio, recebido })
+      let anexo: string | undefined = link.trim() || undefined
+      if (arquivo && pacienteId) {
+        const form = new FormData()
+        form.append('file', arquivo)
+        form.append('pacienteId', pacienteId)
+        form.append('nome', arquivo.name)
+        form.append('tipo', tipo)
+        const res = await fetch('/api/pacientes/exames/upload', { method: 'POST', body: form, credentials: 'include' })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error ?? 'Falha ao enviar o anexo')
+        }
+        anexo = arquivo.name
+      }
+      await onSave({ evolucaoId, tipo, meio, dataEnvio, recebido, anexo })
       toast.success('Documento registrado.')
       reset()
       onClose()
@@ -142,17 +170,35 @@ export function AdicionarDocumentoEnviadoModal({
             <Button
               variant="outline"
               className="w-full h-12 rounded-[12px] bg-app-card dark:bg-app-card-dark border-app-border dark:border-app-border-dark text-app-text-primary dark:text-white font-normal hover:bg-app-bg-secondary dark:hover:bg-app-hover flex items-center justify-center gap-2"
-              onClick={() => toast.info('Upload de anexo em implementação.')}
+              onClick={() => inputRef.current?.click()}
             >
               <FileText className="h-4 w-4" />
-              Anexar arquivo
+              {arquivo ? arquivo.name : 'Anexar arquivo'}
             </Button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              className="hidden"
+              aria-label="Arquivo do documento"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null
+                if (f && f.size > 10 * 1024 * 1024) {
+                  toast.error('Arquivo acima de 10 MB.')
+                  return
+                }
+                setArquivo(f)
+              }}
+            />
+            <p className="text-xs text-app-text-muted">PDF, JPG ou PNG até 10 MB. Fica guardado nos exames e documentos do paciente.</p>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-app-bg-secondary dark:bg-app-bg-dark"></div>
               <span className="text-xs font-normal text-app-text-muted">ou</span>
               <div className="h-px flex-1 bg-app-bg-secondary dark:bg-app-bg-dark"></div>
             </div>
             <Input
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
               placeholder="Cole o link do documento (URL)"
               className="h-12 rounded-[12px] bg-app-bg-secondary dark:bg-app-surface-muted border-app-border dark:border-app-border-dark focus:ring-[var(--app-primary)] text-app-text-primary dark:text-white"
             />

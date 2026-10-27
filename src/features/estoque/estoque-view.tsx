@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Plus, Printer, Search, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react'
 import { useEstoque, type EstoqueInput, type MovimentacaoEstoqueInput, type MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
@@ -48,6 +49,9 @@ import {
 import { CategoriasEstoqueModal } from './modals/categorias-estoque-modal'
 import { ImprimirEtiquetaModal } from './modals/imprimir-etiqueta-modal'
 import { useEstoqueCategorias } from './hooks/use-estoque-categorias'
+import { EstoqueIndicadores } from './components/estoque-indicadores'
+import { getValidadeStatus } from './estoque-validade'
+import { formatarMargem, totalizarMargem } from '@/lib/margem'
 
 type EstoqueModal =
   | 'entrada'
@@ -62,34 +66,7 @@ type EstoqueModal =
   | 'historico'
   | 'estornar'
   | null
-type EstoqueSection = 'estoque' | 'suprimentos'
-
-type ValidadeStatus = 'ok' | 'proxima' | 'vencida' | null
-
-export function getValidadeStatus(validade?: string): ValidadeStatus {
-  if (!validade) return null
-  // Aceita YYYY-MM-DD ou ISO; normaliza pegando os 10 primeiros chars quando possível
-  const raw = validade.length >= 10 ? validade.slice(0, 10) : validade
-  const parsed = new Date(`${raw}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return null
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
-  const limite = new Date(hoje)
-  limite.setDate(limite.getDate() + 30)
-  if (parsed.getTime() < hoje.getTime()) return 'vencida'
-  if (parsed.getTime() <= limite.getTime()) return 'proxima'
-  return 'ok'
-}
-
-function formatValidade(validade?: string) {
-  if (!validade) return ''
-  const raw = validade.length >= 10 ? validade.slice(0, 10) : validade
-  const parts = raw.split('-')
-  if (parts.length === 3 && parts[0].length === 4) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`
-  }
-  return validade
-}
+type EstoqueSection = 'estoque' | 'movimentacoes'
 
 interface EstoqueViewProps {
   initialSection?: EstoqueSection
@@ -106,6 +83,7 @@ function getItemTone(status: string) {
 const PAGE_SIZE_MOVIMENTACOES = 20
 
 export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
+  const router = useRouter()
   const {
     data,
     error,
@@ -194,7 +172,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
   )
 
   useEffect(() => {
-    if (section !== 'suprimentos') return
+    if (section !== 'movimentacoes') return
     fetchMovimentacoes(movPage)
   }, [section, movPage, fetchMovimentacoes])
 
@@ -211,13 +189,13 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     setMovPage(0)
   }
 
-  const sectionTitle = section === 'suprimentos' ? 'Suprimentos' : 'Consulta de estoque'
+  const sectionTitle = section === 'movimentacoes' ? 'Entradas e saídas' : 'Consulta de estoque'
   const sectionSubtitle =
-    section === 'suprimentos'
+    section === 'movimentacoes'
       ? 'Controle entradas, saídas e histórico de abastecimento.'
       : 'Visualize a disponibilidade de produtos para prescrição'
   const sectionDescription =
-    section === 'suprimentos'
+    section === 'movimentacoes'
       ? 'Gerencie entradas, saídas e o histórico de movimentações dos itens.'
       : 'Acompanhe saldo, nível crítico e itens disponíveis.'
 
@@ -226,7 +204,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     setActiveModal(modal)
   }
 
-  const handleEntrada = async (payload: { produtoId: string; quantidade: number; observacoes?: string }) => {
+  const handleEntrada = async (payload: MovimentacaoEstoqueInput) => {
     await registrarEntrada(payload)
     toast.success('Entrada registrada com sucesso.')
     setActiveModal(null)
@@ -303,7 +281,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                 <span>{proximasVencimentoCount} item(ns) com validade próxima</span>
               </div>
             )}
-            {section === 'suprimentos' && (
+            {section === 'movimentacoes' && (
               <div className="flex items-center gap-3 w-full md:w-auto">
                 <Button
                   onClick={() => openModal('entrada')}
@@ -329,10 +307,11 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
         <SegmentedControl
           options={[
             { value: 'estoque', label: 'Estoque' },
+            { value: 'movimentacoes', label: 'Movimentos' },
             { value: 'suprimentos', label: 'Suprimentos' },
           ]}
           value={section}
-          onChange={(value) => setSection(value as EstoqueSection)}
+          onChange={(value) => (value === 'suprimentos' ? router.push('/estoque/suprimentos') : setSection(value as EstoqueSection))}
           size="lg"
         />
         <p className="text-sm font-normal text-app-text-secondary dark:text-white/60">{sectionDescription}</p>
@@ -340,7 +319,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
 
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
 
-      {section === 'suprimentos' ? (
+      {section === 'movimentacoes' ? (
         <div className="bg-app-card dark:bg-app-card-dark rounded-[20px] shadow-sm border border-app-border dark:border-app-border-dark/50 overflow-hidden">
           <div className="p-6 md:p-8 space-y-6">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
@@ -527,10 +506,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
               </div>
 
               {!isLoading && filteredItems.length > 0 && (() => {
-                const totalQtd = filteredItems.reduce((acc, i) => acc + i.quantidade, 0)
-                const totalCusto = filteredItems.reduce((acc, i) => acc + (i.precoCusto ?? 0) * i.quantidade, 0)
-                const totalVenda = filteredItems.reduce((acc, i) => acc + (i.precoVenda ?? 0) * i.quantidade, 0)
-                const margemTotal = totalCusto > 0 ? ((totalVenda - totalCusto) / totalCusto) * 100 : 0
+                const { quantidade: totalQtd, custo: totalCusto, venda: totalVenda, margem } = totalizarMargem(filteredItems)
                 return (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <Card className="rounded-[16px] border-app-border dark:border-app-border-dark p-4">
@@ -547,7 +523,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                     </Card>
                     <Card className="rounded-[16px] border-app-border dark:border-app-border-dark p-4">
                       <p className="text-xs text-app-text-muted uppercase tracking-wider">Margem Total</p>
-                      <p className="text-xl font-normal text-[var(--app-success-text)] mt-1">R$ {(totalVenda - totalCusto).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({margemTotal.toFixed(1)}%)</p>
+                      <p className="text-xl font-normal text-[var(--app-success-text)] mt-1">{formatarMargem(margem)}</p>
                     </Card>
                   </div>
                 )
@@ -562,7 +538,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
 
               {!isLoading && filteredItems.map((item) => (
                 <Card key={item.id} className="group overflow-hidden rounded-[24px] border-none bg-app-card dark:bg-app-card-dark shadow-sm hover:shadow-md transition-all duration-300">
-                  <CardContent className="p-4 md:p-6 flex items-center justify-between gap-4">
+                  <CardContent className="p-4 md:p-6 flex flex-wrap md:flex-nowrap items-center justify-between gap-4">
                     <div className="flex items-center gap-4 flex-1">
                       <div className="h-12 w-12 md:h-14 md:w-14 rounded-2xl bg-app-bg-secondary dark:bg-app-hover flex items-center justify-center text-app-text-muted group-hover:scale-110 transition-transform">
                         <Package size={24} className="md:h-7 md:w-7" />
@@ -578,34 +554,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                     </div>
 
                     <div className="flex flex-col md:flex-row items-end md:items-center gap-3 md:gap-6">
-                      <div className="hidden md:flex items-center gap-4 text-xs text-app-text-secondary dark:text-white/60">
-                        {item.lote && <span>Lote: {item.lote}</span>}
-                        {item.validade && (() => {
-                          const validadeStatus = getValidadeStatus(item.validade)
-                          if (validadeStatus === 'vencida') {
-                            return (
-                              <span className="app-status-danger px-2 py-0.5 rounded-md text-[var(--app-danger-text)] font-medium">
-                                Val: {formatValidade(item.validade)} (vencida)
-                              </span>
-                            )
-                          }
-                          if (validadeStatus === 'proxima') {
-                            return (
-                              <span className="app-status-warning px-2 py-0.5 rounded-md text-amber-700 dark:text-amber-300 font-medium">
-                                Val: {formatValidade(item.validade)}
-                              </span>
-                            )
-                          }
-                          return <span className="text-app-text-muted">Val: {formatValidade(item.validade)}</span>
-                        })()}
-                        {item.precoCusto != null && <span>Custo: R$ {item.precoCusto.toFixed(2)}</span>}
-                        {item.precoVenda != null && <span>Venda: R$ {item.precoVenda.toFixed(2)}</span>}
-                        {item.precoCusto != null && item.precoVenda != null && item.precoCusto > 0 && (
-                          <span className="text-[var(--app-success-text)]">
-                            Margem: {((item.precoVenda - item.precoCusto) / item.precoCusto * 100).toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
+                      <EstoqueIndicadores item={item} className="hidden md:flex items-center gap-4 text-xs text-app-text-secondary dark:text-white/60" />
                       <div className="text-right space-y-0.5">
                         <p className="text-sm md:text-md font-normal text-app-text-primary dark:text-white">
                           Qtd: {item.quantidade} {item.estoqueMinimo > 0 && <span className="text-xs text-app-text-muted">(min: {item.estoqueMinimo})</span>}
@@ -680,6 +629,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+                    <EstoqueIndicadores item={item} className="order-last grid w-full grid-cols-2 gap-x-4 gap-y-1 text-xs text-app-text-secondary dark:text-white/60 md:hidden" />
                   </CardContent>
                 </Card>
               ))}

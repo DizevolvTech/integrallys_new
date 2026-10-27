@@ -36,6 +36,8 @@ interface AgendaDayViewProps {
   showDaySlots: boolean
   onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente', slot: AgendaSlot) => void
   onOpenCharge: (slot: AgendaSlot) => void
+  /** Item 28: recibo ou NF — só aparece com a consulta quitada. */
+  onOpenRecibo?: (slot: AgendaSlot) => void
   onCallSpecialist: (slot: AgendaSlot) => void
   onStatusChange: (slot: AgendaSlot, status: string) => void
   onOpenAvailableSlot?: (slot: AgendaSlot) => void
@@ -52,6 +54,7 @@ export function AgendaDayView({
   showDaySlots,
   onOpenSlotModal,
   onOpenCharge,
+  onOpenRecibo,
   onCallSpecialist,
   onStatusChange,
   onOpenAvailableSlot,
@@ -287,6 +290,9 @@ export function AgendaDayView({
                               <DropdownMenuItem onClick={() => onOpenSlotModal('remarcar', item)}>Reagendar</DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => onOpenCharge(item)}>Emitir nova cobrança</DropdownMenuItem>
+                            {onOpenRecibo && pagamentoSituacao === 'Pago' && item.pacienteId && (
+                              <DropdownMenuItem onClick={() => onOpenRecibo(item)}>Emissão de recibo ou NF</DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => onCallSpecialist(item)}>Chamar especialista</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push('/financeiro')}>Abrir financeiro</DropdownMenuItem>
                             {normalizeAgendaStatus(item.status) !== 'Cancelado' && (

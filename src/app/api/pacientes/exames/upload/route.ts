@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse } from '@/lib/app-api'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { requirePermission } from '@/lib/authz'
+import { EXAMES_BUCKET, urlDeCaminho } from '@/lib/exames-storage'
+import { assertPacienteInUnitScope, authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
 const ALLOWED_MIMES = new Set([
   'application/pdf',
@@ -14,8 +16,8 @@ const MAX_BYTES = 10 * 1024 * 1024 // 10MB
  * POST /api/pacientes/exames/upload
  * FormData: file (PDF/JPG/PNG), pacienteId, nome (display name), tipo (opcional)
  *
- * Faz upload no bucket `exames-pacientes` (privado), gera signed URL anual e
- * persiste em paciente_exames via /api/pacientes/exames POST.
+ * Faz upload no bucket `exames-pacientes` (privado) e guarda só o caminho em
+ * paciente_exames; a URL de abertura é assinada (curta) na listagem.
  */
 export async function POST(request: NextRequest) {
   const session = await getRequestAuth(request)
@@ -56,25 +58,24 @@ export async function POST(request: NextRequest) {
       return serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)
     }
     uploadedPeloPaciente = true
+  } else {
+    // Equipe: precisa poder editar paciente e o paciente tem de estar na unidade dela.
+    const denied = await requirePermission(session.userId, 'pacientes', 'update')
+    if (denied) return denied
+    const fora = await assertPacienteInUnitScope({ session, pacienteId })
+    if (fora) return fora
   }
 
   const safeName = (nome || file.name).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80)
   const path = `${pacienteId}/${Date.now()}-${safeName}`
   const bytes = new Uint8Array(await file.arrayBuffer())
 
-  const upload = await supabase.storage.from('exames-pacientes').upload(path, bytes, {
+  const upload = await supabase.storage.from(EXAMES_BUCKET).upload(path, bytes, {
     contentType: file.type,
     upsert: false,
   })
   if (upload.error) {
     return serverErrorResponse(upload.error.message ?? 'Falha no upload', 'UPLOAD_FAILED', 500)
-  }
-
-  const { data: signed, error: signedError } = await supabase.storage
-    .from('exames-pacientes')
-    .createSignedUrl(path, 60 * 60 * 24 * 365)
-  if (signedError || !signed) {
-    return serverErrorResponse('Falha ao gerar URL', 'SIGN_FAILED', 500)
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
       paciente_id: pacienteId,
       nome: nome || file.name,
       tipo,
-      url: signed.signedUrl,
+      url: urlDeCaminho(path),
       uploaded_by: session.userId,
       uploaded_pelo_paciente: uploadedPeloPaciente,
     })
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
     {
       data: {
         id: String(inserted.id),
-        url: signed.signedUrl,
+        url: `/api/pacientes/exames/${String(inserted.id)}/arquivo`,
         nome: inserted.nome,
         tipo: inserted.tipo,
         pacienteId: inserted.paciente_id,

@@ -215,6 +215,7 @@ export function EvolucoesView() {
     meio: string
     dataEnvio: string
     recebido: boolean
+    anexo?: string
   }) => {
     if (!selectedItem?.pacienteId) {
       throw new Error('Não foi possível localizar o paciente desta evolução.')
@@ -226,6 +227,7 @@ export function EvolucoesView() {
       `Meio: ${payload.meio}`,
       `Data: ${payload.dataEnvio}`,
       `Recebido: ${payload.recebido ? 'Sim' : 'Não'}`,
+      ...(payload.anexo ? [`Anexo: ${payload.anexo}`] : []),
     ].join(' | ')
 
     await updateEvolucao({
@@ -913,6 +915,7 @@ export function EvolucoesView() {
         isOpen={isDocEnviadoOpen}
         onClose={() => setIsDocEnviadoOpen(false)}
         evolucaoId={selectedItem?.id ?? ''}
+        pacienteId={selectedItem?.pacienteId}
         onSave={handleAddDocumentoEnviado}
       />
 
