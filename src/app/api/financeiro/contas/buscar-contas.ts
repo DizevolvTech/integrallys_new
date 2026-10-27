@@ -32,8 +32,20 @@ function seguro(texto: string) {
 }
 
 async function catalogoFormas(supabase: SupabaseClient) {
-  const { data } = await supabase.from('formas_pagamento').select('id,nome')
-  return new Map((data ?? []).map((row) => [String(row.id), String(row.nome)]))
+  const { data } = await supabase.from('formas_pagamento').select('id,nome,tipo')
+  const linhas = data ?? []
+  return {
+    nomes: new Map(linhas.map((row) => [String(row.id), String(row.nome)])),
+    tipos: new Map(linhas.map((row) => [String(row.id), String(row.tipo)])),
+  }
+}
+
+type Catalogo = Awaited<ReturnType<typeof catalogoFormas>>
+
+/** Forma genérica do catálogo (sem cartão específico) para cada tipo, na ordem do cadastro. */
+function formaDoTipo(catalogo: Catalogo, tipo: string | null) {
+  for (const [id, t] of catalogo.tipos) if (t === tipo) return id
+  return null
 }
 
 async function contarAnexos(supabase: SupabaseClient, ids: string[]) {
@@ -137,7 +149,7 @@ async function saldosAgendamentos(ctx: Contexto) {
 }
 
 /** Recebimentos lançados direto no Caixa (manual / online). Os da agenda e das vendas já entram por lançamento. */
-async function recebimentosCaixa(ctx: Contexto, recorte: Recorte) {
+async function recebimentosCaixa(ctx: Contexto, recorte: Recorte, catalogo: Catalogo) {
   let query = ctx.supabase
     .from('caixa_movimentos')
     .select('id,descricao,valor,forma,bandeira,parcelas,data_movimento')
@@ -161,6 +173,7 @@ async function recebimentosCaixa(ctx: Contexto, recorte: Recorte) {
       bandeira: row.bandeira ? String(row.bandeira) : null,
       parcelas: row.parcelas == null ? null : Number(row.parcelas),
       dia: hojeClinica(new Date(String(row.data_movimento))),
+      formaPagamentoId: formaDoTipo(catalogo, row.forma ? String(row.forma) : null),
     }),
   )
   return { error: null, itens }
@@ -168,7 +181,8 @@ async function recebimentosCaixa(ctx: Contexto, recorte: Recorte) {
 
 /** Contas do tipo pedido dentro do recorte: lançamentos + (recebimentos) saldo de agendamentos. */
 export async function buscarContas(ctx: Contexto, filtros: FiltrosContas, recorte: Recorte) {
-  const formas = await catalogoFormas(ctx.supabase)
+  const catalogo = await catalogoFormas(ctx.supabase)
+  const formas = catalogo.nomes
   const receita = filtros.tipo === 'receita'
   const vazio = Promise.resolve({ error: null, itens: [] as ContaItem[] })
   const [lanc, saldos, caixa] = await Promise.all([
@@ -176,7 +190,7 @@ export async function buscarContas(ctx: Contexto, filtros: FiltrosContas, recort
     receita ? saldosAgendamentos(ctx) : vazio,
     // Recebimento do caixa só é "liquidado": fora de a vencer/atrasado e das contas só de atraso.
     receita && !recorte.soAtrasadas && filtros.situacao !== 'a_vencer' && filtros.situacao !== 'atrasado'
-      ? recebimentosCaixa(ctx, recorte)
+      ? recebimentosCaixa(ctx, recorte, catalogo)
       : vazio,
   ])
   const error = lanc.error ?? saldos.error ?? caixa.error
@@ -187,7 +201,9 @@ export async function buscarContas(ctx: Contexto, filtros: FiltrosContas, recort
     de: recorte.de,
     ate: recorte.ate,
   }).filter((item) => !recorte.soAtrasadas || item.situacao === 'atrasado')
-  const caixaFiltrado = filtrarRecebimentosCaixa(caixa.itens, filtros)
+  const tipoFiltro = catalogo.tipos.get(filtros.formaId)
+  const equivalentes = new Set([...catalogo.tipos].filter(([, t]) => tipoFiltro && t === tipoFiltro).map(([id]) => id))
+  const caixaFiltrado = filtrarRecebimentosCaixa(caixa.itens, filtros, equivalentes)
   const itens = [...lanc.itens, ...saldosFiltrados, ...caixaFiltrado].sort((a, b) => b.dataReferencia.localeCompare(a.dataReferencia))
   return { error: null, itens, formas }
 }

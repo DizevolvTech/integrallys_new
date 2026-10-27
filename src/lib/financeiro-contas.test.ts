@@ -89,4 +89,15 @@ describe('recebimento lançado no caixa', () => {
     expect(filtrarRecebimentosCaixa(todos, { ...base, situacao: 'a_vencer' })).toEqual([])
     expect(filtrarRecebimentosCaixa(todos, { ...base, profissionalId: '11111111-1111-1111-1111-111111111111' })).toEqual([])
   })
+
+  it('filtra por forma: o cartão de crédito do caixa aparece, as outras formas não', () => {
+    const base: FiltrosContas = { tipo: 'receita', de: null, ate: null, pessoa: '', produto: '', formaId: '', situacao: '', categoriaId: '', profissionalId: '', procedimentoId: '' }
+    const cc = recebimentoCaixaConta({ id: 'm3', descricao: 'Cartão', valor: 200, forma: 'cartao_credito', bandeira: 'Mastercard', parcelas: 2, dia: '2026-10-27', formaPagamentoId: 'f-credito' })
+    const din = recebimentoCaixaConta({ id: 'm4', descricao: 'Troco', valor: 10, forma: 'dinheiro', bandeira: null, parcelas: null, dia: '2026-10-27', formaPagamentoId: 'f-dinheiro' })
+    const semForma = recebimentoCaixaConta({ id: 'm5', descricao: 'X', valor: 1, forma: null, bandeira: null, parcelas: null, dia: '2026-10-27' })
+    const todos = [cc, din, semForma]
+    expect(filtrarRecebimentosCaixa(todos, { ...base, formaId: 'f-credito' })).toEqual([cc])
+    expect(filtrarRecebimentosCaixa(todos, { ...base, formaId: 'f-visa-empresa' }, new Set(['f-credito']))).toEqual([cc])
+    expect(filtrarRecebimentosCaixa(todos, { ...base, formaId: 'f-pix' })).toEqual([])
+  })
 })

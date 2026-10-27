@@ -183,6 +183,8 @@ export function recebimentoCaixaConta(params: {
   bandeira: string | null
   parcelas: number | null
   dia: string
+  /** Id da forma do catálogo equivalente à forma do caixa (para o filtro por forma). */
+  formaPagamentoId?: string | null
 }): ContaItem {
   const base = ROTULO_FORMA_CAIXA[params.forma ?? ''] ?? 'Não informada'
   const detalhes = [params.bandeira, params.parcelas && params.parcelas > 1 ? `${params.parcelas}x` : null].filter(Boolean)
@@ -202,7 +204,7 @@ export function recebimentoCaixaConta(params: {
     situacaoLabel: SITUACAO_LABEL.liquidado,
     categoria: 'Caixa',
     dreCategoriaId: null,
-    formaPagamentoId: null,
+    formaPagamentoId: params.formaPagamentoId ?? null,
     profissionalId: null,
     procedimentoId: null,
     anexos: 0,
@@ -210,14 +212,23 @@ export function recebimentoCaixaConta(params: {
   }
 }
 
-/** Filtros das linhas do caixa: só valem os que o caixa sabe responder (período, texto e situação). */
-export function filtrarRecebimentosCaixa(itens: ContaItem[], filtros: FiltrosContas): ContaItem[] {
-  if (filtros.formaId || filtros.categoriaId || filtros.profissionalId || filtros.procedimentoId) return []
+/** Filtros das linhas do caixa: período, texto, situação e forma (os demais não existem no caixa). */
+export function filtrarRecebimentosCaixa(
+  itens: ContaItem[],
+  filtros: FiltrosContas,
+  /** Ids do catálogo com o mesmo tipo da forma filtrada (ex.: todas as de cartão de crédito). */
+  formasEquivalentes: Set<string> = new Set(),
+): ContaItem[] {
+  if (filtros.categoriaId || filtros.profissionalId || filtros.procedimentoId) return []
   const busca = (filtros.pessoa || filtros.produto).toLowerCase()
   return itens.filter((item) => {
     if (filtros.de && item.dataReferencia < filtros.de) return false
     if (filtros.ate && item.dataReferencia > filtros.ate) return false
     if (filtros.situacao && item.situacao !== filtros.situacao) return false
+    if (filtros.formaId) {
+      const id = item.formaPagamentoId
+      if (!id || (id !== filtros.formaId && !formasEquivalentes.has(id))) return false
+    }
     return !busca || item.descricao.toLowerCase().includes(busca)
   })
 }
