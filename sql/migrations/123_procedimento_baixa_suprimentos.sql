@@ -101,3 +101,42 @@ begin
   return jsonb_build_object('ok', true, 'baixados', v_baixados, 'faltas', v_faltas);
 end;
 $$;
+
+-- Gatilho: qualquer caminho que registre pagamento de consulta (agenda, financeiro, novo agendamento)
+-- dispara a baixa quando o procedimento fica quitado (pago >= valor). A baixa e idempotente; uma falha
+-- nunca bloqueia o pagamento.
+create or replace function public.trg_baixa_suprimentos_pagamento()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_valor numeric;
+  v_pago numeric;
+begin
+  if new.status::text <> 'Pago' then
+    return new;
+  end if;
+  select a.valor_procedimento into v_valor from public.agendamentos a where a.id = new.agendamento_id;
+  if coalesce(v_valor, 0) <= 0 then
+    return new;
+  end if;
+  select coalesce(sum(p.valor), 0) into v_pago
+    from public.agendamentos_pagamentos p
+   where p.agendamento_id = new.agendamento_id and p.status::text = 'Pago';
+  if v_pago + 0.005 >= v_valor then
+    begin
+      perform public.suprimentos_baixar_agendamento(new.agendamento_id, null);
+    exception when others then
+      raise warning 'baixa de suprimentos falhou para o agendamento %: %', new.agendamento_id, sqlerrm;
+    end;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists agendamentos_pagamentos_baixa_suprimentos on public.agendamentos_pagamentos;
+create trigger agendamentos_pagamentos_baixa_suprimentos
+  after insert or update of status, valor on public.agendamentos_pagamentos
+  for each row execute function public.trg_baixa_suprimentos_pagamento();

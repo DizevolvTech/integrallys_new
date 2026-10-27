@@ -1,5 +1,6 @@
 'use client'
 
+import { ProcedimentoSuprimentosField, type SuprimentoDoProcedimento } from '@/features/suprimentos/components/procedimento-suprimentos-field'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Activity, Edit2, Eye, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react'
@@ -51,6 +52,8 @@ type FormState = {
   intervaloRecorrenciaDias: string
   quantidadeSugeridaPacote: string
   ativo: boolean
+  baixaSuprimentos: boolean
+  suprimentos: SuprimentoDoProcedimento[]
 }
 
 const initialFormState: FormState = {
@@ -66,6 +69,8 @@ const initialFormState: FormState = {
   intervaloRecorrenciaDias: '',
   quantidadeSugeridaPacote: '',
   ativo: true,
+  baixaSuprimentos: false,
+  suprimentos: [],
 }
 
 const toNumber = (value: string): number | undefined =>
@@ -116,6 +121,8 @@ export function ProcedimentosView() {
         quantidadeSugeridaPacote:
           item.quantidadeSugeridaPacote != null ? String(item.quantidadeSugeridaPacote) : '',
         ativo: item.ativo,
+        baixaSuprimentos: item.baixaSuprimentos === true,
+        suprimentos: (item.suprimentos ?? []).map((s) => ({ suprimentoId: s.suprimentoId, quantidade: s.quantidade })),
       })
       return
     }
@@ -159,6 +166,8 @@ export function ProcedimentosView() {
           ? toNumber(formData.quantidadeSugeridaPacote)
           : undefined,
         ativo: formData.ativo,
+        baixaSuprimentos: formData.baixaSuprimentos,
+        suprimentos: formData.baixaSuprimentos ? formData.suprimentos : [],
       }
 
       if (modalType === 'edit' && selectedProcedimento) {
@@ -505,6 +514,13 @@ export function ProcedimentosView() {
                   </div>
                 </div>
               ) : null}
+
+              <ProcedimentoSuprimentosField
+                baixa={formData.baixaSuprimentos}
+                itens={formData.suprimentos}
+                disabled={modalType === 'view'}
+                onChange={({ baixa, itens }) => setFormData((current) => ({ ...current, baixaSuprimentos: baixa, suprimentos: itens }))}
+              />
 
               <div className="flex items-center justify-between rounded-2xl border border-app-border px-4 py-3 dark:border-app-border-dark">
                 <div>

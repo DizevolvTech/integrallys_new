@@ -18,6 +18,9 @@ export interface ProcedimentoItem {
   intervaloRecorrenciaDias?: number
   quantidadeSugeridaPacote?: number
   ativo: boolean
+  /** Item 24: baixa automática de suprimentos ao pagamento. */
+  baixaSuprimentos?: boolean
+  suprimentos?: Array<{ suprimentoId: string; nome: string; quantidade: number }>
 }
 
 export interface ProcedimentoInput {
@@ -34,6 +37,8 @@ export interface ProcedimentoInput {
   intervaloRecorrenciaDias?: number
   quantidadeSugeridaPacote?: number
   ativo?: boolean
+  baixaSuprimentos?: boolean
+  suprimentos?: Array<{ suprimentoId: string; quantidade: number }>
 }
 
 export function useProcedimentos() {

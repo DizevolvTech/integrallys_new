@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Plus, Printer, Search, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react'
 import { useEstoque, type EstoqueInput, type MovimentacaoEstoqueInput, type MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
@@ -65,7 +66,7 @@ type EstoqueModal =
   | 'historico'
   | 'estornar'
   | null
-type EstoqueSection = 'estoque' | 'suprimentos'
+type EstoqueSection = 'estoque' | 'movimentacoes'
 
 interface EstoqueViewProps {
   initialSection?: EstoqueSection
@@ -82,6 +83,7 @@ function getItemTone(status: string) {
 const PAGE_SIZE_MOVIMENTACOES = 20
 
 export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
+  const router = useRouter()
   const {
     data,
     error,
@@ -170,7 +172,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
   )
 
   useEffect(() => {
-    if (section !== 'suprimentos') return
+    if (section !== 'movimentacoes') return
     fetchMovimentacoes(movPage)
   }, [section, movPage, fetchMovimentacoes])
 
@@ -187,13 +189,13 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     setMovPage(0)
   }
 
-  const sectionTitle = section === 'suprimentos' ? 'Suprimentos' : 'Consulta de estoque'
+  const sectionTitle = section === 'movimentacoes' ? 'Entradas e saídas' : 'Consulta de estoque'
   const sectionSubtitle =
-    section === 'suprimentos'
+    section === 'movimentacoes'
       ? 'Controle entradas, saídas e histórico de abastecimento.'
       : 'Visualize a disponibilidade de produtos para prescrição'
   const sectionDescription =
-    section === 'suprimentos'
+    section === 'movimentacoes'
       ? 'Gerencie entradas, saídas e o histórico de movimentações dos itens.'
       : 'Acompanhe saldo, nível crítico e itens disponíveis.'
 
@@ -202,7 +204,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     setActiveModal(modal)
   }
 
-  const handleEntrada = async (payload: { produtoId: string; quantidade: number; observacoes?: string }) => {
+  const handleEntrada = async (payload: MovimentacaoEstoqueInput) => {
     await registrarEntrada(payload)
     toast.success('Entrada registrada com sucesso.')
     setActiveModal(null)
@@ -279,7 +281,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                 <span>{proximasVencimentoCount} item(ns) com validade próxima</span>
               </div>
             )}
-            {section === 'suprimentos' && (
+            {section === 'movimentacoes' && (
               <div className="flex items-center gap-3 w-full md:w-auto">
                 <Button
                   onClick={() => openModal('entrada')}
@@ -305,10 +307,11 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
         <SegmentedControl
           options={[
             { value: 'estoque', label: 'Estoque' },
+            { value: 'movimentacoes', label: 'Entradas e saídas' },
             { value: 'suprimentos', label: 'Suprimentos' },
           ]}
           value={section}
-          onChange={(value) => setSection(value as EstoqueSection)}
+          onChange={(value) => (value === 'suprimentos' ? router.push('/estoque/suprimentos') : setSection(value as EstoqueSection))}
           size="lg"
         />
         <p className="text-sm font-normal text-app-text-secondary dark:text-white/60">{sectionDescription}</p>
@@ -316,7 +319,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
 
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
 
-      {section === 'suprimentos' ? (
+      {section === 'movimentacoes' ? (
         <div className="bg-app-card dark:bg-app-card-dark rounded-[20px] shadow-sm border border-app-border dark:border-app-border-dark/50 overflow-hidden">
           <div className="p-6 md:p-8 space-y-6">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6">

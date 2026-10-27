@@ -1,5 +1,5 @@
-import { EstoqueView } from '@/features/estoque'
+import { SuprimentosView } from '@/features/suprimentos'
 
 export default function Page() {
-  return <EstoqueView initialSection="suprimentos" />
+  return <SuprimentosView />
 }
