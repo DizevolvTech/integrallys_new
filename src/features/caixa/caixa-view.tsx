@@ -276,6 +276,10 @@ export function CaixaView() {
         const valorNum = Number(form.valor || 0)
         const isCard = form.forma === 'cartao_credito' || form.forma === 'cartao_debito'
         const parcelasNum = form.forma === 'cartao_credito' ? Number(form.parcelas) || 1 : null
+        if (isCard && !form.bandeira) {
+          toast.error('Informe a bandeira do cartão.')
+          return
+        }
         await addMovimentacao({
           descricao: form.descricao || 'Recebimento',
           valor: valorNum,
@@ -646,13 +650,13 @@ export function CaixaView() {
                   {(form.forma === 'cartao_credito' || form.forma === 'cartao_debito') && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Bandeira (opcional)</Label>
+                        <Label>Bandeira</Label>
                         <Select value={form.bandeira || 'nenhuma'} onValueChange={(value) => setForm((c) => ({ ...c, bandeira: value === 'nenhuma' ? '' : value }))}>
                           <SelectTrigger className="h-12 rounded-[12px]">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="nenhuma">Não informar</SelectItem>
+                            <SelectItem value="nenhuma" disabled>Selecione a bandeira</SelectItem>
                             <SelectItem value="Visa">Visa</SelectItem>
                             <SelectItem value="Mastercard">Mastercard</SelectItem>
                             <SelectItem value="Elo">Elo</SelectItem>

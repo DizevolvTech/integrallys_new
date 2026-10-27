@@ -3,11 +3,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
 
+export interface ParcelaFatura {
+  movimentoId: string
+  descricao: string
+  beneficiario: string | null
+  numero: number
+  total: number
+  valor: number
+  vencimento: string
+}
+
+export interface FaturaCartao {
+  mes: string
+  vencimento: string
+  total: number
+  aberta: boolean
+  itens: ParcelaFatura[]
+}
+
 export interface CartaoMovimento {
   id: string
   cartaoId: string
   descricao: string
   valor: number
+  valorParcela: number
   parcelas: number
   parcelaAtual: number
   dataCompra: string | null
@@ -32,6 +51,7 @@ export interface CartaoEmpresarial {
   limiteDisponivel: number
   faturasAbertas: number
   proximoVencimento: string | null
+  faturas: FaturaCartao[]
   movimentos: CartaoMovimento[]
 }
 

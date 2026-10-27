@@ -3,6 +3,10 @@ import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/li
 import { requirePermission } from '@/lib/authz'
 import { mapFinanceiroItem } from '@/lib/domain-mappers'
 import { authErrorResponse, getRequestAuth, getScopedUnitId, isScopedRole } from '@/lib/request-auth'
+import { hojeClinica } from '@/lib/recebimento-agendamento'
+import { isIsoDate } from '@/lib/financeiro-parcelas'
+import { situacaoLancamento } from '@/lib/financeiro-situacao'
+import { criarContas } from './criar-contas'
 
 // Item 9b — campos novos do lançamento (catálogo/conta/beneficiário/parcelas).
 // Aditivo: não substitui `metodo` (texto livre), que segue sendo persistido.
@@ -71,6 +75,7 @@ export async function POST(request: NextRequest) {
   if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  if (body?.contas === true) return criarContas(session, body)
   if (!body?.descricao || !body?.categoria || typeof body.valor !== 'number' || !body?.tipo) {
     return serverErrorResponse('Lançamento inválido', 'INVALID_FINANCEIRO_INPUT', 400)
   }
@@ -157,9 +162,31 @@ export async function PUT(request: NextRequest) {
   }
 
   const supabase = getAppSupabase()
+  const hoje = hojeClinica()
+  const statusNovo = typeof body.status === 'string' ? body.status : 'Pendente'
+  const liquidando =
+    situacaoLancamento({ status: statusNovo, vencimento: hoje, hoje }) === 'liquidado'
+  // Mantém a data em que já foi liquidado; só marca hoje na primeira liquidação.
+  let dataLiquidacao: string | null = null
+  if (liquidando) {
+    const { data: atual } = await supabase
+      .from('financeiro_lancamentos')
+      .select('data_liquidacao')
+      .eq('id', String(body.id))
+      .maybeSingle()
+    dataLiquidacao = atual?.data_liquidacao ? String(atual.data_liquidacao) : hoje
+  }
+  const vencimento =
+    typeof body.vencimento === 'string' && isIsoDate(body.vencimento) ? body.vencimento : undefined
+  const numeroDocumento =
+    typeof body.numeroDocumento === 'string' ? body.numeroDocumento.trim().slice(0, 60) || null : undefined
+
   let updateQuery = supabase
     .from('financeiro_lancamentos')
     .update({
+      data_liquidacao: dataLiquidacao,
+      vencimento,
+      numero_documento: numeroDocumento,
       unidade_id: scopedUnit.unidadeId ?? body.unidadeId ?? null,
       descricao: body.descricao,
       categoria: body.categoria,

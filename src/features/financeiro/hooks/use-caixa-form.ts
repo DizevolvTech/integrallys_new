@@ -8,6 +8,7 @@ import type {
   CloseCaixaPayload,
   OpenCaixaPayload,
 } from '@/hooks/use-caixa'
+import { isFormaCartao } from '@/features/caixa/caixa-format'
 import { parseCurrencyInput } from '../financeiro.utils'
 
 type CaixaModalType = null | 'abrir' | 'suprimento' | 'sangria' | 'fechar'
@@ -18,6 +19,9 @@ type CaixaFormState = {
   valor: string
   valorTransferido: string
   observacoes: string
+  forma: string
+  bandeira: string
+  parcelas: string
 }
 
 interface UseCaixaFormParams {
@@ -34,6 +38,9 @@ const initialCaixaForm: CaixaFormState = {
   valor: '',
   valorTransferido: '',
   observacoes: '',
+  forma: 'dinheiro',
+  bandeira: '',
+  parcelas: '1',
 }
 
 export function useCaixaForm({ onOpen, onAdd, onClose, onUpdate, onDelete }: UseCaixaFormParams) {
@@ -112,10 +119,27 @@ export function useCaixaForm({ onOpen, onAdd, onClose, onUpdate, onDelete }: Use
           toast.error('Preencha descrição e valor da movimentação.')
           return
         }
+        const valor = parseCurrencyInput(caixaForm.valor)
+        const recebimento = activeCaixaModal === 'suprimento'
+        const cartao = recebimento && isFormaCartao(caixaForm.forma)
+        if (cartao && !caixaForm.bandeira) {
+          toast.error('Informe a bandeira do cartão.')
+          return
+        }
+        const credito = recebimento && caixaForm.forma === 'cartao_credito'
+        const parcelas = credito ? Math.max(1, Number(caixaForm.parcelas) || 1) : null
         await onAdd({
           descricao: caixaForm.descricao,
-          valor: parseCurrencyInput(caixaForm.valor),
-          tipo: activeCaixaModal === 'suprimento' ? 'entrada' : 'saida',
+          valor,
+          tipo: recebimento ? 'entrada' : 'saida',
+          ...(recebimento
+            ? {
+                forma: caixaForm.forma,
+                bandeira: cartao ? caixaForm.bandeira : null,
+                parcelas,
+                valorParcela: parcelas ? Number((valor / parcelas).toFixed(2)) : null,
+              }
+            : {}),
         })
         toast.success(activeCaixaModal === 'suprimento' ? 'Recebimento registrado.' : 'Pagamento registrado.')
       } else if (activeCaixaModal === 'fechar') {

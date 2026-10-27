@@ -81,7 +81,26 @@ export async function registrarRecebimentoAgendamento(
   if (pagamentoError) return { error: pagamentoError, caixaRegistrado: false }
 
   const agora = new Date().toISOString()
+  const forma = metodoParaFormaCaixa(resolved.metodo)
+  // Vínculos usados pelos filtros de Recebimentos (cliente, profissional, especialidade, forma).
+  const [{ data: agendamento }, { data: formaCatalogo }] = await Promise.all([
+    supabase
+      .from('agendamentos')
+      .select('paciente_id,profissional_id,procedimento_id')
+      .eq('id', agendamentoId)
+      .maybeSingle(),
+    supabase.from('formas_pagamento').select('id').eq('tipo', forma).eq('ativo', true).is('cartao_id', null).limit(1).maybeSingle(),
+  ])
+  const hoje = hojeClinica()
   const { error: lancamentoError } = await supabase.from('financeiro_lancamentos').insert({
+    agendamento_id: agendamentoId,
+    paciente_id: agendamento?.paciente_id ?? null,
+    profissional_id: agendamento?.profissional_id ?? null,
+    procedimento_id: agendamento?.procedimento_id ?? null,
+    forma_pagamento_id: formaCatalogo?.id ?? null,
+    data_emissao: hoje,
+    data_liquidacao: hoje,
+    vencimento: hoje,
     unidade_id: unitId,
     usuario_id: session.userId,
     descricao: params.descricao,
@@ -89,7 +108,7 @@ export async function registrarRecebimentoAgendamento(
     valor: resolved.valor,
     tipo: 'receita',
     data_lancamento: agora,
-    competencia: hojeClinica(),
+    competencia: hoje,
     metodo: buildMetodoLabel(resolved),
     status: 'Pago',
     observacoes: resolved.observacoes,
@@ -114,7 +133,6 @@ export async function registrarRecebimentoAgendamento(
     .maybeSingle()
   if (sessao?.status !== 'aberto') return { error: null, caixaRegistrado: false }
 
-  const forma = metodoParaFormaCaixa(resolved.metodo)
   const { error: caixaError } = await supabase.from('caixa_movimentos').insert({
     unidade_id: unitId,
     usuario_id: session.userId,

@@ -93,7 +93,7 @@ export function RegistrarGastoModal({ open, cartaoId, cartaoNome, onClose, onSub
               </div>
 
               <div className="space-y-3">
-                <Label>Valor (R$)</Label>
+                <Label>Valor total da compra (R$)</Label>
                 <Input
                   value={form.valor}
                   onChange={(event) => setForm((current) => ({ ...current, valor: event.target.value }))}
