@@ -3,6 +3,9 @@ import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/a
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import type { AgendamentoStatus } from '@/types/agenda'
+import { carregarCaixasPorUnidade, type CaixaUnidade } from './caixas'
+import { calcularPerformance, classificarFaturamento, type TipoFaturamento } from './performance'
+import { agendamentoConta, contarRetornos } from './retornos'
 
 type DashboardVariant = 'admin' | 'gestor' | 'recepcao' | 'especialista' | 'master'
 
@@ -27,6 +30,39 @@ const statusLabel = (status: string): AgendamentoStatus | string => {
   if (normalized.includes('dispon')) return 'Disponível'
   if (normalized.includes('agend')) return 'Agendado'
   return status || 'Pendente'
+}
+
+interface FinanceiroUnidade {
+  unidadeId: string | null
+  unidade: string
+  entradas: number
+  saidas: number
+  saldo: number
+  faturamento: Record<TipoFaturamento, number>
+}
+
+// Todo card do início é atalho (pedido da cliente, item 41).
+const CARD_HREF: Record<string, string> = {
+  'agenda-hoje': '/agenda',
+  confirmados: '/agenda',
+  'em-espera': '/agenda',
+  atrasados: '/agenda',
+  concluidas: '/agenda',
+  entradas: '/financeiro',
+  saidas: '/financeiro',
+  saldo: '/financeiro',
+  receita: '/financeiro',
+  'lista-espera': '/lista-espera',
+  'pendentes-retorno': '/retornos?situacao=limite',
+  'pendentes-presc': '/prescricoes',
+  notas: '/financeiro',
+  unidades: '/unidades',
+  usuarios: '/usuarios',
+}
+
+const endOfMonthIso = (monthStart: string) => {
+  const lastDay = new Date(Date.UTC(Number(monthStart.slice(0, 4)), Number(monthStart.slice(5, 7)), 0)).getUTCDate()
+  return `${monthStart.slice(0, 8)}${String(lastDay).padStart(2, '0')}`
 }
 
 const toVariant = (role: string): DashboardVariant => {
@@ -81,11 +117,13 @@ export async function GET(request: NextRequest) {
     .from('agendamentos')
     .select('*', { count: 'exact', head: true })
     .eq('data_agendamento', todayIso)
+    .not('paciente_id', 'is', null) // horários livres e bloqueios não são atendimento
 
   let agendaRowsQuery = supabase
     .from('agendamentos')
     .select('id,paciente_id,profissional_id,data_agendamento,horario_inicio,status,observacoes')
     .eq('data_agendamento', todayIso)
+    .not('paciente_id', 'is', null) // horários livres e bloqueios não são atendimento
     .order('horario_inicio', { ascending: true })
     .limit(12)
 
@@ -121,16 +159,57 @@ export async function GET(request: NextRequest) {
     financeiroQuery = financeiroQuery.eq('unidade_id', adminUnidadeId)
   }
 
+  // Retorno previsto = último atendimento + prazo gravado (regra em ./retornos.ts).
   let retornosQuery = supabase
     .from('evolucoes')
-    .select('id,paciente_id,profissional_id,data_evolucao,retorno_recepcao')
+    .select('paciente_id,data_evolucao,retorno_recepcao')
     .not('retorno_recepcao', 'is', null)
     .order('data_evolucao', { ascending: false })
-    .limit(50)
+    .limit(5000)
 
   if (variant === 'especialista') {
     retornosQuery = retornosQuery.eq('profissional_id', session.userId)
   }
+
+  // Pacientes com consulta marcada daqui para frente: não contam como retorno vencido.
+  const agendamentosFuturosQuery = supabase
+    .from('agendamentos')
+    .select('paciente_id,status')
+    .gte('data_agendamento', todayIso)
+    .not('paciente_id', 'is', null)
+    .limit(5000)
+
+  // Performance (especialista = só os próprios; admin = clínica/unidade no período).
+  const isEspecialista = variant === 'especialista'
+  const needsPerformance = isEspecialista || isAdmin
+  const perfFrom = isEspecialista ? monthStart : adminPeriod.from
+  const perfTo = isEspecialista ? endOfMonthIso(monthStart) : adminPeriod.to
+  let perfAgendaQuery = supabase
+    .from('agendamentos')
+    .select('paciente_id,status,tipo,valor_procedimento')
+    .gte('data_agendamento', perfFrom)
+    .lte('data_agendamento', perfTo)
+    .limit(10000)
+  let perfPrescricoesQuery = supabase
+    .from('prescricoes')
+    .select('paciente_id,status,tipo,valor_total')
+    .gte('data_prescricao', perfFrom)
+    .lte('data_prescricao', perfTo)
+    .limit(5000)
+  if (isEspecialista) {
+    perfAgendaQuery = perfAgendaQuery.eq('profissional_id', session.userId)
+    perfPrescricoesQuery = perfPrescricoesQuery.eq('profissional_id', session.userId)
+  } else if (adminUnidadeId) {
+    perfAgendaQuery = perfAgendaQuery.eq('unidade_id', adminUnidadeId)
+  }
+
+  // Caixinha de troco / saldos de caixa (gestor e admin).
+  const caixasUnidades = isAdmin ? (adminUnidadeId ? [adminUnidadeId] : null) : unidadeId ? [unidadeId] : null
+  const caixasPromise =
+    variant === 'gestor' || isAdmin
+      ? carregarCaixasPorUnidade(supabase, caixasUnidades)
+      : Promise.resolve({ caixas: [] as CaixaUnidade[], error: null })
+  const emptyPerf = Promise.resolve({ data: [] as never[], error: null })
 
   const [
     agendaCountResult,
@@ -145,6 +224,10 @@ export async function GET(request: NextRequest) {
     auditResult,
     birthdaysResult,
     retornosResult,
+    agendamentosFuturosResult,
+    perfAgendaResult,
+    perfPrescricoesResult,
+    caixasResult,
   ] = await Promise.all([
     agendaCountQuery,
     agendaRowsQuery,
@@ -160,8 +243,12 @@ export async function GET(request: NextRequest) {
       .eq('perfil', 'especialista')
       .eq('status', 'Ativo'),
     supabase.from('audit_log').select('acao,recurso,created_at').order('created_at', { ascending: false }).limit(3),
-    supabase.from('pacientes').select('id,nome,data_nascimento').not('data_nascimento', 'is', null),
+    supabase.from('pacientes').select('id,nome,data_nascimento,unidade_id'),
     retornosQuery,
+    agendamentosFuturosQuery,
+    needsPerformance ? perfAgendaQuery : emptyPerf,
+    needsPerformance ? perfPrescricoesQuery : emptyPerf,
+    caixasPromise,
   ])
 
   const errors = [
@@ -177,6 +264,10 @@ export async function GET(request: NextRequest) {
     auditResult.error,
     birthdaysResult.error,
     retornosResult.error,
+    agendamentosFuturosResult.error,
+    perfAgendaResult.error,
+    perfPrescricoesResult.error,
+    caixasResult.error,
   ].filter(Boolean)
 
   if (errors.length > 0) {
@@ -274,7 +365,13 @@ export async function GET(request: NextRequest) {
     return tipo === 'receita' ? acc + valor : acc - valor
   }, 0)
 
-  const birthdays = (birthdaysResult.data ?? [])
+  const pacientesRows = (birthdaysResult.data ?? []).filter((row) => {
+    const escopo = isAdmin ? adminUnidadeId : unidadeId
+    return !escopo || !row.unidade_id || String(row.unidade_id) === escopo
+  })
+  const pacienteIdsVisiveis = new Set(pacientesRows.map((row) => String(row.id)))
+
+  const birthdays = pacientesRows
     .filter((row) => {
       if (!row.data_nascimento) return false
       // date-only (YYYY-MM-DD): compare em meio-dia local para evitar deslocamento UTC→BRT
@@ -293,30 +390,20 @@ export async function GET(request: NextRequest) {
       }
     })
 
-  const retornosRows = retornosResult.data ?? []
-  const parseDaysFromRetorno = (text: string): number => {
-    const match = /(\d+)\s*dias?/i.exec(text)
-    if (match) return parseInt(match[1], 10)
-    if (/6\s*mes/i.test(text)) return 180
-    if (/liberado/i.test(text)) return 9999
-    return 30
-  }
-
-  let retornosLimitePrazo = 0
-  let retornosVencidos = 0
-  for (const row of retornosRows) {
-    const dias = parseDaysFromRetorno(String(row.retorno_recepcao ?? ''))
-    if (dias >= 9999) continue
-    const dataEvolucao = new Date(String(row.data_evolucao ?? ''))
-    const dataPrevista = new Date(dataEvolucao)
-    dataPrevista.setDate(dataPrevista.getDate() + dias)
-    const diffDays = Math.ceil((dataPrevista.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    if (diffDays < 0) {
-      retornosVencidos++
-    } else if (diffDays <= 10) {
-      retornosLimitePrazo++
-    }
-  }
+  const pacientesComAgendamentoFuturo = new Set(
+    (agendamentosFuturosResult.data ?? [])
+      .filter((row) => agendamentoConta(row.status as string | null))
+      .map((row) => String(row.paciente_id)),
+  )
+  const escopoPacientes = isAdmin ? adminUnidadeId : isEspecialista ? null : unidadeId
+  const retornosContagem = contarRetornos({
+    evolucoes: retornosResult.data ?? [],
+    pacientesComAgendamentoFuturo,
+    hojeIso: todayIso,
+    pacienteVisivel: escopoPacientes ? (id) => pacienteIdsVisiveis.has(id) : null,
+  })
+  const retornosLimitePrazo = retornosContagem.limitePrazo
+  const retornosVencidos = retornosContagem.vencidos
 
   // Performance charts (especialista e admin) — últimas 4 semanas + distribuição por tipo
   let atendimentosPorSemana: { semana: string; total: number }[] = []
@@ -327,7 +414,7 @@ export async function GET(request: NextRequest) {
     const fourWeeksAgoIso = fourWeeksAgo.toISOString().slice(0, 10)
     let chartQuery = supabase
       .from('agendamentos')
-      .select('data_agendamento,observacoes,status')
+      .select('data_agendamento,observacoes,status,paciente_id')
       .gte('data_agendamento', fourWeeksAgoIso)
       .lte('data_agendamento', todayIso)
     if (variant === 'especialista') {
@@ -349,6 +436,7 @@ export async function GET(request: NextRequest) {
     const tiposBuckets = new Map<string, number>()
 
     for (const row of chartRows ?? []) {
+      if (!row.paciente_id || !agendamentoConta(row.status as string | null)) continue // slots livres e bloqueios não são atendimento
       const dataStr = row.data_agendamento ? String(row.data_agendamento) : null
       if (dataStr) {
         const date = new Date(dataStr)
@@ -380,9 +468,9 @@ export async function GET(request: NextRequest) {
   const unidadeNome = (id: string | null | undefined) =>
     id ? unidadesMap.get(String(id)) ?? 'Sem unidade' : 'Sem unidade'
 
-  let saldoCaixas: { id: string; unidade: string; status: string; saldo: number }[] = []
+  let saldoCaixas: Array<{ id: string; unidadeId: string; unidade: string; status: string; saldo: number; troco: number; cofre: number }> = []
   let saldoBancos: { id: string; unidade: string; nome: string; banco: string; tipo: string; saldo: number }[] = []
-  let financeiroPorUnidade: { unidadeId: string | null; unidade: string; entradas: number; saidas: number; saldo: number }[] = []
+  let financeiroPorUnidade: FinanceiroUnidade[] = []
   let prescricoesPendentes = { limitePrazo: 0, vencidos: 0 }
   let listaEsperaCount = 0
   let estoqueCritico: { count: number; itens: { id: string; nome: string; quantidade: number; estoqueMinimo: number }[] } = { count: 0, itens: [] }
@@ -418,7 +506,6 @@ export async function GET(request: NextRequest) {
     const fourWeeksAgoIso = fourWeeksAgo.toISOString().slice(0, 10)
 
     const [
-      caixaSessoesResult,
       contasBancariasResult,
       prescricoesResult,
       listaEsperaResult,
@@ -427,32 +514,29 @@ export async function GET(request: NextRequest) {
       agendamentosPorUnidadeResult,
     ] = await Promise.all([
       supabase
-        .from('caixa_sessoes')
-        .select('id,unidade_id,status,saldo_inicial,saldo_final,data_operacao')
-        .eq('status', 'aberto'),
-      supabase
         .from('contas_bancarias')
         .select('id,unidade_id,nome,banco,tipo,saldo_inicial')
         .eq('ativo', true),
-      supabase.from('prescricoes').select('id,validade').limit(2000),
-      supabase.from('lista_espera').select('*', { count: 'exact', head: true }),
+      supabase.from('prescricoes').select('id,paciente_id,validade').limit(2000),
+      adminUnidadeId
+        ? supabase.from('lista_espera').select('*', { count: 'exact', head: true }).eq('unidade_id', adminUnidadeId)
+        : supabase.from('lista_espera').select('*', { count: 'exact', head: true }),
       supabase.from('produtos_estoque').select('id,nome,quantidade,estoque_minimo').limit(1000),
       supabase
         .from('agendamentos')
-        .select('observacoes')
+        .select('observacoes,paciente_id,status')
         .gte('data_agendamento', fourWeeksAgoIso)
         .lte('data_agendamento', todayIso),
       // Comparativo por unidade — 1 query agrupada em memória (padrão grupoUnidades:461),
       // não N+1 por unidade
       supabase
         .from('agendamentos')
-        .select('unidade_id')
+        .select('unidade_id,paciente_id,status')
         .gte('data_agendamento', adminPeriod.from)
         .lte('data_agendamento', adminPeriod.to),
     ])
 
     const adminErrors = [
-      caixaSessoesResult.error,
       contasBancariasResult.error,
       prescricoesResult.error,
       listaEsperaResult.error,
@@ -465,15 +549,17 @@ export async function GET(request: NextRequest) {
       return supabaseErrorResponse(adminErrors[0]!, 'Falha ao carregar blocos do admin')
     }
 
-    saldoCaixas = (caixaSessoesResult.data ?? []).map((row) => {
-      const saldo = Number(row.saldo_final ?? row.saldo_inicial ?? 0)
-      return {
-        id: String(row.id),
-        unidade: unidadeNome(row.unidade_id ? String(row.unidade_id) : null),
-        status: String(row.status ?? 'aberto'),
-        saldo,
-      }
-    })
+    saldoCaixas = caixasResult.caixas
+      .filter((caixa) => !adminUnidadeId || caixa.unidadeId === adminUnidadeId)
+      .map((caixa) => ({
+        id: caixa.sessaoId,
+        unidadeId: caixa.unidadeId,
+        unidade: unidadeNome(caixa.unidadeId),
+        status: caixa.status,
+        saldo: caixa.saldoCaixa,
+        troco: caixa.troco,
+        cofre: caixa.cofre,
+      }))
 
     const contasRows = contasBancariasResult.data ?? []
     const contaIds = contasRows.map((row) => String(row.id))
@@ -506,23 +592,27 @@ export async function GET(request: NextRequest) {
     })
 
     // Faturamento e saídas por unidade — usa todos os lançamentos do mês
-    const grupoUnidades = new Map<string, { entradas: number; saidas: number }>()
+    const grupoUnidades = new Map<string, { entradas: number; saidas: number; porTipo: Record<TipoFaturamento, number> }>()
     for (const row of financeiroRows) {
       const key = row.unidade_id ? String(row.unidade_id) : 'sem-unidade'
-      if (!grupoUnidades.has(key)) grupoUnidades.set(key, { entradas: 0, saidas: 0 })
+      if (!grupoUnidades.has(key)) grupoUnidades.set(key, { entradas: 0, saidas: 0, porTipo: { procedimentos: 0, consultas: 0, produtos: 0, outros: 0 } })
       const tipo = String(row.tipo ?? '').toLowerCase()
       const valor = Number(row.valor ?? 0)
       const entry = grupoUnidades.get(key)!
-      if (tipo === 'receita') entry.entradas += valor
+      if (tipo === 'receita') {
+        entry.entradas += valor
+        entry.porTipo[classificarFaturamento(row.categoria as string | null)] += valor
+      }
       else if (tipo === 'despesa') entry.saidas += valor
     }
     financeiroPorUnidade = Array.from(grupoUnidades.entries())
-      .map(([unidadeId, { entradas, saidas }]) => ({
+      .map(([unidadeId, { entradas, saidas, porTipo }]) => ({
         unidadeId: unidadeId === 'sem-unidade' ? null : unidadeId,
         unidade: unidadeId === 'sem-unidade' ? 'Sem unidade' : unidadeNome(unidadeId),
         entradas,
         saidas,
         saldo: entradas - saidas,
+        faturamento: porTipo,
       }))
       .sort((a, b) => b.entradas - a.entradas)
 
@@ -531,6 +621,7 @@ export async function GET(request: NextRequest) {
     // Mesmo pattern de grupoUnidades — sem N+1.
     const agendamentosPorUnidade = new Map<string, number>()
     for (const row of agendamentosPorUnidadeResult.data ?? []) {
+      if (!row.paciente_id || !agendamentoConta(row.status as string | null)) continue
       const key = row.unidade_id ? String(row.unidade_id) : 'sem-unidade'
       agendamentosPorUnidade.set(key, (agendamentosPorUnidade.get(key) ?? 0) + 1)
     }
@@ -564,6 +655,7 @@ export async function GET(request: NextRequest) {
     const todayDateOnly = todayIso
     const limiteIso = limiteDate.toISOString().slice(0, 10)
     for (const row of prescricoesResult.data ?? []) {
+      if (adminUnidadeId && row.paciente_id && !pacienteIdsVisiveis.has(String(row.paciente_id))) continue
       const validade = row.validade ? String(row.validade) : null
       if (!validade) continue
       if (validade < todayDateOnly) prescricoesPendentes.vencidos += 1
@@ -586,6 +678,7 @@ export async function GET(request: NextRequest) {
     // dos últimos 28 dias — não há FK para `procedimentos` no agendamento)
     const procBuckets = new Map<string, number>()
     for (const row of agendamentosUltimos28DiasResult.data ?? []) {
+      if (!row.paciente_id || !agendamentoConta(row.status as string | null)) continue
       const raw = String(row.observacoes ?? '').trim()
       const nome = raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : 'Consulta'
       procBuckets.set(nome, (procBuckets.get(nome) ?? 0) + 1)
@@ -621,24 +714,16 @@ export async function GET(request: NextRequest) {
     const semanaAtrasIso = semanaAtras.toISOString().slice(0, 10)
     let agendaSemanaQuery = supabase
       .from('agendamentos')
-      .select('id,status,data_agendamento,horario_inicio,unidade_id')
+      .select('id,paciente_id,status,unidade_id')
       .gte('data_agendamento', semanaAtrasIso)
       .lte('data_agendamento', todayIso)
     if (adminUnidadeId) agendaSemanaQuery = agendaSemanaQuery.eq('unidade_id', adminUnidadeId)
     const agendaSemanaResult = await agendaSemanaQuery
     if (!agendaSemanaResult.error) {
-      const rows = agendaSemanaResult.data ?? []
+      // Só atendimentos de verdade: horários livres ("Disponível") e bloqueios não entram na conta.
+      const rows = (agendaSemanaResult.data ?? []).filter((row) => row.paciente_id && !String(row.status ?? '').toLowerCase().includes('dispon'))
       const cancelados = rows.filter((row) => String(row.status ?? '').toLowerCase().includes('cancel')).length
-      const nowMs = today.getTime()
-      const noShow = rows.filter((row) => {
-        const status = String(row.status ?? '').toLowerCase()
-        if (!status.includes('dispon')) return false
-        const dataStr = row.data_agendamento ? String(row.data_agendamento) : null
-        const horaStr = row.horario_inicio ? String(row.horario_inicio) : '00:00'
-        if (!dataStr) return false
-        const slotMs = new Date(`${dataStr}T${horaStr}`).getTime()
-        return Number.isFinite(slotMs) && slotMs < nowMs
-      }).length
+      const noShow = rows.filter((row) => String(row.status ?? '').toLowerCase().includes('faltou')).length
       const total = rows.length
       const taxaCancelamento = total > 0 ? `${((cancelados / total) * 100).toFixed(1)}%` : '0%'
       const taxaNoShow = total > 0 ? `${((noShow / total) * 100).toFixed(1)}%` : '0%'
@@ -648,7 +733,7 @@ export async function GET(request: NextRequest) {
     // Aniversariantes dos próximos 7 dias
     const proxima7 = new Date(today)
     proxima7.setDate(proxima7.getDate() + 6)
-    aniversariantesSemana = (birthdaysResult.data ?? [])
+    aniversariantesSemana = pacientesRows
       .map((row) => {
         if (!row.data_nascimento) return null
         const raw = String(row.data_nascimento).slice(0, 10)
@@ -672,6 +757,25 @@ export async function GET(request: NextRequest) {
       .slice(0, 10)
   }
 
+  const prescricoesPerf = ((perfPrescricoesResult.data ?? []) as Array<{ paciente_id: string | null; status: string | null; tipo: string | null; valor_total: number | null }>).filter(
+    (row) => !isAdmin || !adminUnidadeId || (row.paciente_id && pacienteIdsVisiveis.has(String(row.paciente_id))),
+  )
+  const performance = needsPerformance
+    ? {
+        periodo: { de: perfFrom, ate: perfTo },
+        ...calcularPerformance(perfAgendaResult.data ?? [], prescricoesPerf),
+        retornos: { limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
+      }
+    : undefined
+
+  const faturamentoTotal: Record<TipoFaturamento, number> = { procedimentos: 0, consultas: 0, produtos: 0, outros: 0 }
+  for (const item of financeiroPorUnidade) {
+    for (const tipo of Object.keys(faturamentoTotal) as TipoFaturamento[]) faturamentoTotal[tipo] += item.faturamento[tipo]
+  }
+
+  const caixaGestor = variant === 'gestor' ? caixasResult.caixas[0] : undefined
+  const formatBrl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
   const response = {
     variant,
     cards:
@@ -681,9 +785,7 @@ export async function GET(request: NextRequest) {
             { id: 'saidas', label: 'Total de saídas', value: despesaMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), description: 'despesas do período' },
             { id: 'saldo', label: 'Saldo do período', value: saldoPrevisto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), description: 'resultado consolidado' },
             { id: 'agenda-hoje', label: 'Atendimentos hoje', value: String(agendaCountResult.count ?? 0), description: 'consultas na agenda do dia' },
-            { id: 'lista-espera', label: 'Lista de espera', value: String(listaEsperaCount), description: 'pacientes aguardando' },
-            { id: 'pendentes-retorno', label: 'Retornos pendentes', value: String(retornosLimitePrazo + retornosVencidos), description: `${retornosLimitePrazo} no limite, ${retornosVencidos} vencidos` },
-            { id: 'pendentes-presc', label: 'Prescrições pendentes', value: String(prescricoesPendentes.limitePrazo + prescricoesPendentes.vencidos), description: `${prescricoesPendentes.limitePrazo} no limite, ${prescricoesPendentes.vencidos} vencidas` },
+            { id: 'notas', label: 'Notas fiscais emitidas', value: '—', description: 'sem registro de emissão de NF no sistema' },
           ]
         : variant === 'master'
           ? [
@@ -701,7 +803,6 @@ export async function GET(request: NextRequest) {
           : variant === 'especialista'
             ? [
                 { id: 'agenda-hoje', label: 'Consultas hoje', value: String(agendaCountResult.count ?? 0), description: 'na agenda do dia' },
-                { id: 'pacientes-unicos', label: 'Pacientes únicos', value: String(new Set(recentPatients.map((item) => item.name)).size), description: 'atendidos hoje' },
                 { id: 'pendentes', label: 'Pendentes', value: String(agendaEspera), description: 'em espera ou check-in' },
                 { id: 'concluidas', label: 'Concluídas', value: String(appointments.filter((item) => item.status.toLowerCase().includes('concl')).length), description: 'finalizadas hoje' },
               ]
@@ -712,9 +813,11 @@ export async function GET(request: NextRequest) {
                 { id: 'atrasados', label: 'Atrasados', value: String(agendaAtrasados), description: 'consultas fora do horário' },
               ],
     retornos: {
+      noPrazo: retornosContagem.noPrazo,
       limitePrazo: retornosLimitePrazo,
       vencidos: retornosVencidos,
     },
+    performance,
     especialistaCharts: variant === 'especialista'
       ? { atendimentosPorSemana, tiposConsulta }
       : undefined,
@@ -741,6 +844,11 @@ export async function GET(request: NextRequest) {
       saldoCaixas,
       saldoBancos,
       financeiroPorUnidade,
+      faturamentoTotal,
+      notasEmitidas: {
+        registrado: false,
+        aviso: 'O sistema ainda não registra a emissão de notas fiscais; o valor total de notas emitidas não pode ser calculado.',
+      },
       unidadesComparativo,
       prescricoesPendentes,
       retornosPendentes: { limitePrazo: retornosLimitePrazo, vencidos: retornosVencidos },
@@ -759,6 +867,7 @@ export async function GET(request: NextRequest) {
             name: 'Entradas registradas',
             balance: receitaMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
             color: 'bg-emerald-500',
+            href: '/financeiro',
           },
           {
             id: 'pagar',
@@ -766,6 +875,7 @@ export async function GET(request: NextRequest) {
             name: 'Saídas registradas',
             balance: despesaMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
             color: 'bg-rose-500',
+            href: '/financeiro',
           },
           {
             id: 'saldo',
@@ -773,13 +883,23 @@ export async function GET(request: NextRequest) {
             name: 'Saldo do período',
             balance: saldoPrevisto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
             color: 'bg-app-primary',
+            href: '/financeiro',
           },
           {
             id: 'caixinha-troco',
-            type: 'Operacional',
+            type: caixaGestor?.aberto ? 'Caixa aberto' : caixaGestor ? 'Caixa fechado' : 'Sem caixa aberto ainda',
             name: 'Caixinha de troco',
-            balance: 'R$ 0,00',
+            balance: formatBrl(caixaGestor?.troco ?? 0),
             color: 'bg-amber-500',
+            href: '/caixa',
+          },
+          {
+            id: 'cofre',
+            type: 'Operacional',
+            name: 'Cofre',
+            balance: formatBrl(caixaGestor?.cofre ?? 0),
+            color: 'bg-slate-500',
+            href: '/caixa',
           },
       ],
       paymentsDue: financeiroRows
@@ -811,5 +931,18 @@ export async function GET(request: NextRequest) {
     },
   }
 
-  return NextResponse.json(response)
+  const cardHref = (card: { id: string }) => {
+    if (card.id === 'pendentes') return variant === 'especialista' ? '/agenda' : undefined
+    return CARD_HREF[card.id]
+  }
+  // Recepção e especialista não recebem dados financeiros do gestor (permissão decidida no servidor).
+  const verFinanceiro = variant === 'gestor' || isAdmin || variant === 'master'
+  const body = verFinanceiro
+    ? response
+    : {
+        ...response,
+        gestor: { accounts: [], paymentsDue: [], receivables: [] },
+        finance: { recebimentosPendentes: '0', pagamentosPendentes: '0', saldoPrevisto: '0' },
+      }
+  return NextResponse.json({ ...body, cards: body.cards.map((card) => ({ ...card, href: cardHref(card) })) })
 }
