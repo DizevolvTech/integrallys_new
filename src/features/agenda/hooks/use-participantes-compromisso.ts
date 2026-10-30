@@ -23,7 +23,11 @@ export function useParticipantesCompromisso(ativo: boolean) {
     setIsLoading(true)
     api
       .get<{ data: ParticipanteOpcao[] }>('/api/agenda/participantes')
-      .then((res) => atual && (setData(res.data), setError(null)))
+      .then((res) => {
+        if (!atual) return
+        setData(res.data)
+        setError(null)
+      })
       .catch((err) => atual && setError(err instanceof Error ? err.message : 'Erro ao carregar usuários'))
       .finally(() => atual && setIsLoading(false))
     return () => {

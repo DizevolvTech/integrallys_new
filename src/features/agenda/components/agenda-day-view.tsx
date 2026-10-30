@@ -23,7 +23,7 @@ import {
   normalizeAgendaStatus,
   resolvePagamentoSituacao,
 } from '../agenda.utils'
-import { bloqueiosDoDia, corDoTipoBloqueio, isoDateLocal, textoDoBloqueio } from '../bloqueios.utils'
+import { bloqueiosDoDia, corDoTipoBloqueio, isoDateLocal, rotuloDoBloqueio, textoDoBloqueio } from '../bloqueios.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
 
 interface AgendaDayViewProps {
@@ -117,13 +117,13 @@ export function AgendaDayView({
                 <div className="flex-1 min-w-[200px]">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cor.chip}`}>
-                      {b.tipo}
+                      {rotuloDoBloqueio(b)}
                     </span>
                     <span className="text-sm font-normal text-red-900 dark:text-red-100">
                       {profissionalNome ?? 'Todos profissionais'}
                     </span>
                   </div>
-                  {b.justificativa && (
+                  {b.justificativa && b.tipo !== 'Compromisso' && (
                     <p className="text-xs text-red-800/80 dark:text-red-200/80 mt-1 truncate">
                       {textoDoBloqueio(b.justificativa)}
                     </p>

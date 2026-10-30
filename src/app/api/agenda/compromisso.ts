@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
+import { type getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { type AgendaRowIntervalo, planejarOcupacao, timeToMinutes } from './agenda-duracao'
 import { getLinhasDoDia, liberarIntervaloNaGrade } from './agenda-grade'
 import { buildInsertPayload } from './agenda-slot'

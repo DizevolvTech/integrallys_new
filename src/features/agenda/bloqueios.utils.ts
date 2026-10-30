@@ -60,3 +60,10 @@ export function textoDoBloqueio(justificativa: string | null | undefined): strin
   const legado = /^Compromisso:[0-9a-f-]{36}\|(.*)$/i.exec(texto)
   return legado ? legado[1].trim() : texto
 }
+
+/** Etiqueta do bloqueio: compromisso mostra "Compromisso: TÍTULO"; os demais, só o tipo. */
+export function rotuloDoBloqueio(b: Pick<AgendaBloqueio, 'tipo' | 'justificativa'>): string {
+  const titulo = textoDoBloqueio(b.justificativa)
+  if (b.tipo !== 'Compromisso' || !titulo) return b.tipo
+  return /^Compromisso:/i.test(titulo) ? titulo : `Compromisso: ${titulo}`
+}

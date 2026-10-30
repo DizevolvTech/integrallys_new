@@ -83,17 +83,16 @@ export function MultiSelectSearch({
         />
       </div>
       <ul
-        role="listbox"
-        aria-multiselectable="true"
         className="max-h-44 overflow-y-auto rounded-[12px] border border-app-border dark:border-app-border-dark"
       >
         {filtradas.length === 0 && <li className="px-3 py-3 text-sm text-app-text-muted">{emptyText}</li>}
         {filtradas.map((opcao) => {
           const marcado = selecionados.has(opcao.value)
           return (
-            <li key={opcao.value} role="option" aria-selected={marcado}>
+            <li key={opcao.value}>
               <button
                 type="button"
+                aria-pressed={marcado}
                 disabled={disabled}
                 onClick={() => alternar(opcao.value)}
                 className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-app-bg-secondary dark:hover:bg-app-hover"

@@ -164,7 +164,7 @@ export function EstornarRecebimentoModal({
 
           {escolhido && (
             <p className="rounded-integrallys border border-app-border p-3 text-xs text-app-text-secondary dark:border-app-border-dark dark:text-white/70">
-              Será lançada uma saída de {moeda(escolhido.valor)} no caixa de hoje (o lançamento original fica registrado como
+              Será lançada uma saída de {moeda(escolhido.valor)}{' '}no caixa de hoje (o lançamento original fica registrado como
               estornado, com seu nome e a data). Depois é só usar &quot;Emitir nova cobrança&quot; com o valor certo.
             </p>
           )}

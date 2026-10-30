@@ -56,7 +56,7 @@ export function AniversariantesModal({ isOpen, onClose }: AniversariantesModalPr
                 Lista de Aniversariantes
               </DialogTitle>
               <DialogDescription className="text-xs text-app-text-muted mt-0.5">
-                Controle de mensagens de aniversario por dia ou mes.
+                Controle de mensagens de aniversário por dia ou mês.
               </DialogDescription>
             </div>
           </div>
@@ -76,7 +76,7 @@ export function AniversariantesModal({ isOpen, onClose }: AniversariantesModalPr
               onClick={() => setModo('mes')}
               className={`h-10 px-4 text-sm ${modo === 'mes' ? 'bg-app-primary text-white' : 'bg-app-card dark:bg-app-bg-dark text-app-text-secondary dark:text-white/80'}`}
             >
-              Mes
+              Mês
             </button>
           </div>
           <DateInput value={dataFiltro} onChange={setDataFiltro} className="h-10 max-w-[220px]" />
@@ -91,14 +91,14 @@ export function AniversariantesModal({ isOpen, onClose }: AniversariantesModalPr
           </div>
         </div>
 
-        <div className="px-6 pb-6 overflow-auto min-h-0">
-          <div className="rounded-[12px] border border-app-border dark:border-app-border-dark overflow-hidden">
+        <div className="px-6 pb-6 overflow-x-auto overflow-y-auto min-h-0">
+          <div className="min-w-[520px] rounded-[12px] border border-app-border dark:border-app-border-dark overflow-hidden">
             <div className="grid grid-cols-12 bg-app-bg-secondary/60 dark:bg-app-bg-dark/60 border-b border-app-border dark:border-app-border-dark text-xs uppercase tracking-wider text-app-text-muted">
-              <div className="col-span-4 px-4 py-3">Cliente</div>
-              <div className="col-span-2 px-4 py-3">Nascimento</div>
-              <div className="col-span-1 px-4 py-3">Idade</div>
-              <div className="col-span-3 px-4 py-3">Telefone</div>
-              <div className="col-span-2 px-4 py-3 text-center">OK mensagem</div>
+              <div className="col-span-4 px-2 py-3 sm:px-4">Cliente</div>
+              <div className="col-span-2 px-2 py-3 sm:px-4">Nascimento</div>
+              <div className="col-span-1 px-2 py-3 sm:px-4">Idade</div>
+              <div className="col-span-3 px-2 py-3 sm:px-4">Telefone</div>
+              <div className="col-span-2 px-2 py-3 sm:px-4 text-center">OK mensagem</div>
             </div>
 
             {error && <div className="px-4 py-3 text-sm text-[var(--app-danger-text)]">{error}</div>}
@@ -114,19 +114,19 @@ export function AniversariantesModal({ isOpen, onClose }: AniversariantesModalPr
                 key={item.id}
                 className="grid grid-cols-12 border-b last:border-b-0 border-app-border dark:border-app-border-dark items-center"
               >
-                <div className="col-span-4 px-4 py-3 text-sm text-app-text-primary dark:text-white">
+                <div className="col-span-4 px-2 py-3 sm:px-4 text-sm text-app-text-primary dark:text-white">
                   {item.nome}
                 </div>
-                <div className="col-span-2 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
+                <div className="col-span-2 px-2 py-3 sm:px-4 text-xs sm:text-sm text-app-text-secondary dark:text-white/80">
                   {formatDateBR(item.nascimento)}
                 </div>
-                <div className="col-span-1 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
+                <div className="col-span-1 px-2 py-3 sm:px-4 text-xs sm:text-sm text-app-text-secondary dark:text-white/80">
                   {item.idade}
                 </div>
-                <div className="col-span-3 px-4 py-3 text-sm text-app-text-secondary dark:text-white/80">
+                <div className="col-span-3 px-2 py-3 sm:px-4 text-xs sm:text-sm text-app-text-secondary dark:text-white/80">
                   {item.telefone}
                 </div>
-                <div className="col-span-2 px-4 py-3 flex justify-center">
+                <div className="col-span-2 px-2 py-3 sm:px-4 flex justify-center">
                   <button
                     type="button"
                     onClick={() => void marcar(item.id, !item.enviado)}

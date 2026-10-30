@@ -23,7 +23,6 @@ import {
   minutesToHHMM,
   planejarOcupacao,
   timeToMinutes,
-  vagasDaGradeNoIntervalo,
   duracaoRetornoDaGrade,
   type RegraGradeRetorno,
 } from './agenda-duracao'
