@@ -45,7 +45,9 @@ import type { PrescricaoAtiva } from '@/services/especialistaPrescricoes.service
 import type { Patient } from '@/types/patient'
 import { usePacientes, type PacienteItem } from '@/hooks/use-pacientes'
 import { useApi } from '@/hooks/use-api'
-import { isClientePaciente } from './pacientes.utils'
+import { apiClient } from '@/lib/api-client'
+import { CrmKanban } from './crm-kanban'
+import { CLASSE_TOM_INADIMPLENCIA, isClientePaciente, tomInadimplencia } from './pacientes.utils'
 
 function calculateAgeFromDate(dateStr: string): string {
   const birth = new Date(dateStr)
@@ -185,6 +187,7 @@ export function PacientesView() {
       )
       .finally(() => setInadimplenciaLoading(false))
   }, [mainTab, api])
+  const [estagioOtimista, setEstagioOtimista] = useState<Record<string, string>>({})
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -240,11 +243,33 @@ export function PacientesView() {
     for (const opt of CRM_ESTAGIOS) grouped.set(opt.value, [])
     for (const p of filteredPatients) {
       const crm = crmByPatientId.get(String(p.id))
-      const estagio = crm?.estagio && grouped.has(crm.estagio) ? crm.estagio : 'lead'
-      grouped.get(estagio)!.push(p)
+      const atual = estagioOtimista[String(p.id)] ?? crm?.estagio
+      const estagio = atual && grouped.has(atual) ? atual : 'lead'
+      grouped.get(estagio)?.push(p)
     }
     return grouped
-  }, [filteredPatients, crmByPatientId])
+  }, [filteredPatients, crmByPatientId, estagioOtimista])
+
+  // Arrastar e soltar: o cartão muda de coluna na hora e volta se o servidor recusar.
+  const handleMoverEstagio = async (patient: Patient, estagio: string) => {
+    const id = String(patient.id)
+    setEstagioOtimista((atual) => ({ ...atual, [id]: estagio }))
+    try {
+      await apiClient(`/api/pacientes?action=crm&id=${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ estagio }),
+      })
+      await load()
+      toast.success('Estágio atualizado.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível mover o paciente.')
+    } finally {
+      setEstagioOtimista((atual) => {
+        const { [id]: _removido, ...resto } = atual
+        return resto
+      })
+    }
+  }
 
   const openCrmForPatient = (patient: Patient) => {
     setSelectedPaciente(patient)
@@ -553,78 +578,12 @@ export function PacientesView() {
         </TabsContent>
 
         <TabsContent value="crm">
-          <div className="overflow-x-auto">
-            <div className="grid min-w-[1100px] grid-cols-6 gap-4">
-              {CRM_ESTAGIOS.map((col) => {
-                const cardsCol = patientsByEstagio.get(col.value) ?? []
-                return (
-                  <div
-                    key={col.value}
-                    className="rounded-2xl border border-app-border bg-app-bg-secondary/40 p-4 dark:border-app-border-dark dark:bg-app-surface-muted"
-                  >
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 className="text-sm font-medium text-app-text-primary dark:text-white">{col.label}</h3>
-                      <Badge variant="outline" className="rounded-full border-app-border px-2 py-0.5 text-xs dark:border-app-border-dark">
-                        {cardsCol.length}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-2">
-                      {cardsCol.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-app-border p-3 text-center text-xs text-app-text-muted dark:border-app-border-dark">
-                          Sem pacientes
-                        </div>
-                      ) : (
-                        cardsCol.map((p) => {
-                          const crm = crmByPatientId.get(String(p.id))
-                          const proximaAcao = crm?.proxima_acao
-                          const dataProxima = crm?.data_proxima_acao
-                          const dataProximaFmt = dataProxima
-                            ? new Date(`${dataProxima}T00:00:00`).toLocaleDateString('pt-BR')
-                            : null
-                          return (
-                            <div
-                              key={String(p.id)}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => openCrmForPatient(p)}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                  event.preventDefault()
-                                  openCrmForPatient(p)
-                                }
-                              }}
-                              className="cursor-pointer rounded-xl border border-app-border bg-app-card p-3 text-left transition hover:border-app-primary focus:border-app-primary focus:outline-none dark:border-app-border-dark dark:bg-app-card-dark"
-                            >
-                              <p className="truncate text-sm font-medium text-app-text-primary dark:text-white">{p.name}</p>
-                              <p className="mt-1 text-xs text-app-text-muted">Último atendimento: —</p>
-                              {(proximaAcao || dataProximaFmt) && (
-                                <p className="mt-1 text-xs text-[var(--app-primary)]">
-                                  Próxima: {proximaAcao || '(sem descrição)'}
-                                  {dataProximaFmt ? ` · ${dataProximaFmt}` : ''}
-                                </p>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="mt-2 h-7 px-2 text-xs text-[var(--app-primary)] hover:bg-app-bg-secondary"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  openCrmForPatient(p)
-                                }}
-                              >
-                                Mover estágio →
-                              </Button>
-                            </div>
-                          )
-                        })
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          <CrmKanban
+            porEstagio={patientsByEstagio}
+            crmPorPaciente={crmByPatientId}
+            onAbrir={openCrmForPatient}
+            onMover={handleMoverEstagio}
+          />
         </TabsContent>
 
         <TabsContent value="inadimplencia" className="space-y-4">
@@ -646,6 +605,21 @@ export function PacientesView() {
                 >
                   Abrir financeiro
                 </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-app-text-secondary dark:text-white/80">
+                <span className="text-app-text-muted">Legenda:</span>
+                {(
+                  [
+                    ['Vencido', 'bg-[var(--app-danger-text)]'],
+                    ['Pagamento parcial', 'bg-[var(--app-warning-text)]'],
+                    ['Pendente / a vencer', 'bg-slate-400 dark:bg-slate-500'],
+                  ] as const
+                ).map(([label, dot]) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <div className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                    <span>{label}</span>
+                  </div>
+                ))}
               </div>
               {inadimplenciaError && (
                 <p className="text-sm text-[var(--app-danger-text)]">{inadimplenciaError}</p>
@@ -672,28 +646,29 @@ export function PacientesView() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      inadimplencia.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>{row.pacienteNome}</TableCell>
-                          <TableCell>{row.descricao}</TableCell>
-                          <TableCell>
-                            {row.vencimento
-                              ? new Date(`${row.vencimento}T00:00:00`).toLocaleDateString('pt-BR')
-                              : '—'}
-                          </TableCell>
-                          <TableCell>
-                            {row.situacao === 'vencido'
-                              ? 'Vencido'
-                              : row.situacao === 'a_vencer'
-                                ? 'A vencer'
-                                : 'Pendente'}
-                          </TableCell>
-                          <TableCell>{row.status}</TableCell>
-                          <TableCell className="text-right">
-                            {formatarMoeda(row.valor)}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      inadimplencia.map((row) => {
+                        const tom = CLASSE_TOM_INADIMPLENCIA[tomInadimplencia(row)]
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>{row.pacienteNome}</TableCell>
+                            <TableCell>{row.descricao}</TableCell>
+                            <TableCell className={tom}>
+                              {row.vencimento
+                                ? new Date(`${row.vencimento}T00:00:00`).toLocaleDateString('pt-BR')
+                                : '—'}
+                            </TableCell>
+                            <TableCell className={tom}>
+                              {row.situacao === 'vencido'
+                                ? 'Vencido'
+                                : row.situacao === 'a_vencer'
+                                  ? 'A vencer'
+                                  : 'Pendente'}
+                            </TableCell>
+                            <TableCell>{row.status}</TableCell>
+                            <TableCell className={`text-right ${tom}`}>{formatarMoeda(row.valor)}</TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>

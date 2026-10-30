@@ -35,3 +35,14 @@ describe('isClientePaciente (multi-vínculo; exclui só quem é exclusivamente f
     expect(isClientePaciente(['outro'])).toBe(true)
   })
 })
+
+describe('tomInadimplencia', () => {
+  it('vencido fica vermelho, parcial amarelo (prevalece) e o resto neutro', async () => {
+    const { tomInadimplencia } = await import('./pacientes.utils')
+    expect(tomInadimplencia({ situacao: 'vencido', status: 'Pendente' })).toBe('vencido')
+    expect(tomInadimplencia({ situacao: 'vencido', status: 'Parcial' })).toBe('parcial')
+    expect(tomInadimplencia({ situacao: 'a_vencer', status: 'Parcial' })).toBe('parcial')
+    expect(tomInadimplencia({ situacao: 'a_vencer', status: 'Pendente' })).toBe('pendente')
+    expect(tomInadimplencia({ situacao: 'pendente', status: '' })).toBe('pendente')
+  })
+})

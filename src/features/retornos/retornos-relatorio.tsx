@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarPlus, Search } from 'lucide-react'
+import { CalendarClock, CalendarPlus, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { DateInput } from '@/components/shared/date-input'
@@ -31,18 +31,23 @@ import { useProcedimentos } from '@/features/procedimentos/hooks/use-procediment
 import {
   ROTULO_SITUACAO_RETORNO,
   SITUACOES_RETORNO,
+  SITUACOES_RETORNO_FILTRO,
+  type DefinicaoPrazo,
   type SituacaoRetorno,
 } from '@/lib/retorno-prazo'
+import { useApi } from '@/hooks/use-api'
+import { DefinirPrazoModal } from './definir-prazo-modal'
 import type { RetornoItem } from '@/types/retorno'
 import { useRetornos, type RetornosFiltros } from './hooks/use-retornos'
 
 const TODOS = 'todos'
 const PAGE_SIZE = 20
 
-const TOM_SITUACAO: Record<SituacaoRetorno, 'success' | 'warning' | 'danger'> = {
+const TOM_SITUACAO: Record<SituacaoRetorno, 'success' | 'warning' | 'danger' | 'neutral'> = {
   no_prazo: 'success',
   limite: 'warning',
   vencido: 'danger',
+  sem_prazo: 'neutral',
 }
 
 export function hrefAgendarRetorno(item: Pick<RetornoItem, 'pacienteId' | 'especialistaId'>) {
@@ -67,7 +72,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
   const { data: usuarios } = useUsuarios()
   const { data: procedimentos } = useProcedimentos()
   const [filtros, setFiltros] = useState<RetornosFiltros>({
-    situacao: SITUACOES_RETORNO.includes(situacaoInicial as SituacaoRetorno) ? situacaoInicial : '',
+    situacao: SITUACOES_RETORNO_FILTRO.includes(situacaoInicial as SituacaoRetorno) ? situacaoInicial : '',
     q: '',
     profissionalId: '',
     procedimentoId: '',
@@ -76,7 +81,31 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
     page: 1,
     pageSize: PAGE_SIZE,
   })
-  const { data, meta, isLoading, error } = useRetornos(filtros)
+  const { data, meta, isLoading, error, reload } = useRetornos(filtros)
+  const api = useApi()
+  // Definir o prazo exige retornos:update (decidido pelo servidor); sem ela o botão some.
+  const podeEditarPrazo = useAuth((s) =>
+    s.permissions.some((p) => p.resource === 'retornos' && p.actions.includes('update')),
+  )
+  const [editando, setEditando] = useState<RetornoItem | null>(null)
+
+  const salvarPrazo = async (item: RetornoItem, definicao: DefinicaoPrazo) => {
+    const corpo =
+      definicao.modo === 'data'
+        ? { dataPrevista: definicao.data }
+        : { quantidade: definicao.quantidade, unidade: definicao.unidade }
+    await api.put(`/api/retornos/${item.id}`, corpo)
+    setEditando(null)
+    await reload()
+  }
+
+  const botaoPrazo = (item: RetornoItem) =>
+    podeEditarPrazo ? (
+      <Button variant="outline" size="sm" onClick={() => setEditando(item)}>
+        <CalendarClock className="mr-1.5 h-4 w-4" />
+        {item.dataPrevista ? 'Editar prazo' : 'Definir prazo'}
+      </Button>
+    ) : null
 
   const atualizar = (patch: Partial<RetornosFiltros>) =>
     setFiltros((atual) => ({ ...atual, ...patch, page: patch.page ?? 1 }))
@@ -165,7 +194,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={TODOS}>Todas as situações</SelectItem>
-            {SITUACOES_RETORNO.map((s) => (
+            {SITUACOES_RETORNO_FILTRO.map((s) => (
               <SelectItem key={s} value={s}>
                 {ROTULO_SITUACAO_RETORNO[s]}
               </SelectItem>
@@ -210,14 +239,17 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                     </StatusBadge>
                   }
                   acoes={
-                    podeAgendar ? (
-                      <Button asChild size="sm" className="bg-app-primary text-white">
-                        <Link href={hrefAgendarRetorno(item)}>
-                          <CalendarPlus className="mr-1.5 h-4 w-4" />
-                          Agendar
-                        </Link>
-                      </Button>
-                    ) : undefined
+                    <>
+                      {botaoPrazo(item)}
+                      {podeAgendar && (
+                        <Button asChild size="sm" className="bg-app-primary text-white">
+                          <Link href={hrefAgendarRetorno(item)}>
+                            <CalendarPlus className="mr-1.5 h-4 w-4" />
+                            Agendar
+                          </Link>
+                        </Button>
+                      )}
+                    </>
                   }
                   campos={[
                     { rotulo: 'Retorno previsto', valor: item.dataPrevista || item.prazo },
@@ -275,14 +307,17 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                         </StatusBadge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {podeAgendar && (
-                          <Button asChild size="sm" className="bg-app-primary text-white">
-                            <Link href={hrefAgendarRetorno(item)}>
-                              <CalendarPlus className="mr-1.5 h-4 w-4" />
-                              Agendar retorno
-                            </Link>
-                          </Button>
-                        )}
+                        <div className="flex justify-end gap-2">
+                          {botaoPrazo(item)}
+                          {podeAgendar && (
+                            <Button asChild size="sm" className="bg-app-primary text-white">
+                              <Link href={hrefAgendarRetorno(item)}>
+                                <CalendarPlus className="mr-1.5 h-4 w-4" />
+                                Agendar retorno
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -292,6 +327,10 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
           </>
         )}
       </Card>
+
+      {editando && (
+        <DefinirPrazoModal item={editando} onClose={() => setEditando(null)} onSalvar={salvarPrazo} />
+      )}
 
       {meta && meta.total > meta.pageSize && (
         <div className="flex items-center justify-between gap-3">

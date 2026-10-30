@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { rotuloPrazoRetorno, SITUACOES_RETORNO, type SituacaoRetorno } from '@/lib/retorno-prazo'
+import { rotuloPrazoRetorno, SITUACOES_RETORNO_FILTRO, type SituacaoRetorno } from '@/lib/retorno-prazo'
 import { authErrorResponse, getRequestAuth, getScopedUnitId, type RequestAuth } from '@/lib/request-auth'
 import { hojeIsoSaoPaulo, registrarRetorno } from '@/lib/retornos-server'
 import type { RetornoItem } from '@/types/retorno'
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     Math.max(1, Number.parseInt(params.get('pageSize') ?? '20', 10) || 20),
   )
   const situacao = params.get('situacao') ?? ''
-  if (situacao && !SITUACOES_RETORNO.includes(situacao as SituacaoRetorno)) {
+  if (situacao && !SITUACOES_RETORNO_FILTRO.includes(situacao as SituacaoRetorno)) {
     return serverErrorResponse('Situação inválida', 'INVALID_SITUACAO', 400)
   }
   const de = params.get('de') ?? ''
