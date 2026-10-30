@@ -403,3 +403,28 @@ export function observacoesSemDuracao(observacoes?: string): string | undefined 
   const limpo = (observacoes ?? '').replace(/^Duração:\s*[^•]*(•\s*)?/i, '').trim()
   return limpo || undefined
 }
+
+/**
+ * Compromisso com participantes tem uma cópia por pessoa. Na lista pessoal,
+ * mostra um cartão por compromisso (prefere a cópia do organizador, id = grupo).
+ */
+export function umPorCompromisso(slots: AgendaSlot[]): AgendaSlot[] {
+  const escolhidos = new Map<string, AgendaSlot>()
+  const resultado: AgendaSlot[] = []
+  for (const slot of slots) {
+    const grupo = slot.compromissoGrupoId
+    if (!grupo) {
+      resultado.push(slot)
+      continue
+    }
+    const atual = escolhidos.get(grupo)
+    if (!atual) {
+      escolhidos.set(grupo, slot)
+      resultado.push(slot)
+    } else if (slot.id === grupo && atual.id !== grupo) {
+      escolhidos.set(grupo, slot)
+      resultado[resultado.indexOf(atual)] = slot
+    }
+  }
+  return resultado
+}

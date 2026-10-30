@@ -53,6 +53,7 @@ import {
   getPagamentoLegendDot,
   duracaoEmMinutos,
   observacoesSemDuracao,
+  umPorCompromisso,
 } from './agenda.utils'
 import { useAgendaCalendar } from './hooks/use-agenda-calendar'
 import { useAgendaActions } from './hooks/use-agenda-actions'
@@ -588,6 +589,7 @@ export function AgendaView() {
     return { excluidos: result.excluidos }
   }
 
+  const pessoalDoDia = umPorCompromisso(calendar.dayAgendaSlots)
   const totalItems =
     activeTab === 'global'
       ? calendar.viewMode === 'semana'
@@ -595,7 +597,7 @@ export function AgendaView() {
         : calendar.viewMode === 'mes'
           ? calendar.monthAgendaSummary.reduce((acc, day) => acc + day.count, 0)
           : calendar.dayFilteredItems.length
-      : 0
+      : pessoalDoDia.length
 
   if (activeAtendimento) {
     return (
@@ -1137,14 +1139,14 @@ export function AgendaView() {
                     Agendar reunião
                   </Button>
                 </div>
-                {calendar.dayAgendaSlots.length === 0 ? (
+                {pessoalDoDia.length === 0 ? (
                   <EmptyState
                     icon={Calendar}
                     title="Nenhum compromisso encontrado"
                     description="Não há compromissos agendados para o período selecionado."
                   />
                 ) : (
-                  calendar.dayAgendaSlots.map((item) => (
+                  pessoalDoDia.map((item) => (
                     <div
                       key={`personal-day-${item.id}`}
                       className={`${getStatusCardTone(item.status)} rounded-[16px] p-5 space-y-4`}

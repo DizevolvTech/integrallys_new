@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  umPorCompromisso,
   deslocarPeriodo,
   duracaoEmMinutos,
   observacoesSemDuracao,
@@ -114,5 +115,18 @@ describe('duração do compromisso', () => {
     expect(observacoesSemDuracao('Duração: 45 • levar relatório')).toBe('levar relatório')
     expect(observacoesSemDuracao('Duração: 30')).toBeUndefined()
     expect(observacoesSemDuracao('Sem prefixo')).toBe('Sem prefixo')
+  })
+})
+
+describe('umPorCompromisso', () => {
+  const base = { hora: '17:00', paciente: '', profissional: 'X', status: 'Agendado' }
+  it('mostra um cartão por compromisso, preferindo a cópia do organizador', () => {
+    const lista = umPorCompromisso([
+      { ...base, id: 'b', compromissoGrupoId: 'g1' },
+      { ...base, id: 'g1', compromissoGrupoId: 'g1' },
+      { ...base, id: 'c' },
+      { ...base, id: 'd', compromissoGrupoId: 'g2' },
+    ])
+    expect(lista.map((s) => s.id)).toEqual(['g1', 'c', 'd'])
   })
 })
