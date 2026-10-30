@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { DateInput } from '@/components/shared/date-input'
@@ -10,21 +10,29 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { useAuth } from '@/hooks/use-auth'
 import { useApi } from '@/hooks/use-api'
-import type { EstoqueItem, MovimentacaoEstoqueInput } from '../hooks/use-estoque'
+import { FornecedorModal } from '@/features/fornecedores/modals/fornecedor-modal'
+import type { FornecedorInput } from '@/types/fornecedor'
+import type { EstoqueInput, EstoqueItem, MovimentacaoEstoqueInput } from '../hooks/use-estoque'
 import { EntradaXmlBody } from './importar-nf-xml-modal'
+import { NovoProdutoModal } from './novo-produto-modal'
 
 interface EntradaEstoqueModalProps {
   isOpen: boolean
   onClose: (open: boolean) => void
   items: EstoqueItem[]
+  categorias: string[]
+  /** Cadastra o produto e devolve a lista atualizada (a entrada seleciona o novo item). */
+  onCriarProduto: (payload: EstoqueInput) => Promise<EstoqueItem[]>
   onConfirm: (payload: MovimentacaoEstoqueInput) => Promise<void>
 }
 
 interface BodyProps {
   items: EstoqueItem[]
+  categorias?: string[]
+  onCriarProduto?: (payload: EstoqueInput) => Promise<EstoqueItem[]>
   onConfirm: (payload: MovimentacaoEstoqueInput) => Promise<void>
   onClose: (open: boolean) => void
 }
@@ -51,21 +59,43 @@ const initialState: EntradaFormState = {
   validade: '',
 }
 
-function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
+function EntradaManualBody({ items, categorias = [], onCriarProduto, onConfirm, onClose }: BodyProps) {
   const [form, setForm] = useState<EntradaFormState>(initialState)
   const [isSaving, setIsSaving] = useState(false)
   const api = useApi()
   const [fornecedores, setFornecedores] = useState<Array<{ id: string; nome: string }>>([])
-  useEffect(() => {
-    let ativo = true
-    api
-      .get<{ data: Array<{ id: string; nome: string }> }>('/api/estoque/fornecedores')
-      .then((res) => ativo && setFornecedores(res.data))
-      .catch(() => ativo && setFornecedores([]))
-    return () => {
-      ativo = false
+  const [novoFornecedor, setNovoFornecedor] = useState(false)
+  const [novoProduto, setNovoProduto] = useState(false)
+  const carregarFornecedores = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: Array<{ id: string; nome: string }> }>('/api/estoque/fornecedores')
+      setFornecedores(res.data)
+    } catch {
+      setFornecedores([])
     }
   }, [api])
+  useEffect(() => {
+    void carregarFornecedores()
+  }, [carregarFornecedores])
+
+  const opcoesFornecedor = useMemo(() => fornecedores.map((f) => ({ value: f.id, label: f.nome })), [fornecedores])
+  const opcoesProduto = useMemo(() => items.map((item) => ({ value: item.id, label: item.produto })), [items])
+
+  // Cadastro rápido: salva e volta à entrada com o item já escolhido; o resto do formulário fica como estava.
+  const salvarFornecedor = async (payload: FornecedorInput) => {
+    const res = await api.post<{ data: { id: string; nome: string } }>('/api/estoque/fornecedores', payload)
+    await carregarFornecedores()
+    setForm((current) => ({ ...current, fornecedorId: res.data.id }))
+    setNovoFornecedor(false)
+  }
+  const salvarProduto = async (payload: EstoqueInput) => {
+    if (!onCriarProduto) return
+    const antes = new Set(items.map((item) => item.id))
+    const lista = await onCriarProduto(payload)
+    const criado = lista.find((item) => !antes.has(item.id))
+    if (criado) setForm((current) => ({ ...current, produtoId: criado.id }))
+    setNovoProduto(false)
+  }
 
   const submit = async () => {
     if (!form.produtoId || form.quantidade <= 0) {
@@ -103,16 +133,16 @@ function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entrada-fornecedor">Fornecedor</Label>
-            <Select value={form.fornecedorId} onValueChange={(value) => setForm((current) => ({ ...current, fornecedorId: value }))}>
-              <SelectTrigger id="entrada-fornecedor">
-                <SelectValue preferPlaceholder placeholder={fornecedores.length ? 'Selecione o fornecedor' : 'Nenhum fornecedor cadastrado'} />
-              </SelectTrigger>
-              <SelectContent>
-                {fornecedores.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              id="entrada-fornecedor"
+              value={form.fornecedorId}
+              onChange={(value) => setForm((current) => ({ ...current, fornecedorId: value }))}
+              options={opcoesFornecedor}
+              placeholder="Selecione o fornecedor"
+              searchPlaceholder="Digite o nome do fornecedor..."
+              emptyText="Nenhum fornecedor encontrado"
+              footerAction={{ label: 'Cadastrar novo fornecedor', onSelect: () => setNovoFornecedor(true) }}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entrada-data">Data da nota</Label>
@@ -120,18 +150,16 @@ function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entrada-produto">Produto *</Label>
-            <Select value={form.produtoId} onValueChange={(value) => setForm((current) => ({ ...current, produtoId: value }))}>
-              <SelectTrigger id="entrada-produto">
-                <SelectValue preferPlaceholder placeholder="Selecione o produto" />
-              </SelectTrigger>
-              <SelectContent>
-                {items.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.produto}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              id="entrada-produto"
+              value={form.produtoId}
+              onChange={(value) => setForm((current) => ({ ...current, produtoId: value }))}
+              options={opcoesProduto}
+              placeholder="Selecione o produto"
+              searchPlaceholder="Digite o nome do produto..."
+              emptyText="Nenhum produto encontrado"
+              footerAction={onCriarProduto ? { label: 'Cadastrar novo produto', onSelect: () => setNovoProduto(true) } : undefined}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entrada-quantidade">Quantidade *</Label>
@@ -158,11 +186,14 @@ function EntradaManualBody({ items, onConfirm, onClose }: BodyProps) {
           Salvar entrada
         </Button>
       </DialogFooter>
+
+      <FornecedorModal isOpen={novoFornecedor} mode="create" onClose={() => setNovoFornecedor(false)} onSave={salvarFornecedor} />
+      <NovoProdutoModal isOpen={novoProduto} onClose={(open) => !open && setNovoProduto(false)} categorias={categorias} onSave={salvarProduto} />
     </>
   )
 }
 
-export function EntradaEstoqueModal({ isOpen, onClose, onConfirm, items }: EntradaEstoqueModalProps) {
+export function EntradaEstoqueModal({ isOpen, onClose, onConfirm, items, categorias, onCriarProduto }: EntradaEstoqueModalProps) {
   // Chave escopada por userId evita vazamento de preferência entre usuários
   // que compartilham o mesmo navegador (recepcionistas em estação compartilhada).
   const userId = useAuth((state) => state.user?.id ?? null)
@@ -203,7 +234,7 @@ export function EntradaEstoqueModal({ isOpen, onClose, onConfirm, items }: Entra
         </div>
 
         {mode === 'manual' ? (
-          <EntradaManualBody items={items} onConfirm={onConfirm} onClose={onClose} />
+          <EntradaManualBody items={items} categorias={categorias} onCriarProduto={onCriarProduto} onConfirm={onConfirm} onClose={onClose} />
         ) : (
           <EntradaXmlBody items={items} onConfirm={onConfirm} onClose={onClose} />
         )}

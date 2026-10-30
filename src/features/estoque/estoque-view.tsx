@@ -79,6 +79,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
   const router = useRouter()
   const {
     data,
+    totaisVisiveis,
     error,
     isLoading,
     createProduto,
@@ -470,7 +471,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                 </div>
               </div>
 
-              {!isLoading && filteredItems.length > 0 && <EstoqueTotais itens={filteredItems} />}
+              {totaisVisiveis && !isLoading && filteredItems.length > 0 && <EstoqueTotais itens={filteredItems} />}
 
               <div className="grid grid-cols-1 gap-4">
               {isLoading && (
@@ -596,6 +597,8 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
           if (!open) setActiveModal(null)
         }}
         items={data}
+        categorias={categoriaNomes}
+        onCriarProduto={createProduto}
         onConfirm={handleEntrada}
       />
 

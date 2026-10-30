@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { SlidersHorizontal } from 'lucide-react'
 import { ModalHeader } from '@/components/shared/modal-header'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Textarea } from '@/components/ui/textarea'
 import type { EstoqueItem } from '../hooks/use-estoque'
 
@@ -35,6 +35,10 @@ export function AjusteEstoqueModal({
   const [quantidade, setQuantidade] = useState('0')
   const [justificativa, setJustificativa] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const opcoesProduto = useMemo(
+    () => produtos.map((item) => ({ value: item.id, label: item.produto, hint: `atual: ${item.quantidade}` })),
+    [produtos],
+  )
 
   useEffect(() => {
     if (!isOpen) return
@@ -93,18 +97,14 @@ export function AjusteEstoqueModal({
         <div className="space-y-4 px-1">
           <div className="space-y-1.5">
             <Label>Produto *</Label>
-            <Select value={produtoId} onValueChange={setProdutoId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {produtos.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.produto} (atual: {item.quantidade})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={produtoId}
+              onChange={setProdutoId}
+              options={opcoesProduto}
+              placeholder="Selecione o produto"
+              searchPlaceholder="Digite o nome do produto..."
+              emptyText="Nenhum produto encontrado"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Quantidade correta *</Label>

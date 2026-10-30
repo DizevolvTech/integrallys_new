@@ -78,3 +78,16 @@ export function mapFornecedorRow(row: Record<string, unknown>): FornecedorItem {
     categoriaDre: str(dados.categoriaDre),
   }
 }
+
+/** Linha de `pacientes` para um fornecedor novo (clínica-wide, sem unidade). Compartilhada pelos dois cadastros. */
+export function fornecedorInsertRow(f: FornecedorPayload) {
+  return {
+    nome: f.nome,
+    telefone: f.telefone,
+    email: f.email,
+    status: f.status,
+    vinculo_tipos: ['fornecedor'],
+    fornecedor_dados: f.fornecedorDados,
+    unidade_id: null,
+  }
+}

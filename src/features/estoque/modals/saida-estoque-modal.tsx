@@ -9,15 +9,17 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Combobox } from '@/components/ui/combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/use-auth'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useUsuarios } from '@/hooks/use-usuarios'
+import { useColaboradoresEstoque } from '../hooks/use-colaboradores-estoque'
 import type { EstoqueItem, MovimentacaoEstoqueInput } from '../hooks/use-estoque'
 import { ConsumoInternoBody } from './consumo-interno-modal'
 
-type VinculoTipo = 'nenhum' | 'cliente' | 'especialista' | 'fornecedor'
+type VinculoForm = 'nenhum' | 'cliente' | 'especialista' | 'fornecedor' | 'colaborador'
 
 interface SaidaEstoqueModalProps {
   isOpen: boolean
@@ -35,10 +37,13 @@ interface BodyProps {
 function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
   const { data: pacientes } = usePacientes()
   const { data: usuarios } = useUsuarios()
+  const colaboradores = useColaboradoresEstoque()
+  const opcoesProduto = useMemo(() => items.map((item) => ({ value: item.id, label: item.produto, hint: `saldo: ${item.quantidade}` })), [items])
+  const opcoesCliente = useMemo(() => pacientes.map((p) => ({ value: p.id, label: p.nome })), [pacientes])
   const [produtoId, setProdutoId] = useState('')
   const [quantidade, setQuantidade] = useState(0)
   const [justificativa, setJustificativa] = useState('')
-  const [vinculoTipo, setVinculoTipo] = useState<VinculoTipo>('nenhum')
+  const [vinculoTipo, setVinculoTipo] = useState<VinculoForm>('nenhum')
   const [vinculoEntityId, setVinculoEntityId] = useState('')
   const [fornecedorNome, setFornecedorNome] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -77,6 +82,10 @@ function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
         vinculoNome: paciente?.nome ?? null,
       }
     }
+    if (vinculoTipo === 'colaborador') {
+      const colaborador = colaboradores.find((item) => item.value === vinculoEntityId)
+      return { vinculoTipo: 'colaborador', vinculoId: vinculoEntityId, vinculoNome: colaborador?.label ?? null }
+    }
     const especialista = especialistas.find((item) => item.id === vinculoEntityId)
     return {
       vinculoTipo: 'especialista',
@@ -86,6 +95,10 @@ function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
   }
 
   const submit = async () => {
+    if (vinculoTipo !== 'nenhum' && vinculoTipo !== 'fornecedor' && !vinculoEntityId) {
+      toast.error(vinculoTipo === 'colaborador' ? 'Selecione o colaborador.' : 'Selecione quem está vinculado à saída.')
+      return
+    }
     if (!produtoId || quantidade <= 0 || !justificativa.trim()) {
       toast.error('Preencha produto, quantidade e justificativa.')
       return
@@ -122,18 +135,15 @@ function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="saida-produto">Produto *</Label>
-          <Select value={produtoId} onValueChange={setProdutoId}>
-            <SelectTrigger id="saida-produto" autoFocus>
-              <SelectValue preferPlaceholder placeholder="Selecione o produto" />
-            </SelectTrigger>
-            <SelectContent>
-              {items.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.produto}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            id="saida-produto"
+            value={produtoId}
+            onChange={setProdutoId}
+            options={opcoesProduto}
+            placeholder="Selecione o produto"
+            searchPlaceholder="Digite o nome do produto..."
+            emptyText="Nenhum produto encontrado"
+          />
         </div>
 
         {selectedItem && (
@@ -172,7 +182,7 @@ function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
           <Select
             value={vinculoTipo}
             onValueChange={(value) => {
-              setVinculoTipo(value as VinculoTipo)
+              setVinculoTipo(value as VinculoForm)
               setVinculoEntityId('')
               setFornecedorNome('')
             }}
@@ -184,6 +194,7 @@ function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
               <SelectItem value="nenhum">Nenhum</SelectItem>
               <SelectItem value="cliente">Cliente</SelectItem>
               <SelectItem value="especialista">Especialista</SelectItem>
+              <SelectItem value="colaborador">Colaborador</SelectItem>
               <SelectItem value="fornecedor">Fornecedor</SelectItem>
             </SelectContent>
           </Select>
@@ -195,23 +206,15 @@ function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
         {vinculoTipo === 'cliente' && (
           <div className="space-y-1.5">
             <Label htmlFor="saida-cliente">Cliente vinculado</Label>
-            <Select value={vinculoEntityId} onValueChange={setVinculoEntityId}>
-              <SelectTrigger id="saida-cliente">
-                <SelectValue preferPlaceholder placeholder="Selecione o cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {pacientes.length === 0 && (
-                  <SelectItem value="__empty_pacientes" disabled>
-                    Nenhum cliente cadastrado
-                  </SelectItem>
-                )}
-                {pacientes.map((paciente) => (
-                  <SelectItem key={paciente.id} value={paciente.id}>
-                    {paciente.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              id="saida-cliente"
+              value={vinculoEntityId}
+              onChange={setVinculoEntityId}
+              options={opcoesCliente}
+              placeholder="Selecione o cliente"
+              searchPlaceholder="Digite o nome do cliente..."
+              emptyText="Nenhum cliente encontrado"
+            />
           </div>
         )}
 
@@ -235,6 +238,21 @@ function SaidaManualBody({ items, onConfirm, onClose }: BodyProps) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {vinculoTipo === 'colaborador' && (
+          <div className="space-y-1.5">
+            <Label htmlFor="saida-colaborador">Colaborador vinculado</Label>
+            <Combobox
+              id="saida-colaborador"
+              value={vinculoEntityId}
+              onChange={setVinculoEntityId}
+              options={colaboradores}
+              placeholder="Selecione o colaborador"
+              searchPlaceholder="Digite o nome do colaborador..."
+              emptyText="Nenhum colaborador encontrado"
+            />
           </div>
         )}
 
