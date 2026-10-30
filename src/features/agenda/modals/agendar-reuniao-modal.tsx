@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { MultiSelectSearch } from '@/components/ui/multi-select-search'
 import { Textarea } from '@/components/ui/textarea'
+import { useParticipantesCompromisso } from '../hooks/use-participantes-compromisso'
 
 type TipoCompromisso = 'Reunião' | 'Tarefa' | 'Lembrete' | 'Evento' | 'Aprovação'
 
@@ -27,7 +29,7 @@ interface AgendarReuniaoModalProps {
     horarioFim: string
     profissionalId?: string
     profissional?: string
-    participantes: string
+    participanteIds: string[]
     local?: string
     observacoes?: string
   }) => Promise<void>
@@ -54,7 +56,8 @@ export function AgendarReuniaoModal({
   const [duracao, setDuracao] = useState('30')
   const [profissionalId, setProfissionalId] = useState('')
   const [local, setLocal] = useState('')
-  const [participantes, setParticipantes] = useState('')
+  const [participanteIds, setParticipanteIds] = useState<string[]>([])
+  const { data: usuarios, isLoading: carregandoUsuarios, error: erroUsuarios } = useParticipantesCompromisso(isOpen)
   const [observacoes, setObservacoes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -66,7 +69,7 @@ export function AgendarReuniaoModal({
     setDuracao('30')
     setProfissionalId('')
     setLocal('')
-    setParticipantes('')
+    setParticipanteIds([])
     setObservacoes('')
     setIsSaving(false)
   }, [isOpen])
@@ -93,7 +96,7 @@ export function AgendarReuniaoModal({
         horarioFim,
         profissionalId,
         profissional: profissional?.nome,
-        participantes: participantes.trim(),
+        participanteIds,
         local: local.trim() || undefined,
         observacoes: observacoes.trim() || undefined,
       })
@@ -111,7 +114,7 @@ export function AgendarReuniaoModal({
       <DialogContent className="bg-app-card dark:bg-app-card-dark max-h-[90vh] overflow-y-auto">
         <ModalHeader
           title="Novo compromisso"
-          description="Registra o compromisso e bloqueia a agenda do especialista no horário marcado"
+          description="Registra o compromisso e bloqueia a agenda do especialista e dos participantes no horário marcado"
         />
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -224,11 +227,19 @@ export function AgendarReuniaoModal({
               <Users className="h-4 w-4 text-[var(--app-primary)]" />
               Participantes
             </Label>
-            <Input
-              placeholder="Ex: 8 pessoas"
-              value={participantes}
-              onChange={(event) => setParticipantes(event.target.value)}
+            <MultiSelectSearch
+              options={usuarios
+                .filter((usuario) => usuario.id !== profissionalId)
+                .map((usuario) => ({ value: usuario.id, label: usuario.nome, hint: usuario.perfilRotulo }))}
+              value={participanteIds}
+              onChange={setParticipanteIds}
+              placeholder="Buscar usuário pelo nome..."
+              emptyText={carregandoUsuarios ? 'Carregando usuários...' : 'Nenhum usuário encontrado.'}
             />
+            {erroUsuarios && <p className="text-xs text-[var(--app-danger-text)]">{erroUsuarios}</p>}
+            <p className="text-xs text-app-text-muted">
+              O compromisso aparece na agenda Pessoal de cada participante e fecha o horário na agenda dos especialistas.
+            </p>
           </div>
 
           <div className="space-y-2">

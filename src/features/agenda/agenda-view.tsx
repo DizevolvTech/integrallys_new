@@ -48,6 +48,8 @@ import {
   mapAgendaItemToSlot,
   normalizeAgendaStatus,
   getPagamentoLegendDot,
+  duracaoEmMinutos,
+  observacoesSemDuracao,
 } from './agenda.utils'
 import { useAgendaCalendar } from './hooks/use-agenda-calendar'
 import { useAgendaActions } from './hooks/use-agenda-actions'
@@ -66,6 +68,7 @@ import {
   EditarCompromissoModal,
   ChamarEspecialistaModal,
   EmitirCobrancaModal,
+  EstornarRecebimentoModal,
   ExcluirAgendaModal,
   GerarAgendaModal,
   ListaEsperaModal,
@@ -100,7 +103,7 @@ export function AgendaView() {
     podeEmitirRecibo,
   } = useAgenda()
   const api = useApi()
-  const { data: bloqueios, create: createBloqueio, remove: removeBloqueio } = useAgendaBloqueios()
+  const { data: bloqueios, create: createBloqueio, remove: removeBloqueio, reload: reloadBloqueios } = useAgendaBloqueios()
   const { data: pacientes, createPaciente, updatePaciente, units: pacienteUnits } = usePacientes()
   const { data: waitlistItems, createItem: createWaitlistItem } = useListaEspera()
   const { createTarefa } = useTarefas()
@@ -457,45 +460,26 @@ export function AgendaView() {
     horarioFim: string
     profissionalId?: string
     profissional?: string
-    participantes: string
+    participanteIds: string[]
     local?: string
     observacoes?: string
   }) => {
-    const profissionalNome = payload.profissional || user?.name || ''
-    const idsAntes = new Set(data.map((item) => item.id))
-    const lista = await createAgendamento({
-      profissional: profissionalNome,
+    // O servidor cria o compromisso para cada participante e bloqueia o intervalo inteiro na agenda dos especialistas.
+    await createAgendamento({
+      profissional: payload.profissional || user?.name || '',
       profissionalId: payload.profissionalId,
       data: payload.data,
       horario: payload.hora,
       horarioFim: payload.horarioFim,
+      duracaoMin: Number(payload.duracao) || undefined,
       status: 'Agendado',
       tipo: payload.tipo,
       titulo: payload.titulo,
       local: payload.local,
-      participantes: payload.participantes || undefined,
-      observacoes:
-        [payload.duracao ? `Duração: ${payload.duracao}` : '', payload.observacoes ?? '']
-          .filter(Boolean)
-          .join(' • ') || undefined,
+      participanteIds: payload.participanteIds,
+      observacoes: payload.observacoes,
     })
-
-    const criado = lista.find((item) => !idsAntes.has(item.id) && !item.pacienteId)
-
-    if (payload.profissionalId) {
-      await createBloqueio({
-        profissionalId: payload.profissionalId,
-        dataInicio: payload.data,
-        dataFim: payload.data,
-        horarioInicio: payload.hora,
-        horarioFim: payload.horarioFim,
-        diaInteiro: false,
-        tipo: 'Compromisso',
-        justificativa: criado
-          ? `Compromisso:${criado.id}|${payload.titulo}`
-          : `Compromisso: ${payload.titulo}`,
-      })
-    }
+    await reloadBloqueios()
   }
 
   const handleAdiarCompromisso = async (payload: {
@@ -505,13 +489,9 @@ export function AgendaView() {
     motivo?: string
   }) => {
     if (!selectedPersonalSlot) return
-    // Compromissos pessoais não têm paciente — pacienteId fica undefined e a
-    // rota PUT /api/agenda grava paciente_id = null normalmente.
-    const pacienteId = findPacienteId(selectedPersonalSlot)
-
+    // Sem paciente: a rota PUT /api/agenda cuida do compromisso (mantém a duração e move os bloqueios de todos).
     await updateAgendamento({
       id: payload.id,
-      pacienteId,
       profissional: selectedPersonalSlot.profissional,
       data: payload.novaData,
       horario: payload.novaHora,
@@ -521,97 +501,44 @@ export function AgendaView() {
         ? `${selectedPersonalSlot.observacoes ?? ''}${selectedPersonalSlot.observacoes ? ' • ' : ''}Adiado: ${payload.motivo}`.trim()
         : selectedPersonalSlot.observacoes,
     })
-
-    const linked = bloqueios.find((b) =>
-      (b.justificativa ?? '').startsWith(`Compromisso:${payload.id}`),
-    )
-    if (linked) {
-      try {
-        await removeBloqueio(linked.id)
-        await createBloqueio({
-          profissionalId: linked.profissionalId ?? undefined,
-          unidadeId: linked.unidadeId ?? undefined,
-          dataInicio: payload.novaData,
-          dataFim: payload.novaData,
-          horarioInicio: payload.novaHora,
-          horarioFim: linked.horarioFim,
-          diaInteiro: linked.diaInteiro,
-          tipo: linked.tipo || 'Compromisso',
-          justificativa: linked.justificativa,
-        })
-      } catch {
-        // bloqueio pode já ter sido removido
-      }
-    }
+    await reloadBloqueios()
     closePersonalModals()
   }
 
   const handleEditarCompromisso = async (payload: {
     id: string
     titulo: string
+    tipo?: 'Reunião' | 'Tarefa' | 'Lembrete' | 'Evento' | 'Aprovação'
     data: string
     hora: string
     duracao?: string
     local?: string
+    participanteIds: string[]
     observacoes?: string
   }) => {
     if (!selectedPersonalSlot) return
-    // Compromissos pessoais não têm paciente — pacienteId fica undefined e a
-    // rota PUT /api/agenda grava paciente_id = null normalmente.
-    const pacienteId = findPacienteId(selectedPersonalSlot)
-
     await updateAgendamento({
       id: payload.id,
-      pacienteId,
       profissional: selectedPersonalSlot.profissional,
       data: payload.data,
       horario: payload.hora,
+      duracaoMin: Number(payload.duracao) || undefined,
       status: selectedPersonalSlot.status,
+      tipo: payload.tipo,
       titulo: payload.titulo,
       local: payload.local,
+      participanteIds: payload.participanteIds,
       observacoes: payload.observacoes,
     })
-
-    const linked = bloqueios.find((b) =>
-      (b.justificativa ?? '').startsWith(`Compromisso:${payload.id}`),
-    )
-    if (linked) {
-      try {
-        await removeBloqueio(linked.id)
-        await createBloqueio({
-          profissionalId: linked.profissionalId ?? undefined,
-          unidadeId: linked.unidadeId ?? undefined,
-          dataInicio: payload.data,
-          dataFim: payload.data,
-          horarioInicio: payload.hora,
-          horarioFim: linked.horarioFim,
-          diaInteiro: linked.diaInteiro,
-          tipo: linked.tipo || 'Compromisso',
-          justificativa: `Compromisso:${payload.id}|${payload.titulo}`,
-        })
-      } catch {
-        // bloqueio pode já ter sido removido
-      }
-    }
+    await reloadBloqueios()
     closePersonalModals()
   }
 
   const handleCancelarCompromisso = async () => {
     if (!selectedPersonalSlot) return
-    const linked = bloqueios.find((b) =>
-      (b.justificativa ?? '').startsWith(`Compromisso:${selectedPersonalSlot.id}`),
-    )
-    if (linked) {
-      try {
-        await removeBloqueio(linked.id)
-      } catch {
-        // segue cancelando o compromisso mesmo se o bloqueio já tiver sido removido
-      }
-    }
-    await deleteAgendamento(
-      selectedPersonalSlot.id,
-      'Cancelado pela agenda pessoal do especialista.',
-    )
+    // Excluir o compromisso remove as cópias dos participantes e os bloqueios de todos.
+    await deleteAgendamento(selectedPersonalSlot.id, 'Cancelado pela agenda pessoal do especialista.')
+    await reloadBloqueios()
     closePersonalModals()
   }
 
@@ -1073,18 +1000,15 @@ export function AgendaView() {
                 onStatusChange={actions.handleStatusChange}
                 onRemoveBloqueio={async (bloqueio) => {
                   try {
-                    const match = (bloqueio.justificativa ?? '').match(/^Compromisso:([^|]+)/)
-                    const compromissoId = match?.[1]?.trim()
-                    await removeBloqueio(bloqueio.id)
-                    if (compromissoId) {
-                      try {
-                        await deleteAgendamento(compromissoId, 'Bloqueio desfeito — compromisso removido.')
-                      } catch {
-                        // compromisso pode já ter sido cancelado
-                      }
+                    if (bloqueio.agendamentoId) {
+                      // Bloqueio de compromisso: desfazer cancela o compromisso (e o bloqueio sai em cascata).
+                      await deleteAgendamento(bloqueio.agendamentoId, 'Bloqueio desfeito — compromisso removido.')
+                      await reloadBloqueios()
+                    } else {
+                      await removeBloqueio(bloqueio.id)
+                      await reloadAgenda()
                     }
                     toast.success('Bloqueio removido.')
-                    await reloadAgenda()
                   } catch (err) {
                     toast.error(err instanceof Error ? err.message : 'Falha ao remover bloqueio')
                   }
@@ -1613,6 +1537,25 @@ export function AgendaView() {
         }
         agendamentoId={selectedAgendaItem?.id}
         onConfirm={actions.handleEmitCharge}
+        onEstornar={() => actions.setActiveModal('estornar-recebimento')}
+      />
+      <EstornarRecebimentoModal
+        isOpen={actions.activeModal === 'estornar-recebimento'}
+        onClose={() => {
+          actions.setActiveModal(null)
+          actions.setSelectedSlot(null)
+        }}
+        agendamentoId={selectedAgendaItem?.id}
+        pacienteNome={selectedAgendaItem?.paciente}
+        onEstornado={() => {
+          const slot = actions.selectedSlot
+          actions.setActiveModal(null)
+          void reloadAgenda()
+          toast.success('Recebimento estornado. O valor saiu do caixa e o saldo do agendamento voltou a ficar em aberto.', {
+            action: slot ? { label: 'Emitir nova cobrança', onClick: () => actions.handleOpenCharge(slot) } : undefined,
+            duration: 12000,
+          })
+        }}
       />
       <AdiarCompromissoModal
         isOpen={isAdiarCompromissoOpen}
@@ -1635,8 +1578,14 @@ export function AgendaView() {
             ? {
                 id: selectedPersonalSlot.id,
                 titulo: selectedPersonalSlot.titulo || selectedPersonalSlot.paciente || 'Compromisso',
+                tipo: selectedPersonalSlot.tipo as 'Reunião' | 'Tarefa' | 'Lembrete' | 'Evento' | 'Aprovação' | undefined,
                 data: actions.parseAgendaDate(selectedPersonalSlot.data),
                 hora: selectedPersonalSlot.hora,
+                duracao: duracaoEmMinutos(selectedPersonalSlot.hora, selectedPersonalSlot.horaFim),
+                local: selectedPersonalSlot.local,
+                organizadorId: selectedPersonalSlot.organizadorId ?? selectedPersonalSlot.profissionalId,
+                participanteIds: selectedPersonalSlot.participanteIds ?? [],
+                observacoes: observacoesSemDuracao(selectedPersonalSlot.observacoes),
               }
             : null
         }

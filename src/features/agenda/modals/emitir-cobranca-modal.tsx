@@ -38,6 +38,8 @@ interface EmitirCobrancaModalProps {
   /** Opcional: vincula a cobrança online ao agendamento (não-bloqueante). */
   agendamentoId?: string
   onConfirm: (payload: EmitirCobrancaConfirmPayload) => Promise<void> | void
+  /** Abre o estorno de um recebimento lançado errado (aparece quando já há valor pago). */
+  onEstornar?: () => void
 }
 
 const formatCurrency = (value: number) =>
@@ -66,7 +68,7 @@ function isPix(metodo: string) {
   return metodo.toLowerCase().includes('pix')
 }
 
-export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, onConfirm }: EmitirCobrancaModalProps) {
+export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, onConfirm, onEstornar }: EmitirCobrancaModalProps) {
   const { data: contas } = useContasBancarias()
   const contasAtivas = useMemo(() => contas.filter((item) => item.ativo), [contas])
 
@@ -193,6 +195,16 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
                   {formatCurrency(totalPago)}
                 </p>
               </div>
+
+              {onEstornar && totalPago > 0 && (
+                <button
+                  type="button"
+                  onClick={onEstornar}
+                  className="text-xs text-[var(--app-danger-text)] underline underline-offset-2"
+                >
+                  Lançou o recebimento errado? Estornar recebimento
+                </button>
+              )}
 
               {temPagamentoParcial && agenda?.dataPagamentoAnterior && (
                 <div className="flex items-center justify-between text-xs">

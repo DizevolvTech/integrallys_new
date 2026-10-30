@@ -4,6 +4,7 @@ import { requirePermission } from '@/lib/authz'
 import { executarRelatorio } from '@/lib/relatorios/executar'
 import { ehUuid } from '@/lib/relatorios/filtros'
 import { perfilPodeVerRelatorio } from '@/lib/relatorios/registry'
+import { anoValidoParaMarcar } from '@/lib/aniversario-envio'
 import { assertPacienteInUnitScope, authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
 export async function GET(request: NextRequest) {
@@ -27,7 +28,7 @@ export async function PUT(request: NextRequest) {
   } | null
   const pacienteId = typeof body?.pacienteId === 'string' ? body.pacienteId : ''
   const ano = Number(body?.ano)
-  if (!ehUuid(pacienteId) || !Number.isInteger(ano) || ano < 2000 || ano > 2200 || typeof body?.enviado !== 'boolean') {
+  if (!ehUuid(pacienteId) || !anoValidoParaMarcar(ano) || typeof body?.enviado !== 'boolean') {
     return serverErrorResponse('Dados inválidos para marcar a mensagem', 'INVALID_PAYLOAD', 400)
   }
 

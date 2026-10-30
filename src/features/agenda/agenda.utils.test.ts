@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   deslocarPeriodo,
+  duracaoEmMinutos,
+  observacoesSemDuracao,
   getPagamentoIconTone,
   isHorarioPassado,
   canIniciarAtendimento,
@@ -99,5 +101,18 @@ describe('deslocarPeriodo', () => {
     expect([m.getMonth(), m.getDate()]).toEqual([10, 30])
     const a = deslocarPeriodo(base, 'mes', -1)
     expect([a.getMonth(), a.getDate()]).toEqual([8, 30])
+  })
+})
+
+describe('duração do compromisso', () => {
+  it('calcula minutos entre início e fim e ignora fim inválido', () => {
+    expect(duracaoEmMinutos('17:00', '17:45')).toBe('45')
+    expect(duracaoEmMinutos('17:00', undefined)).toBeUndefined()
+    expect(duracaoEmMinutos('17:00', '16:00')).toBeUndefined()
+  })
+  it('tira o prefixo Duração das observações antigas', () => {
+    expect(observacoesSemDuracao('Duração: 45 • levar relatório')).toBe('levar relatório')
+    expect(observacoesSemDuracao('Duração: 30')).toBeUndefined()
+    expect(observacoesSemDuracao('Sem prefixo')).toBe('Sem prefixo')
   })
 })

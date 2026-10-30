@@ -30,6 +30,7 @@ interface BloqueioRow {
   justificativa: string | null
   created_by: string | null
   created_at: string
+  agendamento_id: string | null
 }
 
 function mapRow(row: BloqueioRow) {
@@ -46,6 +47,7 @@ function mapRow(row: BloqueioRow) {
     justificativa: row.justificativa,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    agendamentoId: row.agendamento_id,
   }
 }
 
@@ -64,7 +66,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('agenda_bloqueios')
     .select(
-      'id,profissional_id,unidade_id,data_inicio,data_fim,horario_inicio,horario_fim,dia_inteiro,tipo,justificativa,created_by,created_at',
+      'id,profissional_id,unidade_id,data_inicio,data_fim,horario_inicio,horario_fim,dia_inteiro,tipo,justificativa,created_by,created_at,agendamento_id',
     )
     .order('data_inicio', { ascending: true })
 
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
       created_by: session.userId,
     })
     .select(
-      'id,profissional_id,unidade_id,data_inicio,data_fim,horario_inicio,horario_fim,dia_inteiro,tipo,justificativa,created_by,created_at',
+      'id,profissional_id,unidade_id,data_inicio,data_fim,horario_inicio,horario_fim,dia_inteiro,tipo,justificativa,created_by,created_at,agendamento_id',
     )
     .single()
 

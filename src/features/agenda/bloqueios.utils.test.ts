@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bloqueiosDoDia, corDoTipoBloqueio } from './bloqueios.utils'
+import { bloqueiosDoDia, corDoTipoBloqueio, textoDoBloqueio } from './bloqueios.utils'
 import type { AgendaBloqueio } from './hooks/use-agenda-bloqueios'
 
 const b = (over: Partial<AgendaBloqueio>): AgendaBloqueio => ({
@@ -27,5 +27,13 @@ describe('corDoTipoBloqueio', () => {
   it('tipos diferentes comuns têm cores distintas', () => {
     const cores = new Set(['Férias', 'Folga', 'Reunião', 'Outro', 'Dentista', 'Produção de marketing'].map((t) => corDoTipoBloqueio(t).chip))
     expect(cores.size).toBe(6)
+  })
+})
+
+describe('textoDoBloqueio', () => {
+  it('esconde o id interno de bloqueios antigos de compromisso', () => {
+    expect(textoDoBloqueio('Compromisso:8a6901e8-f4df-4154-a70e-79ad7fec2652|DENTISTA')).toBe('DENTISTA')
+    expect(textoDoBloqueio('Compromisso: DENTISTA')).toBe('Compromisso: DENTISTA')
+    expect(textoDoBloqueio(null)).toBe('')
   })
 })

@@ -28,6 +28,8 @@ import {
   type RegraGradeRetorno,
 } from './agenda-duracao'
 import { isHorarioPassado, STATUS_ELEGIVEIS_ATRASO } from '@/features/agenda/agenda.utils'
+import { bloqueioNoIntervalo, getLinhasDoDia, liberarIntervaloNaGrade, mensagemBloqueio } from './agenda-grade'
+import { atualizarCompromisso, criarCompromisso, ehCompromisso, excluirCompromisso, participantesPorGrupo } from './compromisso'
 import {
   buildInsertPayload,
   buildOccupyUpdate,
@@ -121,6 +123,19 @@ async function getScopedAgendaContext(session: Awaited<ReturnType<typeof getRequ
   } satisfies ScopedAgendaContext
 }
 
+/** Compromisso pessoal dentro do escopo da sessão (especialista: o próprio; unidade; lista liberada ou participante). */
+function compromissoNoEscopo(
+  row: Record<string, unknown>,
+  ctx: { unidadeId: string | null; profissionalId: string | null; especialistasPermitidos: string[] | null },
+  userId: string,
+) {
+  const prof = row.profissional_id ? String(row.profissional_id) : ''
+  if (ctx.profissionalId) return prof === ctx.profissionalId
+  if (ctx.unidadeId && row.unidade_id && String(row.unidade_id) !== ctx.unidadeId) return false
+  if (ctx.especialistasPermitidos?.length && prof !== userId && !ctx.especialistasPermitidos.includes(prof)) return false
+  return true
+}
+
 /**
  * Resumo de pagamento por agendamento, em lotes. Com ~500 agendamentos a lista de
  * ids na URL estourava o limite do servidor: a chamada falhava após ~7 s e a agenda
@@ -202,7 +217,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   let query = supabase
     .from('agendamentos')
     .select(
-      'id,paciente_id,profissional_id,procedimento_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe,criado_por_id',
+      'id,paciente_id,profissional_id,procedimento_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe,criado_por_id,compromisso_grupo_id',
     )
     .order('data_agendamento', { ascending: true })
     .order('horario_inicio', { ascending: true })
@@ -214,7 +229,10 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   }
 
   if (scopedContext.especialistasPermitidos?.length) {
-    query = query.in('profissional_id', scopedContext.especialistasPermitidos)
+    // além dos especialistas liberados, a pessoa sempre enxerga os compromissos em que é participante
+    query = query.or(
+      `profissional_id.in.(${scopedContext.especialistasPermitidos.join(',')}),profissional_id.eq.${session?.userId}`,
+    )
   }
 
   const { data: rawData, error } = await query
@@ -233,6 +251,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
           String(row.status) === 'Disponível' ||
           // quem criou o compromisso sempre o enxerga, mesmo sem acesso à agenda pessoal do especialista
           String(row.criado_por_id ?? '') === session?.userId ||
+          String(row.profissional_id ?? '') === session?.userId ||
           pessoalLiberado.includes(String(row.profissional_id ?? '')),
       )
     : rawData
@@ -266,7 +285,11 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
 
   const agendaIds = (data ?? []).map((row) => String(row.id ?? ''))
 
-  const [pacientesResult, profissionaisResult, procedimentosResult, pagamentosResult] =
+  const gruposDeCompromisso = (data ?? [])
+    .filter((row) => ehCompromisso(row) && row.compromisso_grupo_id)
+    .map((row) => String(row.compromisso_grupo_id))
+
+  const [pacientesResult, profissionaisResult, procedimentosResult, pagamentosResult, participantesGrupo] =
     await Promise.all([
       getEntityNameMap(
         supabase,
@@ -284,6 +307,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
         (data ?? []).map((row) => String(row.procedimento_id ?? '')),
       ),
       buscarResumoPagamentos(supabase, agendaIds),
+      participantesPorGrupo(supabase, gruposDeCompromisso),
     ])
 
   if (pacientesResult.error)
@@ -326,6 +350,12 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
         profissional_nome: profissionaisResult.map[String(row.profissional_id ?? '')] ?? '',
         procedimento_nome: procedimentosResult.map[String(row.procedimento_id ?? '')] ?? '',
         horario: String(row.horario_inicio ?? ''),
+        participante_ids: row.compromisso_grupo_id
+          ? (participantesGrupo.get(String(row.compromisso_grupo_id))?.participanteIds ?? [])
+          : undefined,
+        organizador_id: row.compromisso_grupo_id
+          ? (participantesGrupo.get(String(row.compromisso_grupo_id))?.organizadorId ?? undefined)
+          : undefined,
         pagamento_situacao: pag?.situacao,
         total_pago: pag?.total_pago,
         data_ultimo_pagamento: pag?.data_ultimo_pagamento,
@@ -380,64 +410,6 @@ async function resolvePatientUnitId(
   return data?.unidade_id ?? null
 }
 
-/** Registra pagamento inicial obrigatório em consulta com paciente (parcial ou total). */
-/**
- * Devolve à agenda as vagas da GRADE do profissional (dia da semana) que cobriam o intervalo liberado,
- * em vez de copiar o horário da consulta (que pode estar fora da grade). Sem grade, recria o próprio intervalo.
- */
-async function liberarIntervaloNaGrade(
-  supabase: ReturnType<typeof getAppSupabase>,
-  params: {
-    profissionalId: string
-    unidadeId: unknown
-    dataIso: string
-    horarioInicio: unknown
-    horarioFim: unknown
-    ignorarId: string
-    userId: string
-  },
-) {
-  const ini = timeToMinutes(params.horarioInicio)
-  if (ini === null) return
-  const fim = timeToMinutes(params.horarioFim) ?? ini + 30
-  const dow = new Date(`${params.dataIso}T12:00:00Z`).getUTCDay()
-  const { data: regras } = await supabase
-    .from('profissional_horarios')
-    .select('hora_inicio,hora_fim,duracao_min')
-    .eq('profissional_id', params.profissionalId)
-    .eq('dia_semana', dow)
-    .eq('ativo', true)
-  let vagas = vagasDaGradeNoIntervalo(
-    (regras ?? []) as Array<{ hora_inicio: string; hora_fim: string; duracao_min: number }>,
-    ini,
-    fim,
-  )
-  if (vagas.length === 0) vagas = [{ inicio: ini, fim }]
-  const { rows } = await getLinhasDoDia(supabase, params.profissionalId, params.dataIso, [
-    params.ignorarId,
-  ])
-  for (const vaga of vagas) {
-    const plano = planejarOcupacao({
-      inicioMin: vaga.inicio,
-      fimMin: vaga.fim,
-      outros: rows as unknown as AgendaRowIntervalo[],
-    })
-    // sobrepõe item ativo, ou já existe vaga livre: não duplica
-    if (!plano.ok || plano.liberarSlotIds.length > 0) continue
-    const { error } = await supabase.from('agendamentos').insert({
-      profissional_id: params.profissionalId,
-      unidade_id: params.unidadeId,
-      data_agendamento: params.dataIso,
-      horario_inicio: minutesToHHMM(vaga.inicio),
-      horario_fim: minutesToHHMM(vaga.fim),
-      status: 'Disponível',
-      paciente_id: null,
-      criado_por_id: params.userId,
-    })
-    if (error) console.error('[agenda] falha ao recriar vaga da grade', error)
-  }
-}
-
 /** Duração (min) definida no procedimento; null = usa a duração da grade do profissional. */
 async function getDuracaoProcedimento(
   supabase: ReturnType<typeof getAppSupabase>,
@@ -468,23 +440,6 @@ async function getDuracaoRetornoGrade(
     .eq('dia_semana', dow)
     .eq('ativo', true)
   return duracaoRetornoDaGrade((data ?? []) as RegraGradeRetorno[], inicioMin)
-}
-
-async function getLinhasDoDia(
-  supabase: ReturnType<typeof getAppSupabase>,
-  profissionalId: string,
-  dataIso: string,
-  ignorarIds: string[],
-) {
-  const { data, error } = await supabase
-    .from('agendamentos')
-    .select('id,status,horario_inicio,horario_fim,unidade_id,profissional_id,data_agendamento')
-    .eq('profissional_id', profissionalId)
-    .eq('data_agendamento', dataIso)
-  const rows = ((data ?? []) as Array<Record<string, unknown>>).filter(
-    (row) => !ignorarIds.includes(String(row.id)),
-  )
-  return { rows, error }
 }
 
 function mensagemConflitoDuracao(conflito: AgendaRowIntervalo, fimMin: number) {
@@ -803,6 +758,17 @@ export async function POST(request: NextRequest) {
   const patientUnitId = pacienteId ? await resolvePatientUnitId(supabase, pacienteId) : null
   const unidadeId = scopedContext.unidadeId ?? patientUnitId
 
+  if (isCompromissoPessoal) {
+    const falha = await criarCompromisso({
+      supabase,
+      userId: session.userId,
+      organizadorId: profissionalId,
+      unidadeId,
+      body: enrichedBody,
+    })
+    return falha ?? listAgenda(session)
+  }
+
   if (pacienteId) {
     const pagamentoInvalido = validarPagamentoInicial(enrichedBody)
     if (pagamentoInvalido) return pagamentoInvalido
@@ -859,6 +825,8 @@ export async function POST(request: NextRequest) {
             409,
           )
         }
+        const bloqueio = await bloqueioNoIntervalo(supabase, { profissionalId, dataIso: dataSlot, inicioMin, fimMin })
+        if (bloqueio) return serverErrorResponse(mensagemBloqueio(bloqueio), 'BLOQUEIO_CONFLITA', 409)
         liberarSlotIds = plano.liberarSlotIds
         if (duracaoProc) occupyUpdate.horario_fim = minutesToHHMM(fimMin)
       }
@@ -915,7 +883,20 @@ export async function POST(request: NextRequest) {
     return listAgenda(session)
   }
 
-  // Encaixe (fora da grade) ou compromisso pessoal/reunião (sem paciente): insere.
+  // Encaixe (fora da grade): também respeita bloqueios da agenda do especialista.
+  const inicioEncaixe = timeToMinutes(enrichedBody.horario)
+  if (inicioEncaixe !== null) {
+    const fimEncaixe = timeToMinutes(enrichedBody.horarioFim) ?? inicioEncaixe + 30
+    const bloqueio = await bloqueioNoIntervalo(supabase, {
+      profissionalId,
+      dataIso: String(enrichedBody.data),
+      inicioMin: inicioEncaixe,
+      fimMin: fimEncaixe,
+    })
+    if (bloqueio) return serverErrorResponse(mensagemBloqueio(bloqueio), 'BLOQUEIO_CONFLITA', 409)
+  }
+
+  // Encaixe (fora da grade): insere.
   const { data: inserted, error } = await supabase
     .from('agendamentos')
     .insert(
@@ -989,7 +970,7 @@ export async function PUT(request: NextRequest) {
   const { data: existing, error: existingError } = await supabase
     .from('agendamentos')
     .select(
-      'id,unidade_id,paciente_id,profissional_id,procedimento_id,data_agendamento,horario_inicio,horario_fim,status,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes',
+      'id,unidade_id,paciente_id,profissional_id,procedimento_id,data_agendamento,horario_inicio,horario_fim,status,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,compromisso_grupo_id',
     )
     .eq('id', String(body.id))
     .maybeSingle()
@@ -999,6 +980,22 @@ export async function PUT(request: NextRequest) {
   }
   if (!existing) {
     return serverErrorResponse('Agendamento não encontrado', 'APPOINTMENT_NOT_FOUND', 404)
+  }
+
+  if (ehCompromisso(existing)) {
+    const ctx = await getScopedAgendaContext(session)
+    if (ctx.error) return supabaseErrorResponse(ctx.error, 'Falha ao atualizar compromisso')
+    if (!compromissoNoEscopo(existing, ctx, session.userId)) {
+      return serverErrorResponse('Compromisso não encontrado ou fora da sua unidade', 'APPOINTMENT_NOT_FOUND', 404)
+    }
+    const falha = await atualizarCompromisso({
+      supabase,
+      userId: session.userId,
+      unidadeId: ctx.unidadeId,
+      existing,
+      body,
+    })
+    return falha ?? listAgenda(session)
   }
 
   const profissionalId =
@@ -1143,6 +1140,13 @@ export async function PUT(request: NextRequest) {
           409,
         )
       }
+      const bloqueio = await bloqueioNoIntervalo(supabase, {
+        profissionalId: String(profissionalId),
+        dataIso: dataAgendamento,
+        inicioMin,
+        fimMin,
+      })
+      if (bloqueio) return serverErrorResponse(mensagemBloqueio(bloqueio), 'BLOQUEIO_CONFLITA', 409)
       consumedSlots = rows.filter((row) => plano.liberarSlotIds.includes(String(row.id)))
       if (body.horarioFim === undefined && duracao > 0) {
         horarioFimFinal = minutesToHHMM(fimMin)
@@ -1264,6 +1268,19 @@ export async function DELETE(request: NextRequest) {
   const scopedContext = await getScopedAgendaContext(session)
   if (scopedContext.error) {
     return supabaseErrorResponse(scopedContext.error, 'Falha ao cancelar agendamento')
+  }
+
+  const { data: alvoExclusao } = await supabase
+    .from('agendamentos')
+    .select('id,paciente_id,status,profissional_id,unidade_id,compromisso_grupo_id')
+    .eq('id', String(body.id))
+    .maybeSingle()
+  if (alvoExclusao && ehCompromisso(alvoExclusao)) {
+    if (!compromissoNoEscopo(alvoExclusao, scopedContext, session.userId)) {
+      return serverErrorResponse('Agendamento não encontrado', 'APPOINTMENT_NOT_FOUND', 404)
+    }
+    const falha = await excluirCompromisso({ supabase, userId: session.userId, existing: alvoExclusao })
+    return falha ?? listAgenda(session)
   }
 
   // Item 1 — cancelar mantém o registro da cliente (status Cancelado, cinza na agenda e

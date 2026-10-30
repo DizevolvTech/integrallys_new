@@ -10,6 +10,7 @@ export type AgendaModal =
   | 'cancelar'
   | 'detalhes'
   | 'cobranca'
+  | 'estornar-recebimento'
   | 'visualizar'
   | 'ficha-paciente'
   | 'chamar-especialista'
@@ -28,6 +29,11 @@ export interface AgendaSlot {
   data?: string
   tipo?: string
   titulo?: string
+  local?: string
+  participantes?: string
+  compromissoGrupoId?: string
+  organizadorId?: string
+  participanteIds?: string[]
   modalidade?: string
   plataformaOnline?: string
   urlOnline?: string

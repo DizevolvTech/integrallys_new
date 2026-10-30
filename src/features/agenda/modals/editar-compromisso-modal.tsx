@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { MultiSelectSearch } from '@/components/ui/multi-select-search'
 import { Textarea } from '@/components/ui/textarea'
+import { useParticipantesCompromisso } from '../hooks/use-participantes-compromisso'
 
 type TipoCompromisso = 'Reunião' | 'Tarefa' | 'Lembrete' | 'Evento' | 'Aprovação'
 
@@ -25,7 +27,9 @@ interface EditarCompromissoModalProps {
     hora: string
     duracao?: string
     local?: string
-    participantes?: string
+    /** Especialista que organiza (fixo); os demais participantes podem ser editados. */
+    organizadorId?: string
+    participanteIds?: string[]
     observacoes?: string
   } | null
   onSave: (payload: {
@@ -36,7 +40,7 @@ interface EditarCompromissoModalProps {
     hora: string
     duracao?: string
     local?: string
-    participantes?: string
+    participanteIds: string[]
     observacoes?: string
   }) => Promise<void>
 }
@@ -53,7 +57,8 @@ export function EditarCompromissoModal({
   const [hora, setHora] = useState('')
   const [duracao, setDuracao] = useState('30')
   const [local, setLocal] = useState('')
-  const [participantes, setParticipantes] = useState('')
+  const [participanteIds, setParticipanteIds] = useState<string[]>([])
+  const { data: usuarios, isLoading: carregandoUsuarios, error: erroUsuarios } = useParticipantesCompromisso(isOpen)
   const [observacoes, setObservacoes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -64,7 +69,7 @@ export function EditarCompromissoModal({
     setHora(compromisso?.hora ?? '')
     setDuracao(compromisso?.duracao?.replace('min', '') ?? '30')
     setLocal(compromisso?.local ?? '')
-    setParticipantes(compromisso?.participantes ?? '')
+    setParticipanteIds(compromisso?.participanteIds ?? [])
     setObservacoes(compromisso?.observacoes ?? '')
     setIsSaving(false)
   }, [compromisso, isOpen])
@@ -87,7 +92,7 @@ export function EditarCompromissoModal({
         hora,
         duracao: duracao || undefined,
         local: local.trim() || undefined,
-        participantes: participantes.trim() || undefined,
+        participanteIds,
         observacoes: observacoes.trim() || undefined,
       })
       toast.success('Compromisso atualizado.')
@@ -184,7 +189,7 @@ export function EditarCompromissoModal({
                         duracao === '45' ? '45 minutos' :
                           duracao === '60' ? '1 hora' :
                             duracao === '90' ? '1 hora e 30 min' :
-                              duracao === '120' ? '2 horas' : duracao}
+                              duracao === '120' ? '2 horas' : `${duracao} minutos`}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -194,6 +199,9 @@ export function EditarCompromissoModal({
                   <SelectItem value="60" className="font-normal">1 hora</SelectItem>
                   <SelectItem value="90" className="font-normal">1 hora e 30 min</SelectItem>
                   <SelectItem value="120" className="font-normal">2 horas</SelectItem>
+                  {!['15', '30', '45', '60', '90', '120'].includes(duracao) && (
+                    <SelectItem value={duracao} className="font-normal">{duracao} minutos</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -216,12 +224,16 @@ export function EditarCompromissoModal({
                 <Users className="h-4 w-4 text-[var(--app-primary)]" />
                 Participantes
               </Label>
-              <Input
-                value={participantes}
-                onChange={(event) => setParticipantes(event.target.value)}
-                placeholder="Ex: 8 pessoas"
-                className="font-normal"
+              <MultiSelectSearch
+                options={usuarios
+                  .filter((usuario) => usuario.id !== compromisso.organizadorId)
+                  .map((usuario) => ({ value: usuario.id, label: usuario.nome, hint: usuario.perfilRotulo }))}
+                value={participanteIds}
+                onChange={setParticipanteIds}
+                placeholder="Buscar usuário pelo nome..."
+                emptyText={carregandoUsuarios ? 'Carregando usuários...' : 'Nenhum usuário encontrado.'}
               />
+              {erroUsuarios && <p className="text-xs text-[var(--app-danger-text)]">{erroUsuarios}</p>}
             </div>
 
             <div className="space-y-2">

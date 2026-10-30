@@ -1,5 +1,5 @@
 import { Lock } from 'lucide-react'
-import { corDoTipoBloqueio, rotuloHorarioBloqueio } from '../bloqueios.utils'
+import { corDoTipoBloqueio, rotuloHorarioBloqueio, textoDoBloqueio } from '../bloqueios.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
 
 /** Bloqueio compacto (semana e mês): cor e etiqueta pelo tipo, profissional e horário. */
@@ -14,7 +14,7 @@ export function BloqueioChip({
 }) {
   const cor = corDoTipoBloqueio(bloqueio.tipo)
   const quem = profissionalNome ?? 'Todos profissionais'
-  const detalhe = `${bloqueio.tipo} · ${quem} · ${rotuloHorarioBloqueio(bloqueio)}${bloqueio.justificativa ? ` · ${bloqueio.justificativa}` : ''}`
+  const detalhe = `${bloqueio.tipo} · ${quem} · ${rotuloHorarioBloqueio(bloqueio)}${bloqueio.justificativa ? ` · ${textoDoBloqueio(bloqueio.justificativa)}` : ''}`
 
   if (compacto) {
     return (
