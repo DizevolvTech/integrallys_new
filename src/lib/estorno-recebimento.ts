@@ -41,3 +41,18 @@ export function respostaErroEstorno(code: unknown, fallback?: unknown): { status
   if (conhecido) return { ...conhecido, code: chave }
   return { status: 500, code: chave, message: typeof fallback === 'string' && fallback ? fallback : 'Não foi possível estornar o recebimento.' }
 }
+
+/** Resumo do estorno devolvido ao cliente: `saidaCaixa` diz se houve saída no caixa. */
+export function resumirResultadoEstorno(resultado: Record<string, unknown>): { saidaCaixa: boolean; lancamentoEstornado: boolean } {
+  return {
+    saidaCaixa: typeof resultado.caixa_movimento_id === 'string' && resultado.caixa_movimento_id.length > 0,
+    lancamentoEstornado: resultado.lancamento_estornado === true,
+  }
+}
+
+/** Mensagem de sucesso fiel ao que aconteceu no caixa. */
+export function mensagemEstornoConcluido(saidaCaixa: boolean): string {
+  return saidaCaixa
+    ? 'Recebimento estornado. O valor saiu do caixa e o saldo do agendamento voltou a ficar em aberto.'
+    : 'Recebimento estornado. Ele não tinha entrado no caixa, então nada saiu do caixa. O saldo do agendamento voltou a ficar em aberto.'
+}

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { respostaErroEstorno, validarMotivoEstorno } from '@/lib/estorno-recebimento'
+import { respostaErroEstorno, resumirResultadoEstorno, validarMotivoEstorno } from '@/lib/estorno-recebimento'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     const falha = respostaErroEstorno(resultado.code, resultado.message)
     return serverErrorResponse(falha.message, falha.code, falha.status)
   }
-  return NextResponse.json({ ok: true, data: resultado })
+  return NextResponse.json({ ok: true, data: { ...resultado, ...resumirResultadoEstorno(resultado) } })
 }
 
 /** Perfis com unidade só mexem em agendamentos da própria unidade. */

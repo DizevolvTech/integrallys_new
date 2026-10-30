@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { podeEstornarPagamento, respostaErroEstorno, validarMotivoEstorno } from './estorno-recebimento'
+import { mensagemEstornoConcluido, podeEstornarPagamento, resumirResultadoEstorno, respostaErroEstorno, validarMotivoEstorno } from './estorno-recebimento'
 
 describe('estorno de recebimento', () => {
   it('exige motivo com no mínimo 10 caracteres', () => {
@@ -20,5 +20,12 @@ describe('estorno de recebimento', () => {
     expect(respostaErroEstorno('PAGAMENTO_ALREADY_REVERSED').status).toBe(409)
     expect(respostaErroEstorno('CAIXA_FECHADO').message).toMatch(/Abra o caixa/)
     expect(respostaErroEstorno('X', 'falha').status).toBe(500)
+  })
+
+  it('informa se houve saída de caixa e ajusta a mensagem', () => {
+    expect(resumirResultadoEstorno({ ok: true, caixa_movimento_id: 'abc' }).saidaCaixa).toBe(true)
+    expect(resumirResultadoEstorno({ ok: true, caixa_movimento_id: null }).saidaCaixa).toBe(false)
+    expect(mensagemEstornoConcluido(true)).toMatch(/saiu do caixa/)
+    expect(mensagemEstornoConcluido(false)).toMatch(/não tinha entrado no caixa, então nada saiu/)
   })
 })

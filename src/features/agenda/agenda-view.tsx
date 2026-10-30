@@ -39,6 +39,7 @@ import {
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { SegmentedControl } from '@/components/shared/segmented-control'
+import { mensagemEstornoConcluido } from '@/lib/estorno-recebimento'
 import type { AgendaSlot, ViewMode } from './agenda.types'
 import { RetornosAlerta } from '@/features/retornos'
 import { AtendimentoView } from './atendimento-view'
@@ -1559,11 +1560,11 @@ export function AgendaView() {
         }}
         agendamentoId={selectedAgendaItem?.id}
         pacienteNome={selectedAgendaItem?.paciente}
-        onEstornado={() => {
+        onEstornado={({ saidaCaixa }) => {
           const slot = actions.selectedSlot
           actions.setActiveModal(null)
           void reloadAgenda()
-          toast.success('Recebimento estornado. O valor saiu do caixa e o saldo do agendamento voltou a ficar em aberto.', {
+          toast.success(mensagemEstornoConcluido(saidaCaixa), {
             action: slot ? { label: 'Emitir nova cobrança', onClick: () => actions.handleOpenCharge(slot) } : undefined,
             duration: 12000,
           })

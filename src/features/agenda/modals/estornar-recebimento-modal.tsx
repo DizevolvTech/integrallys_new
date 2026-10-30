@@ -27,7 +27,7 @@ interface EstornarRecebimentoModalProps {
   agendamentoId?: string
   pacienteNome?: string
   /** Chamado depois do estorno gravado (recarrega a agenda e oferece nova cobrança). */
-  onEstornado: () => void
+  onEstornado: (resultado: { saidaCaixa: boolean }) => void
 }
 
 const moeda = (valor: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
@@ -88,8 +88,11 @@ export function EstornarRecebimentoModal({
     setSalvando(true)
     setErro('')
     try {
-      await api.post('/api/agenda/pagamentos/estornar', { pagamentoId: escolhido.id, motivo: motivo.trim() })
-      onEstornado()
+      const res = await api.post<{ data?: { saidaCaixa?: boolean } }>('/api/agenda/pagamentos/estornar', {
+        pagamentoId: escolhido.id,
+        motivo: motivo.trim(),
+      })
+      onEstornado({ saidaCaixa: res?.data?.saidaCaixa === true })
     } catch (err) {
       const mensagem = err instanceof Error ? err.message : 'Não foi possível estornar o recebimento.'
       setErro(mensagem)
@@ -106,8 +109,8 @@ export function EstornarRecebimentoModal({
           title="Estornar recebimento"
           description={
             pacienteNome
-              ? `Retira o valor do caixa e do financeiro de ${pacienteNome}; o saldo do agendamento volta a ficar em aberto.`
-              : 'Retira o valor do caixa e do financeiro; o saldo do agendamento volta a ficar em aberto.'
+              ? `Retira o valor do financeiro de ${pacienteNome} (e do caixa, se ele entrou no caixa); o saldo do agendamento volta a ficar em aberto.`
+              : 'Retira o valor do financeiro (e do caixa, se ele entrou no caixa); o saldo do agendamento volta a ficar em aberto.'
           }
         />
 
@@ -164,8 +167,9 @@ export function EstornarRecebimentoModal({
 
           {escolhido && (
             <p className="rounded-integrallys border border-app-border p-3 text-xs text-app-text-secondary dark:border-app-border-dark dark:text-white/70">
-              Será lançada uma saída de {moeda(escolhido.valor)}{' '}no caixa de hoje (o lançamento original fica registrado como
-              estornado, com seu nome e a data). Depois é só usar &quot;Emitir nova cobrança&quot; com o valor certo.
+              Se este recebimento entrou no caixa, será lançada uma saída de {moeda(escolhido.valor)} no caixa de hoje; se não entrou
+              (ex.: lançado antes de o caixa abrir), nada sai do caixa. O lançamento original fica registrado como estornado, com
+              seu nome e a data. Depois é só usar &quot;Emitir nova cobrança&quot; com o valor certo.
             </p>
           )}
 
