@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,7 +20,6 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
@@ -28,48 +27,44 @@ import { Textarea } from '@/components/ui/textarea'
 import { Calendar, CheckCircle, Clock, Edit2, Moon, MoreVertical, Phone, Plus, Search, Sun, Sunset, Trash2, Users } from 'lucide-react'
 import { useListaEspera } from '@/hooks/use-lista-espera'
 import { usePacientes } from '@/hooks/use-pacientes'
+import { PacienteBuscaField } from './components/paciente-busca-field'
+import { PeriodoSelect } from './components/periodo-select'
+import { PrioridadeBadge } from './components/prioridade-badge'
+import {
+  buildAgendarUrl,
+  diasEmEspera,
+  formatDias,
+  isAltaPrioridade,
+  mediaDiasEmEspera,
+  normalizePeriodo,
+  PERIODO_PADRAO,
+} from './lista-espera.utils'
 
-function getPriorityBadge(priority: string) {
-  switch (priority) {
-    case 'Alta':
-      return <Badge className="bg-[var(--app-danger-text)] dark:bg-red-900/60 text-white dark:text-[var(--app-danger-text)] border-none shadow-sm font-normal rounded-full px-4 py-1">Alta</Badge>
-    case 'Média':
-      return <Badge className="app-status-warning0 dark:bg-amber-900/60 text-white dark:text-[var(--app-warning-text)] border-none shadow-sm font-normal rounded-full px-4 py-1">Média</Badge>
-    case 'Baixa':
-      return <Badge className="bg-[var(--app-success-text)] dark:bg-emerald-900/60 text-white dark:text-[var(--app-success-text)] border-none shadow-sm font-normal rounded-full px-4 py-1">Baixa</Badge>
-    default:
-      return <Badge variant="outline" className="rounded-full px-4 py-1 font-normal text-app-text-secondary dark:text-white/60 border-app-border dark:border-app-border-dark">{priority}</Badge>
-  }
+const CARD_CLICAVEL =
+  'cursor-pointer shadow-sm border-app-border transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] dark:border-app-border-dark'
+
+const TITULOS_CARD = {
+  total: 'Pacientes na espera',
+  alta: 'Pacientes de alta prioridade',
+  tempo: 'Tempo de espera por paciente',
+} as const
+
+const PERIODO_ICONES: Record<string, ReactNode> = {
+  Manhã: <Sun className="h-3.5 w-3.5 text-[var(--app-warning-text)]" />,
+  Tarde: <Sunset className="h-3.5 w-3.5 text-[var(--app-warning-text)]" />,
+  Noite: <Moon className="h-3.5 w-3.5 text-indigo-500" />,
+  'Final do dia': <Moon className="h-3.5 w-3.5 text-indigo-500" />,
 }
 
 function getPreferenciaHorarioBadge(preferencia: string | null | undefined) {
-  if (!preferencia) return <span className="text-xs text-app-text-muted dark:text-white/40">-</span>
-
-  switch (preferencia) {
-    case 'Manhã':
-      return (
-        <div className="flex items-center gap-1.5">
-          <Sun className="h-3.5 w-3.5 text-[var(--app-warning-text)]" />
-          <span className="text-xs text-app-text-secondary dark:text-white/80">Manhã</span>
-        </div>
-      )
-    case 'Tarde':
-      return (
-        <div className="flex items-center gap-1.5">
-          <Sunset className="h-3.5 w-3.5 text-[var(--app-warning-text)]" />
-          <span className="text-xs text-app-text-secondary dark:text-white/80">Tarde</span>
-        </div>
-      )
-    case 'Final do dia':
-      return (
-        <div className="flex items-center gap-1.5">
-          <Moon className="h-3.5 w-3.5 text-indigo-500" />
-          <span className="text-xs text-app-text-secondary dark:text-white/80">Final do dia</span>
-        </div>
-      )
-    default:
-      return <span className="text-xs text-app-text-muted dark:text-white/40">-</span>
-  }
+  const periodo = normalizePeriodo(preferencia)
+  if (!periodo) return <span className="text-xs text-app-text-muted dark:text-white/40">-</span>
+  return (
+    <div className="flex items-center gap-1.5">
+      {PERIODO_ICONES[periodo]}
+      <span className="text-xs text-app-text-secondary dark:text-white/80">{periodo}</span>
+    </div>
+  )
 }
 
 export function ListaEsperaView() {
@@ -85,7 +80,7 @@ export function ListaEsperaView() {
     especialistasOptions,
     procedimentosOptions,
   } = useListaEspera()
-  const { data: pacientes } = usePacientes()
+  const { data: pacientes, load: recarregarPacientes } = usePacientes()
   const [searchTerm, setSearchTerm] = useState('')
   const [specialistFilter, setSpecialistFilter] = useState('todos')
   const [unitFilter, setUnitFilter] = useState('todos')
@@ -93,12 +88,13 @@ export function ListaEsperaView() {
   const [preferenciaFilter, setPreferenciaFilter] = useState('todos')
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [cardAberto, setCardAberto] = useState<'total' | 'alta' | 'tempo' | null>(null)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [patientId, setPatientId] = useState('')
   const [priority, setPriority] = useState('Média')
   const [especialistaId, setEspecialistaId] = useState('')
   const [procedimentoId, setProcedimentoId] = useState('')
-  const [preferenciaHorario, setPreferenciaHorario] = useState('Qualquer horário')
+  const [preferenciaHorario, setPreferenciaHorario] = useState<string>(PERIODO_PADRAO)
   const [observacoes, setObservacoes] = useState('')
 
   const selectedEspecialista = useMemo(
@@ -128,8 +124,10 @@ export function ListaEsperaView() {
         procedure: item.procedimento || '',
         procedureId: item.procedimentoId || '',
         unit: patientRecord?.unidadeName || '',
-        waitTime: item.entradaEm || '-',
-        preferenciaHorario: item.preferenciaHorario || '',
+        waitTime: formatDias(diasEmEspera(item.entradaEmIso)),
+        waitDate: item.entradaEm || '',
+        entradaIso: item.entradaEmIso || '',
+        preferenciaHorario: normalizePeriodo(item.preferenciaHorario),
         priority: item.prioridade || 'Baixa',
         observacoes: item.observacoes || '',
       }}),
@@ -159,10 +157,18 @@ export function ListaEsperaView() {
 
   const stats = useMemo(() => {
     const total = patients.length
-    const highPriority = patients.filter((p) => p.priority === 'Alta').length
-    const avgWaitTime = 0
+    const highPriority = patients.filter((p) => isAltaPrioridade(p.priority)).length
+    const avgWaitTime = mediaDiasEmEspera(patients.map((p) => p.entradaIso))
     return { total, highPriority, avgWaitTime }
   }, [patients])
+
+  const pacientesDoCard = useMemo(() => {
+    if (cardAberto === 'alta') return patients.filter((p) => isAltaPrioridade(p.priority))
+    if (cardAberto === 'tempo') {
+      return [...patients].sort((a, b) => (diasEmEspera(b.entradaIso) ?? 0) - (diasEmEspera(a.entradaIso) ?? 0))
+    }
+    return patients
+  }, [cardAberto, patients])
 
   const unitOptions = useMemo(
     () => Array.from(new Set(patients.map((item) => item.unit).filter(Boolean))).sort(),
@@ -174,7 +180,7 @@ export function ListaEsperaView() {
     setPriority('Média')
     setEspecialistaId('')
     setProcedimentoId('')
-    setPreferenciaHorario('Qualquer horário')
+    setPreferenciaHorario(PERIODO_PADRAO)
     setObservacoes('')
   }
 
@@ -191,7 +197,7 @@ export function ListaEsperaView() {
     setPriority(item.priority || 'Média')
     setEspecialistaId(item.specialistId || '')
     setProcedimentoId(item.procedureId || '')
-    setPreferenciaHorario(item.preferenciaHorario || 'Qualquer horário')
+    setPreferenciaHorario(normalizePeriodo(item.preferenciaHorario) || PERIODO_PADRAO)
     setObservacoes(item.observacoes || '')
     setIsFormOpen(true)
   }
@@ -239,7 +245,25 @@ export function ListaEsperaView() {
     resetForm()
   }
 
+  const abrirComTeclado = (card: 'total' | 'alta' | 'tempo') => (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      setCardAberto(card)
+    }
+  }
+
   const renderAcoes = (patient: (typeof filteredPatients)[number]) => (
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-9 gap-1.5 rounded-xl"
+        onClick={() => router.push(buildAgendarUrl({ id: patient.id, pacienteId: patient.pacienteId, especialistaId: patient.specialistId, especialista: patient.specialist, procedimentoId: patient.procedureId }))}
+      >
+        <CheckCircle size={16} className="text-[var(--app-success-text)]" />
+        Agendar
+      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button type="button" aria-label="Ações" className="p-2 hover:bg-app-bg-secondary dark:hover:bg-app-hover rounded-lg transition-all text-app-text-muted">
@@ -247,31 +271,6 @@ export function ListaEsperaView() {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40 p-1 rounded-xl shadow-xl border-app-border dark:border-app-border-dark dark:bg-app-bg-dark">
-                          <DropdownMenuItem
-                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-app-bg-secondary dark:hover:bg-app-hover"
-                            onClick={async () => {
-                              toast.success(`Abrindo agenda para atendimento de ${patient.name}.`)
-                              const params = new URLSearchParams({
-                                modal: 'novo',
-                                patientId: patient.pacienteId || '',
-                              })
-                              if (patient.specialistId) {
-                                params.set('profissionalId', patient.specialistId)
-                              } else if (patient.specialist) {
-                                params.set('profissional', patient.specialist)
-                              }
-                              if (patient.procedureId) params.set('procedimentoId', patient.procedureId)
-                              try {
-                                await deleteItem(patient.id)
-                              } catch {
-                                // segue para agenda mesmo se a remoção da fila falhar
-                              }
-                              router.push(`/agenda?${params.toString()}`)
-                            }}
-                          >
-                            <CheckCircle size={16} className="text-[var(--app-success-text)]" />
-                            <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Agendar</span>
-                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-app-bg-secondary dark:hover:bg-app-hover"
                             onClick={() => handleEdit(patient.id)}
@@ -288,12 +287,13 @@ export function ListaEsperaView() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+    </div>
   )
 
   return (
     <div className="app-page max-w-full mx-auto pb-10">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="shadow-sm border-app-border dark:border-app-border-dark">
+        <Card className={CARD_CLICAVEL} role="button" tabIndex={0} aria-label="Ver pacientes na espera" onClick={() => setCardAberto('total')} onKeyDown={abrirComTeclado('total')}>
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Total na espera</span>
@@ -306,12 +306,12 @@ export function ListaEsperaView() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-app-border dark:border-app-border-dark">
+        <Card className={CARD_CLICAVEL} role="button" tabIndex={0} aria-label="Ver pacientes de alta prioridade" onClick={() => setCardAberto('alta')} onKeyDown={abrirComTeclado('alta')}>
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Alta prioridade</span>
               <h2 className="text-2xl font-normal text-app-text-primary dark:text-white">{stats.highPriority}</h2>
-              <p className="text-xs text-app-text-muted font-normal">Casos urgentes</p>
+              <p className="text-xs text-app-text-muted font-normal">Alta e urgente</p>
             </div>
             <div>
               <Clock size={28} className="text-[var(--app-danger-text)]" />
@@ -319,11 +319,11 @@ export function ListaEsperaView() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-app-border dark:border-app-border-dark">
+        <Card className={CARD_CLICAVEL} role="button" tabIndex={0} aria-label="Ver tempo de espera dos pacientes" onClick={() => setCardAberto('tempo')} onKeyDown={abrirComTeclado('tempo')}>
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-sm font-normal text-app-text-secondary dark:text-white/60">Tempo médio</span>
-              <h2 className="text-2xl font-normal text-app-text-primary dark:text-white">{stats.avgWaitTime} dias</h2>
+              <h2 className="text-2xl font-normal text-app-text-primary dark:text-white">{stats.avgWaitTime} {stats.avgWaitTime === 1 ? 'dia' : 'dias'}</h2>
               <p className="text-xs text-app-text-muted font-normal">Tempo de espera</p>
             </div>
             <div>
@@ -344,7 +344,7 @@ export function ListaEsperaView() {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:flex gap-3 w-full lg:w-auto">
           <Select value={specialistFilter} onValueChange={setSpecialistFilter}>
                     <SelectTrigger className="w-full lg:w-[180px] h-11 text-xs px-4 rounded-xl border-app-border dark:border-app-border-dark bg-app-card dark:bg-app-card-dark focus:ring-[var(--app-primary)] focus:border-[var(--app-primary)]">
                       <SelectValue preferPlaceholder placeholder="Especialista" />
@@ -379,6 +379,7 @@ export function ListaEsperaView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todas as prioridades</SelectItem>
+              <SelectItem value="urgente">Urgente</SelectItem>
               <SelectItem value="alta">Alta</SelectItem>
               <SelectItem value="média">Média</SelectItem>
               <SelectItem value="baixa">Baixa</SelectItem>
@@ -393,7 +394,9 @@ export function ListaEsperaView() {
               <SelectItem value="todos">Todas preferências</SelectItem>
               <SelectItem value="manhã">Manhã</SelectItem>
               <SelectItem value="tarde">Tarde</SelectItem>
+              <SelectItem value="noite">Noite</SelectItem>
               <SelectItem value="final do dia">Final do dia</SelectItem>
+              <SelectItem value="qualquer horário">Qualquer horário</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -450,12 +453,12 @@ export function ListaEsperaView() {
                 key={patient.id}
                 titulo={patient.name}
                 subtitulo={[patient.procedure, patient.specialist].filter(Boolean).join(' · ')}
-                selo={<div className="flex flex-wrap items-center gap-2">{getPriorityBadge(patient.priority)}{getPreferenciaHorarioBadge(patient.preferenciaHorario)}</div>}
+                selo={<div className="flex flex-wrap items-center gap-2"><PrioridadeBadge prioridade={patient.priority} />{getPreferenciaHorarioBadge(patient.preferenciaHorario)}</div>}
                 acoes={renderAcoes(patient)}
                 campos={[
                   { rotulo: 'Contato', valor: patient.phone || '—' },
                   { rotulo: 'E-mail', valor: patient.email || '—' },
-                  { rotulo: 'Tempo de espera', valor: patient.waitTime },
+                  { rotulo: 'Tempo de espera', valor: patient.waitDate ? `${patient.waitTime} (${patient.waitDate})` : patient.waitTime },
                   { rotulo: 'Unidade', valor: patient.unit || '—' },
                 ]}
               />
@@ -506,14 +509,17 @@ export function ListaEsperaView() {
                     <TableCell className="px-6 py-5">
                       <div className="flex items-center gap-1.5 text-app-text-secondary dark:text-white/60 whitespace-nowrap">
                         <Clock size={14} />
-                        <span className="text-sm">{patient.waitTime}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm">{patient.waitTime}</span>
+                          {patient.waitDate && <span className="text-xs text-app-text-muted dark:text-white/40">{patient.waitDate}</span>}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="px-6 py-5">
                       {getPreferenciaHorarioBadge(patient.preferenciaHorario)}
                     </TableCell>
                     <TableCell className="px-6 py-5">
-                      {getPriorityBadge(patient.priority)}
+                      <PrioridadeBadge prioridade={patient.priority} />
                     </TableCell>
                     <TableCell className="px-6 py-5 text-right">
                       {renderAcoes(patient)}
@@ -547,18 +553,12 @@ export function ListaEsperaView() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Paciente</span>
-              <Select value={patientId} onValueChange={setPatientId}>
-                <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Selecione o paciente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pacientes.map((patient) => (
-                    <SelectItem key={patient.id} value={patient.id}>
-                      {patient.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <PacienteBuscaField
+                patients={pacientes.map((patient) => ({ id: patient.id, nome: patient.nome }))}
+                value={patientId}
+                onChange={setPatientId}
+                onCreated={() => void recarregarPacientes()}
+              />
             </div>
             <div className="space-y-2">
               <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Prioridade</span>
@@ -567,10 +567,10 @@ export function ListaEsperaView() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Urgente">Urgente</SelectItem>
                   <SelectItem value="Alta">Alta</SelectItem>
                   <SelectItem value="Média">Média</SelectItem>
                   <SelectItem value="Baixa">Baixa</SelectItem>
-                  <SelectItem value="Urgente">Urgente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -628,18 +628,8 @@ export function ListaEsperaView() {
               )}
             </div>
             <div className="space-y-2">
-              <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Preferência de horário</span>
-              <Select value={preferenciaHorario} onValueChange={setPreferenciaHorario}>
-                <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Qualquer horário">Qualquer horário</SelectItem>
-                  <SelectItem value="Manhã">Manhã</SelectItem>
-                  <SelectItem value="Tarde">Tarde</SelectItem>
-                  <SelectItem value="Final do dia">Final do dia</SelectItem>
-                </SelectContent>
-              </Select>
+              <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Preferência de período</span>
+              <PeriodoSelect value={preferenciaHorario} onChange={setPreferenciaHorario} />
             </div>
             <div className="space-y-2">
               <span className="text-sm font-medium text-app-text-secondary dark:text-white/70">Observações</span>
@@ -658,6 +648,37 @@ export function ListaEsperaView() {
             <Button onClick={() => void handleSave()} className="bg-app-primary hover:bg-app-primary-hover text-white">
               {selectedItemId ? 'Salvar alterações' : 'Adicionar paciente'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cardAberto !== null} onOpenChange={(open) => !open && setCardAberto(null)}>
+        <DialogContent size="lg" className="rounded-[24px]">
+          <DialogHeader>
+            <DialogTitle>{cardAberto ? TITULOS_CARD[cardAberto] : ''}</DialogTitle>
+          </DialogHeader>
+          {pacientesDoCard.length === 0 ? (
+            <p className="py-6 text-center text-sm text-app-text-secondary dark:text-white/60">Nenhum paciente neste grupo.</p>
+          ) : (
+            <ul className="max-h-[420px] divide-y divide-app-border overflow-y-auto rounded-xl border border-app-border dark:divide-app-border-dark dark:border-app-border-dark">
+              {pacientesDoCard.map((patient) => (
+                <li key={patient.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-app-text-primary dark:text-white">{patient.name}</p>
+                    <p className="text-xs text-app-text-secondary dark:text-white/60">
+                      {[patient.procedure, patient.specialist].filter(Boolean).join(' · ') || 'Sem procedimento informado'}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <PrioridadeBadge prioridade={patient.priority} />
+                    <span className="text-xs text-app-text-muted dark:text-white/50">{patient.waitTime}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCardAberto(null)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

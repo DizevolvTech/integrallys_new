@@ -298,8 +298,12 @@ export function NovoAgendamentoModal({
   // Profissional do preset (ex.: vindo de /retornos) pode chegar depois da abertura,
   // quando a lista de profissionais termina de carregar — preenche só se ainda vazio.
   useEffect(() => {
-    if (!isOpen || !initialProfissional) return
-    setProfissional((current) => current || initialProfissional)
+    if (!isOpen || !initialProfissional || profissional) return
+    // O efeito de troca de profissional limpa o procedimento; preserva o do preset (ex.: lista de espera).
+    skipProcedimentoResetRef.current = Boolean(initialProcedimentoId)
+    setProfissional(initialProfissional)
+    if (initialProcedimentoId) setProcedimentoId(initialProcedimentoId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o profissional do preset chega
   }, [isOpen, initialProfissional])
 
   // Se o modal abriu com preset antes da lista carregar, preenche o nome quando

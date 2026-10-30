@@ -1,15 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Clock3, Moon, Sun, Sunset, Users } from 'lucide-react'
+import { CheckCircle, Clock3, Users } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
-import { useListaEspera } from '@/hooks/use-lista-espera'
+import { PacienteBuscaField } from '@/features/lista-espera/components/paciente-busca-field'
+import { PeriodoSelect } from '@/features/lista-espera/components/periodo-select'
+import { PrioridadeBadge } from '@/features/lista-espera/components/prioridade-badge'
+import { diasEmEspera, formatDias, normalizePeriodo, PERIODO_PADRAO } from '@/features/lista-espera/lista-espera.utils'
+import { useListaEspera, type ListaEsperaItem } from '@/hooks/use-lista-espera'
 
 interface PacienteOption {
   id: string
@@ -21,6 +24,7 @@ export interface ListaEsperaModalSavePayload {
   prioridade: string
   procedimentoId: string
   especialistaId: string
+  preferenciaHorario: string
   observacoes: string
 }
 
@@ -29,55 +33,13 @@ interface ListaEsperaModalProps {
   onClose: () => void
   patients?: PacienteOption[]
   onSave?: (payload: ListaEsperaModalSavePayload) => Promise<void> | void
+  onAgendar?: (item: ListaEsperaItem) => void
 }
 
 const formatBRL = (value: number) =>
   value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-function getPriorityBadge(priority: string) {
-  switch (priority) {
-    case 'Alta':
-      return (
-        <Badge className="bg-[var(--app-danger-text)] dark:bg-red-900/60 text-white dark:text-[var(--app-danger-text)] border-none shadow-sm font-normal rounded-full px-3 py-0.5 text-xs">
-          Alta
-        </Badge>
-      )
-    case 'Média':
-      return (
-        <Badge className="bg-[var(--app-warning-text)] dark:bg-amber-900/60 text-white dark:text-[var(--app-warning-text)] border-none shadow-sm font-normal rounded-full px-3 py-0.5 text-xs">
-          Média
-        </Badge>
-      )
-    case 'Baixa':
-      return (
-        <Badge className="bg-[var(--app-success-text)] dark:bg-emerald-900/60 text-white dark:text-[var(--app-success-text)] border-none shadow-sm font-normal rounded-full px-3 py-0.5 text-xs">
-          Baixa
-        </Badge>
-      )
-    default:
-      return (
-        <Badge variant="outline" className="rounded-full px-3 py-0.5 text-xs font-normal text-app-text-secondary dark:text-white/60 border-app-border dark:border-app-border-dark">
-          {priority || '-'}
-        </Badge>
-      )
-  }
-}
-
-function getPreferenciaIcon(preferencia: string | undefined) {
-  if (!preferencia) return null
-  switch (preferencia) {
-    case 'Manhã':
-      return <Sun className="h-3.5 w-3.5 text-[var(--app-warning-text)]" />
-    case 'Tarde':
-      return <Sunset className="h-3.5 w-3.5 text-[var(--app-warning-text)]" />
-    case 'Final do dia':
-      return <Moon className="h-3.5 w-3.5 text-indigo-500" />
-    default:
-      return null
-  }
-}
-
-export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: ListaEsperaModalProps) {
+export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave, onAgendar }: ListaEsperaModalProps) {
   const {
     data,
     isLoading,
@@ -90,9 +52,10 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
 
   const [tab, setTab] = useState<'add' | 'queue'>('add')
   const [pacienteId, setPacienteId] = useState('')
-  const [prioridade, setPrioridade] = useState('media')
+  const [prioridade, setPrioridade] = useState('Média')
   const [procedimentoId, setProcedimentoId] = useState('')
   const [especialistaId, setEspecialistaId] = useState('')
+  const [preferenciaHorario, setPreferenciaHorario] = useState<string>(PERIODO_PADRAO)
   const [observacoes, setObservacoes] = useState('')
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -129,17 +92,15 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
     [procedimentosFiltrados, procedimentoId],
   )
 
-  const prioridadeLabel =
-    prioridade === 'media' ? 'Média' : prioridade === 'alta' ? 'Alta' : 'Baixa'
-
   const isMissingProcedimento = !procedimentoId
   const isMissingEspecialista = !especialistaId
 
   const resetForm = () => {
     setPacienteId('')
-    setPrioridade('media')
+    setPrioridade("Média")
     setProcedimentoId('')
     setEspecialistaId('')
+    setPreferenciaHorario(PERIODO_PADRAO)
     setObservacoes('')
     setSubmitAttempted(false)
   }
@@ -152,9 +113,10 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
     try {
       const payload: ListaEsperaModalSavePayload = {
         pacienteId,
-        prioridade: prioridadeLabel,
+        prioridade,
         procedimentoId,
         especialistaId,
+        preferenciaHorario,
         observacoes,
       }
 
@@ -163,9 +125,10 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
       } else {
         await createItem({
           pacienteId,
-          prioridade: prioridadeLabel,
+          prioridade,
           procedimentoId,
           especialistaId,
+          preferenciaHorario,
           observacoes: observacoes || undefined,
         })
       }
@@ -207,23 +170,7 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
             <TabsContent value="add" className="space-y-4">
               <div className="space-y-2">
                 <Label className="font-normal">Paciente</Label>
-                <Select value={pacienteId} onValueChange={setPacienteId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o paciente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {patients.length === 0 && (
-                      <SelectItem value="__empty_patients" disabled>
-                        Nenhum paciente disponível
-                      </SelectItem>
-                    )}
-                    {patients.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <PacienteBuscaField patients={patients} value={pacienteId} onChange={setPacienteId} invalid={submitAttempted && !pacienteId} />
                 {submitAttempted && !pacienteId && (
                   <p className="text-xs text-[var(--app-danger-text)]">Selecione um paciente.</p>
                 )}
@@ -319,15 +266,16 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="media">Média</SelectItem>
-                      <SelectItem value="baixa">Baixa</SelectItem>
+                      <SelectItem value="Urgente">Urgente</SelectItem>
+                      <SelectItem value="Alta">Alta</SelectItem>
+                      <SelectItem value="Média">Média</SelectItem>
+                      <SelectItem value="Baixa">Baixa</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-normal">Melhor horário</Label>
-                  <Input type="time" disabled />
+                  <Label className="font-normal">Preferência de período</Label>
+                  <PeriodoSelect value={preferenciaHorario} onChange={setPreferenciaHorario} />
                 </div>
               </div>
 
@@ -336,7 +284,7 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
                 <Input
                   value={observacoes}
                   onChange={(event) => setObservacoes(event.target.value)}
-                  placeholder="Ex: prefere período da tarde"
+                  placeholder="Observações de atendimento e prioridade"
                 />
               </div>
             </TabsContent>
@@ -359,7 +307,6 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
               ) : (
                 <ul className="max-h-[420px] divide-y divide-app-border overflow-y-auto rounded-xl border border-app-border dark:divide-app-border-dark dark:border-app-border-dark">
                   {data.map((item) => {
-                    const preferenciaIcon = getPreferenciaIcon(item.preferenciaHorario)
                     return (
                       <li
                         key={item.id}
@@ -370,7 +317,7 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
                             <span className="text-sm font-medium text-app-text-primary dark:text-white">
                               {item.paciente || 'Paciente sem nome'}
                             </span>
-                            {getPriorityBadge(item.prioridade)}
+                            <PrioridadeBadge prioridade={item.prioridade} />
                           </div>
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-app-text-secondary dark:text-white/60">
                             {item.procedimento && (
@@ -395,10 +342,7 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
                               </span>
                             )}
                             {item.preferenciaHorario && (
-                              <span className="flex items-center gap-1">
-                                {preferenciaIcon}
-                                {item.preferenciaHorario}
-                              </span>
+                              <span>Período: {normalizePeriodo(item.preferenciaHorario)}</span>
                             )}
                           </div>
                           {item.observacoes && (
@@ -407,9 +351,26 @@ export function ListaEsperaModal({ isOpen, onClose, patients = [], onSave }: Lis
                             </p>
                           )}
                         </div>
-                        <span className="whitespace-nowrap text-xs text-app-text-muted dark:text-white/40">
-                          {item.entradaEm}
-                        </span>
+                        <div className="flex flex-col items-end gap-2">
+                          <span
+                            className="whitespace-nowrap text-xs text-app-text-muted dark:text-white/40"
+                            title={item.entradaEm}
+                          >
+                            {formatDias(diasEmEspera(item.entradaEmIso))}
+                          </span>
+                          {onAgendar && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1.5 rounded-lg"
+                              onClick={() => onAgendar(item)}
+                            >
+                              <CheckCircle className="h-4 w-4 text-[var(--app-success-text)]" />
+                              Agendar
+                            </Button>
+                          )}
+                        </div>
                       </li>
                     )
                   })}

@@ -143,6 +143,7 @@ export function mapListaEsperaItem(row: Record<string, unknown>) {
     procedimentoValor: row.procedimento_valor != null ? Number(row.procedimento_valor) : undefined,
     preferenciaHorario: row.preferencia_horario ? String(row.preferencia_horario) : undefined,
     entradaEm: formatDateTime(String(row.entrada_em ?? '')),
+    entradaEmIso: row.entrada_em ? String(row.entrada_em) : undefined,
     observacoes: row.observacoes ? String(row.observacoes) : undefined,
   }
 }

@@ -107,6 +107,7 @@ async function buildInternalNotifications(session: RequestAuth) {
     supabase
       .from('lista_espera')
       .select('id,created_at')
+      .eq('status', 'aguardando')
       .order('created_at', { ascending: false })
       .limit(5),
     supabase
