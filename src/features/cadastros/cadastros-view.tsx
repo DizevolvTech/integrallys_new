@@ -8,12 +8,14 @@ import { SegmentedControl } from '@/components/shared/segmented-control'
 import { Card } from '@/components/ui/card'
 import { BASES_DOCUMENTO, LINHAS_DRE } from '@/lib/cadastros'
 import { CadastroSecao, type CampoCadastro } from './components/cadastro-secao'
+import { DescontosFormaSecao } from './components/descontos-forma-secao'
 import { useCadastro } from './hooks/use-cadastro'
 
 const ABAS = [
   { value: 'bancos', label: 'Bancos' },
   { value: 'categorias-dre', label: 'Categorias de DRE' },
   { value: 'tipos-documento', label: 'Tipos de documento' },
+  { value: 'descontos-forma', label: 'Descontos por forma' },
   { value: 'outros', label: 'Outros cadastros' },
 ]
 
@@ -111,6 +113,7 @@ export function CadastrosView() {
           onAtualizar={tipos.atualizar}
         />
       )}
+      {aba === 'descontos-forma' && <DescontosFormaSecao />}
       {aba === 'outros' && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {ATALHOS.map((atalho) => (

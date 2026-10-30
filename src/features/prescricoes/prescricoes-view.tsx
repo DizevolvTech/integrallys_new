@@ -106,6 +106,8 @@ function normalizePrescription(item: PrescricaoItem): PrescriptionRow {
 
 const statusDe = (item: PrescriptionRow): StatusPrescricao => normalizarStatusPrescricao(item.status)
 const classeDe = (item: PrescriptionRow) => classificarPrescricao(item.status, item.validity, hojeIso())
+/** Mensagem do servidor (ex.: "Caixa não aberto…") em vez de falha silenciosa. */
+const mensagemDeErro = (err: unknown, padrao: string) => (err instanceof Error && err.message ? err.message : padrao)
 const CABECALHO = 'font-normal text-app-text-secondary dark:text-white/80'
 
 export function PrescricoesView() {
@@ -239,22 +241,29 @@ export function PrescricoesView() {
   }
 
   const handleCreatePrescription = async (payload: PrescricaoInput) => {
+    // Falha (caixa fechado, estoque...) propaga: o modal mostra o erro e NÃO exibe "realizada". O modal fecha sozinho no sucesso.
     await createPrescricao(payload)
-    toast.success('Prescrição/Vendas criada com sucesso.')
-    setIsNovaVendaModalOpen(false)
   }
 
   const handleUpdatePrescription = async (payload: PrescricaoInput) => {
-    await updatePrescricao(payload)
-    toast.success('Prescrição/Vendas atualizada com sucesso.')
-    setIsEditModalOpen(false)
+    try {
+      await updatePrescricao(payload)
+      toast.success('Prescrição/Vendas atualizada com sucesso.')
+      setIsEditModalOpen(false)
+    } catch (err) {
+      toast.error(mensagemDeErro(err, 'Não foi possível atualizar a prescrição/venda.'))
+    }
   }
 
   const handleDeletePrescription = async (item: PrescricaoItem) => {
-    await deletePrescricao(item.id)
-    toast.success('Prescrição/Vendas removida com sucesso.')
-    setIsDeleteModalOpen(false)
-    setSelectedPrescription(null)
+    try {
+      await deletePrescricao(item.id)
+      toast.success('Prescrição/Vendas removida com sucesso.')
+      setIsDeleteModalOpen(false)
+      setSelectedPrescription(null)
+    } catch (err) {
+      toast.error(mensagemDeErro(err, 'Não foi possível remover a prescrição/venda.'))
+    }
   }
 
   const handleConvertSale = async (item: PrescriptionRow) => {
@@ -369,7 +378,7 @@ export function PrescricoesView() {
           dosage: item.posology,
           stockStatus: 'available' as const,
         }))}
-        onConfirm={() => selectedPrescription && void handleConvertSale(selectedPrescription)}
+        onConfirm={() => (selectedPrescription ? handleConvertSale(selectedPrescription) : undefined)}
       />
 
       <EditarPrescricaoModal
@@ -386,7 +395,7 @@ export function PrescricoesView() {
         patients={patientOptions}
         products={productOptions}
         users={sellerOptions}
-        onSave={(payload) => void handleCreatePrescription(payload)}
+        onSave={handleCreatePrescription}
       />
 
       <DetalhesVendaModal
