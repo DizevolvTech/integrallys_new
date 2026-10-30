@@ -698,7 +698,7 @@ export function NovoAgendamentoModal({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-sm font-normal text-app-text-primary dark:text-white">Data</Label>
               <DateInput value={data} onChange={setData} className="h-11" />
