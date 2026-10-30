@@ -21,7 +21,11 @@ import {
   type TarefaRecorrencia,
 } from '@/lib/tarefa-recorrencia'
 import { TAREFA_STATUS_VALUES, tarefaStatusLabel } from '@/lib/tarefa-status'
+import { CategoriaTarefaField } from './components/categoria-tarefa-field'
 import { DiasSemanaPicker } from './components/dias-semana-picker'
+import { GerenciarCategoriasDialog } from './components/gerenciar-categorias-dialog'
+import { PeriodoStepper } from './components/periodo-stepper'
+import { useTarefaCategorias } from '@/hooks/use-tarefa-categorias'
 import {
   addDays,
   applyFilters,
@@ -30,6 +34,7 @@ import {
   groupEntrada,
   isOpen,
   parseDateKey,
+  shiftPeriodo,
   sortTarefas,
   toDateKey,
   type PlannerFilters,
@@ -261,11 +266,17 @@ export function TarefasPlannerView() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [novaSub, setNovaSub] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const categoriasApi = useTarefaCategorias()
+  const [gerenciarAberto, setGerenciarAberto] = useState(false)
 
   const todayKey = toDateKey(new Date())
+  // Filtro por categoria: as cadastradas + valores antigos ainda usados em tarefas.
   const projetos = useMemo(
-    () => Array.from(new Set(data.map((tarefa) => tarefa.categoria).filter(Boolean))).sort(),
-    [data],
+    () =>
+      Array.from(new Set([...categoriasApi.categorias.map((item) => item.nome), ...data.map((tarefa) => tarefa.categoria)]))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [data, categoriasApi.categorias],
   )
   const visiveis = useMemo(
     () => applyFilters(data, { ...filters, meuId: user?.id, escopo: isPrivileged ? filters.escopo ?? 'minhas' : undefined }),
@@ -471,6 +482,9 @@ export function TarefasPlannerView() {
                 <Link href="/tarefas/relatorio">Relatório da equipe</Link>
               </Button>
             )}
+            <Button variant="outline" onClick={() => setGerenciarAberto(true)}>
+              Gerenciar categorias
+            </Button>
             <Button onClick={() => openCreate(view === 'dia' ? toDateKey(cursor) : undefined)} className="text-white">
               <Plus className="mr-2 h-4 w-4" />
               Nova tarefa
@@ -589,35 +603,21 @@ export function TarefasPlannerView() {
             <SelectItem value="Baixa">Baixa</SelectItem>
           </SelectContent>
         </Select>
-        <span className="flex items-center gap-2 text-sm">
-          De
-          <Input
-            type="date"
-            value={filters.dataDe ?? ''}
-            onChange={(event) => setFilters({ ...filters, dataDe: event.target.value })}
-            className="h-10 w-[150px]"
-            aria-label="Data inicial"
-          />
-        </span>
-        <span className="flex items-center gap-2 text-sm">
-          Até
-          <Input
-            type="date"
-            value={filters.dataAte ?? ''}
-            onChange={(event) => setFilters({ ...filters, dataAte: event.target.value })}
-            className="h-10 w-[150px]"
-            aria-label="Data final"
-          />
-        </span>
-        {(filters.dataDe || filters.dataAte) && (
-          <button
-            type="button"
-            className="text-sm underline"
-            onClick={() => setFilters({ ...filters, dataDe: '', dataAte: '' })}
-          >
-            Limpar datas
-          </button>
-        )}
+        <PeriodoStepper
+          de={filters.dataDe ?? ''}
+          ate={filters.dataAte ?? ''}
+          onChange={(dataDe, dataAte) => setFilters({ ...filters, dataDe, dataAte })}
+          onShift={(direction) => {
+            const next = shiftPeriodo(filters.dataDe ?? '', filters.dataAte ?? '', direction, todayKey)
+            setFilters({ ...filters, dataDe: next.de, dataAte: next.ate })
+          }}
+        >
+          {(filters.dataDe || filters.dataAte) && (
+            <button type="button" className="text-sm underline" onClick={() => setFilters({ ...filters, dataDe: '', dataAte: '' })}>
+              Limpar datas
+            </button>
+          )}
+        </PeriodoStepper>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -819,20 +819,12 @@ export function TarefasPlannerView() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Projeto</Label>
-                <Input
-                  list="tarefa-projetos"
-                  value={form.categoria}
-                  onChange={(event) => setForm({ ...form, categoria: event.target.value })}
-                  placeholder="Ex.: Marketing"
-                />
-                <datalist id="tarefa-projetos">
-                  {projetos.map((projeto) => (
-                    <option key={projeto} value={projeto} />
-                  ))}
-                </datalist>
-              </div>
+              <CategoriaTarefaField
+                value={form.categoria}
+                categorias={categoriasApi.categorias}
+                onChange={(categoria) => setForm({ ...form, categoria })}
+                onGerenciar={() => setGerenciarAberto(true)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Recorrência</Label>
@@ -954,6 +946,7 @@ export function TarefasPlannerView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <GerenciarCategoriasDialog open={gerenciarAberto} onOpenChange={setGerenciarAberto} api={categoriasApi} />
     </div>
     </MostrarResponsavelContext.Provider>
   )
