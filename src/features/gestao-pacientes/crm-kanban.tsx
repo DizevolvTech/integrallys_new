@@ -79,6 +79,7 @@ export function CrmKanban({ porEstagio, crmPorPaciente, onAbrir, onMover }: CrmK
                       ? new Date(`${crm.data_proxima_acao}T00:00:00`).toLocaleDateString('pt-BR')
                       : null
                     return (
+                      // biome-ignore lint/a11y/useSemanticElements: cartão arrastável (draggable) com filhos de bloco; <button> não arrasta de forma confiável
                       <div
                         key={id}
                         role="button"
