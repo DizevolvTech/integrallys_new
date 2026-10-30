@@ -6,6 +6,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { LabelEditorModal, LabelData } from './label-editor-modal'
 
 interface PrescriptionItem {
@@ -28,7 +29,7 @@ interface GerarVendaModalProps {
     status?: string
   } | null
   items?: PrescriptionItem[]
-  onConfirm?: (id: string) => void
+  onConfirm?: (id: string) => Promise<void> | void
 }
 
 export function GerarVendaModal({ isOpen, onClose, prescription, items = [], onConfirm }: GerarVendaModalProps) {
@@ -41,10 +42,14 @@ export function GerarVendaModal({ isOpen, onClose, prescription, items = [], onC
 
   const handleConfirmVenda = async () => {
     setIsConverting(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setIsConverting(false)
-    setIsSuccess(true)
-    onConfirm?.(prescription.id)
+    try {
+      await onConfirm?.(prescription.id)
+      setIsSuccess(true)
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Não foi possível gerar a venda.')
+    } finally {
+      setIsConverting(false)
+    }
   }
 
   const handlePrintAllLabels = () => {

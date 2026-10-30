@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   ShoppingCart,
   CheckCircle2,
@@ -11,6 +11,7 @@ import {
   User,
   ShoppingBag,
   Banknote,
+  Lock,
   QrCode,
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -35,7 +36,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import type { PrescricaoInput, PrescricaoItemInput } from '@/hooks/use-prescricoes'
-import { usePaymentConfig, DEFAULT_PAYMENT_DISCOUNTS } from '@/features/prescricoes/hooks/use-payment-config'
+import { usePaymentConfig } from '@/features/prescricoes/hooks/use-payment-config'
+import { useDescontosForma } from '@/features/formas-pagamento/hooks/use-descontos-forma'
+import { calcularVenda } from '@/lib/desconto-forma'
 import { formatarMoeda } from '@/lib/moeda'
 
 export interface NovaVendaModalProduct {
@@ -71,9 +74,6 @@ interface NovaVendaModalProps {
   onAfterSale?: (payload: { prescriptionId: string; patientName: string }) => void
 }
 
-type PaymentMethodKey = 'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito'
-type PaymentDiscountConfig = Record<PaymentMethodKey, number>
-
 export function NovaVendaModal({
   isOpen,
   onClose,
@@ -99,75 +99,26 @@ export function NovaVendaModal({
 
   const [cartItems, setCartItems] = useState<CartItem[]>([])
 
-  const {
-    paymentDiscounts,
-    savePaymentDiscounts,
-    getCardFee,
-  } = usePaymentConfig()
-
-  const [discountType, setDiscountType] = useState<'value' | 'percent'>('value')
-  const [discountValue, setDiscountValue] = useState('')
+  const { getCardFee } = usePaymentConfig()
+  const { descontos } = useDescontosForma()
   const [justificativaDesconto, setJustificativaDesconto] = useState('')
-  const [discountError, setDiscountError] = useState('')
-  const [discountConfig, setDiscountConfig] = useState<PaymentDiscountConfig>(DEFAULT_PAYMENT_DISCOUNTS)
-  const [isDiscountConfigOpen, setIsDiscountConfigOpen] = useState(false)
-  const [discountConfigDirty, setDiscountConfigDirty] = useState(false)
-  const [isSavingDiscountConfig, setIsSavingDiscountConfig] = useState(false)
-
-  useEffect(() => {
-    if (!discountConfigDirty) {
-      setDiscountConfig(paymentDiscounts)
-    }
-  }, [paymentDiscounts, discountConfigDirty])
 
   const isConsumo = paymentMethod === 'consumo'
 
-  const subtotal = cartItems.reduce((acc, item) => {
-    const unitPrice = isConsumo ? item.costPrice : item.salePrice
-    return acc + unitPrice * item.quantity
-  }, 0)
-
-  const manualDiscountAmount = useMemo(() => {
-    const val = parseFloat(discountValue) || 0
-    if (discountType === 'value') return val
-    return subtotal * (val / 100)
-  }, [discountValue, discountType, subtotal])
-
-  const configuredDiscountPercent =
-    paymentMethod === 'pix' ||
-    paymentMethod === 'dinheiro' ||
-    paymentMethod === 'cartao_debito' ||
-    paymentMethod === 'cartao_credito'
-      ? discountConfig[paymentMethod]
-      : 0
-  const configuredDiscountAmount = isConsumo
-    ? 0
-    : subtotal * (configuredDiscountPercent / 100)
-  const discountAmount = isConsumo
-    ? 0
-    : Math.min(subtotal, configuredDiscountAmount + manualDiscountAmount)
-  const total = isConsumo ? subtotal : Math.max(0, subtotal - discountAmount)
-
-  const installmentLabel = paymentMethod === 'cartao_credito' ? `1/${installmentCount}` : '1/1'
-  void installmentLabel
+  // Desconto travado: vem do cadastro do gestor (Cadastros > Descontos por forma); o servidor recalcula e confere.
+  const venda = calcularVenda(
+    cartItems.map((item) => ({
+      quantidade: item.quantity,
+      valorUnitario: isConsumo ? item.costPrice : item.salePrice,
+    })),
+    paymentMethod,
+    descontos,
+  )
+  const { subtotal, percentual: configuredDiscountPercent, desconto: discountAmount, total } = venda
 
   const isCartaoCredito = paymentMethod === 'cartao_credito'
   const installmentValue = isCartaoCredito && installmentCount > 0 ? total / installmentCount : 0
   const installmentFeePercent = isCartaoCredito ? getCardFee(installmentCount) : 0
-
-  const handleSaveDiscountConfig = async () => {
-    if (isSavingDiscountConfig) return
-    setIsSavingDiscountConfig(true)
-    try {
-      await savePaymentDiscounts(discountConfig)
-      setDiscountConfigDirty(false)
-      toast.success('Descontos por forma de pagamento atualizados.')
-    } catch {
-      toast.error('Não foi possível salvar os descontos. Tente novamente.')
-    } finally {
-      setIsSavingDiscountConfig(false)
-    }
-  }
 
   const handlePaymentMethodChange = (methodId: string) => {
     const nextMethod = methodId === paymentMethod ? '' : methodId
@@ -175,13 +126,6 @@ export function NovaVendaModal({
     if (nextMethod !== 'cartao_credito') {
       setInstallmentCount(1)
     }
-  }
-
-  const handleDiscountConfigChange = (method: PaymentMethodKey, rawValue: string) => {
-    const numeric = Number(rawValue)
-    const normalized = Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 0
-    setDiscountConfig((prev) => ({ ...prev, [method]: normalized }))
-    setDiscountConfigDirty(true)
   }
 
   const handleAddProduct = () => {
@@ -217,9 +161,7 @@ export function NovaVendaModal({
     setSelectedSellerId('')
     setPaymentMethod('')
     setCartItems([])
-    setDiscountValue('')
     setJustificativaDesconto('')
-    setDiscountError('')
     setInstallmentCount(1)
     setSelectedProductId('')
     setQuantity(1)
@@ -231,16 +173,9 @@ export function NovaVendaModal({
   const handleSave = async () => {
     if (isSubmitting) return
 
-    if (discountAmount > 0 && !justificativaDesconto.trim()) {
-      setDiscountError('Justificativa obrigatória quando há desconto.')
-      return
-    }
-    setDiscountError('')
-
     setIsSubmitting(true)
     try {
       const patient = patients.find((p) => p.id === selectedPatientId)
-      const hasDiscount = discountAmount > 0
       const itemsPayload: PrescricaoItemInput[] = cartItems.map((item) => ({
         productId: item.productId || undefined,
         descricao: item.productName,
@@ -248,17 +183,13 @@ export function NovaVendaModal({
         valorUnitario: isConsumo ? item.costPrice : item.salePrice,
         posologia: item.posology || undefined,
       }))
+      // Só o total é enviado: o servidor recalcula o desconto da forma pelo cadastro e rejeita se não conferir.
       await onSave({
         pacienteId: selectedPatientId,
-        valorTotal: Number(total.toFixed(2)),
-        valorBruto: hasDiscount ? Number(subtotal.toFixed(2)) : undefined,
+        valorTotal: total,
         numeroParcelas: isCartaoCredito ? installmentCount : undefined,
         valorParcela: isCartaoCredito ? Number(installmentValue.toFixed(2)) : undefined,
-        descontoTipo: hasDiscount ? discountType : undefined,
-        descontoPercentual:
-          hasDiscount && discountType === 'percent' ? parseFloat(discountValue) || 0 : undefined,
-        descontoValor: hasDiscount ? Number(discountAmount.toFixed(2)) : undefined,
-        justificativaDesconto: hasDiscount ? justificativaDesconto.trim() : undefined,
+        justificativaDesconto: justificativaDesconto.trim() || undefined,
         vendedorId: selectedSellerId || undefined,
         status: paymentMethod ? 'Convertida' : 'Ativa',
         tipo: 'Prescrição',
@@ -273,8 +204,13 @@ export function NovaVendaModal({
         resetForm()
         onClose()
       }, 1200)
-    } catch {
-      toast.error('Não foi possível concluir a prescrição/venda agora. Tente novamente.')
+    } catch (err) {
+      // Venda não gravada (caixa fechado, estoque, desconto...): a tela NÃO mostra sucesso e mantém o formulário.
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Não foi possível concluir a prescrição/venda agora. Tente novamente.',
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -329,8 +265,9 @@ export function NovaVendaModal({
               </div>
             </div>
 
-            <div className="flex-1 overflow-hidden grid grid-cols-12 relative">
-              <div className="col-span-12 lg:col-span-8 p-8 overflow-y-auto bg-app-bg-secondary/50 dark:bg-app-surface-muted border-r border-app-border dark:border-app-border-dark flex flex-col gap-8">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col lg:grid lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_auto] relative">
+              <div className="flex-1 min-h-0 overflow-y-auto lg:contents">
+              <div className="lg:col-span-8 lg:row-span-2 lg:overflow-y-auto p-5 sm:p-8 bg-app-bg-secondary/50 dark:bg-app-surface-muted border-r border-app-border dark:border-app-border-dark flex flex-col gap-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white dark:bg-app-hover rounded-2xl border border-app-border dark:border-app-border-dark shadow-sm">
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-app-text-primary dark:text-white/70 flex items-center gap-2 uppercase tracking-wide">
@@ -390,8 +327,8 @@ export function NovaVendaModal({
                   </h3>
 
                   <div className="flex flex-col gap-4 bg-white dark:bg-app-hover p-6 rounded-2xl border border-app-border dark:border-app-border-dark shadow-sm">
-                    <div className="flex gap-4 items-end">
-                    <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap gap-4 items-end">
+                    <div className="w-full flex-1 space-y-2 sm:min-w-[200px]">
                       <Label className="text-xs font-semibold text-app-text-secondary dark:text-white/60 uppercase">
                         Buscar Produto
                       </Label>
@@ -446,7 +383,7 @@ export function NovaVendaModal({
                       </div>
                     </div>
 
-                    <div className="flex-1 min-w-[140px] space-y-2">
+                    <div className="w-full flex-1 space-y-2 sm:min-w-[140px]">
                       <Label className="text-xs font-semibold text-app-text-secondary dark:text-white/60 uppercase">
                         Posologia
                       </Label>
@@ -553,24 +490,24 @@ export function NovaVendaModal({
                 </div>
               </div>
 
-              <div className="col-span-12 lg:col-span-4 bg-app-card dark:bg-app-card-dark flex flex-col h-full border-l border-app-border dark:border-app-border-dark shadow-2xl z-10 relative overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                  <h3 className="text-xl font-bold text-app-text-primary dark:text-white flex items-center gap-2 mb-8">
-                    <CreditCard className="h-6 w-6 text-app-primary dark:text-[var(--app-info-text)]" />
+              <div className="lg:col-span-4 lg:col-start-9 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto bg-app-card dark:bg-app-card-dark border-t lg:border-t-0 lg:border-l border-app-border dark:border-app-border-dark z-10 relative custom-scrollbar">
+                <div className="p-5">
+                  <h3 className="text-lg font-bold text-app-text-primary dark:text-white flex items-center gap-2 mb-4">
+                    <CreditCard className="h-5 w-5 text-app-primary dark:text-[var(--app-info-text)]" />
                     Status e Pagamento
                   </h3>
 
-                  <div className="space-y-8 flex-1">
-                    <div className="space-y-4">
-                      <Label className="text-base font-semibold text-app-text-primary dark:text-white/70">
+                  <div className="space-y-5">
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold text-app-text-primary dark:text-white/70">
                         Forma de Pagamento
                         {!paymentMethod && (
-                          <span className="text-sm font-normal text-app-text-muted ml-2">
+                          <span className="text-xs font-normal text-app-text-muted ml-2">
                             (Opcional — salva como ativa)
                           </span>
                         )}
                       </Label>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
                         {[
                           { id: 'dinheiro', label: 'Dinheiro', icon: Banknote },
                           { id: 'pix', label: 'PIX', icon: QrCode },
@@ -580,9 +517,10 @@ export function NovaVendaModal({
                         ].map((method) => (
                           <button
                             key={method.id}
+                            type="button"
                             onClick={() => handlePaymentMethodChange(method.id)}
                             className={`
-                              h-16 rounded-xl border-2 text-sm font-semibold transition-all flex flex-col items-center justify-center gap-1
+                              h-14 rounded-xl border-2 text-xs font-semibold transition-all flex flex-col items-center justify-center gap-0.5
                               ${
                                 paymentMethod === method.id
                                   ? 'border-[var(--app-primary)] app-status-info dark:bg-transparent text-app-primary dark:text-[var(--app-info-text)] shadow-md ring-1 ring-[#0039A6]/20'
@@ -591,7 +529,7 @@ export function NovaVendaModal({
                             `}
                           >
                             <method.icon
-                              className={`h-5 w-5 ${
+                              className={`h-4 w-4 ${
                                 paymentMethod === method.id
                                   ? 'text-app-primary dark:text-[var(--app-info-text)]'
                                   : 'text-app-text-muted'
@@ -602,7 +540,7 @@ export function NovaVendaModal({
                         ))}
                       </div>
                       {paymentMethod === 'cartao_credito' && (
-                        <div className="space-y-2 pt-2">
+                        <div className="space-y-2 pt-1">
                           <Label className="text-sm font-medium text-app-text-secondary dark:text-white/60">
                             Quantidade de parcelas
                           </Label>
@@ -610,7 +548,7 @@ export function NovaVendaModal({
                             value={String(installmentCount)}
                             onValueChange={(value) => setInstallmentCount(Number(value))}
                           >
-                            <SelectTrigger className="h-12 rounded-xl bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark">
+                            <SelectTrigger className="h-11 rounded-xl bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -625,7 +563,7 @@ export function NovaVendaModal({
                             <p className="text-xs text-app-text-secondary dark:text-white/60">
                               {installmentCount}x de{' '}
                               <span className="font-semibold text-app-text-primary dark:text-white">
-                                R$ {installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                {formatarMoeda(installmentValue)}
                               </span>
                               {installmentFeePercent > 0 && (
                                 <span className="ml-1 text-app-text-muted">
@@ -638,155 +576,77 @@ export function NovaVendaModal({
                       )}
                     </div>
 
-                    <div className="space-y-4 pt-4 border-t border-app-border dark:border-app-border-dark">
-                      <Label className="text-base font-semibold text-app-text-primary dark:text-white/70">
-                        Desconto
+                    <div className="space-y-3 pt-4 border-t border-app-border dark:border-app-border-dark">
+                      <Label className="text-sm font-semibold text-app-text-primary dark:text-white/70">
+                        Desconto da forma de pagamento
                       </Label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Select
-                          value={discountType}
-                          onValueChange={(v) => setDiscountType(v as 'value' | 'percent')}
-                        >
-                          <SelectTrigger className="h-14 rounded-xl bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark text-base font-medium text-app-text-primary dark:text-white shadow-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="value">Valor (R$)</SelectItem>
-                            <SelectItem value="percent">Porcentagem (%)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="relative w-full">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-app-text-muted font-medium">
-                            {discountType === 'value' ? 'R$' : '%'}
-                          </span>
-                          <Input
-                            type="number"
-                            placeholder="0,00"
-                            value={discountValue}
-                            onChange={(e) => {
-                              setDiscountValue(e.target.value)
-                              setDiscountError('')
-                            }}
-                            disabled={isConsumo}
-                            className="h-14 pl-12 rounded-xl bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark text-lg font-semibold text-app-text-primary dark:text-white shadow-sm w-full"
-                          />
-                        </div>
+                      <div
+                        data-testid="desconto-forma-travado"
+                        className="flex items-center justify-between rounded-xl border border-app-border bg-app-bg-secondary px-4 py-3 dark:border-app-border-dark dark:bg-app-hover"
+                      >
+                        <span className="flex items-center gap-2 text-sm text-app-text-secondary dark:text-white/70">
+                          <Lock size={14} />
+                          {isConsumo ? 'Consumo: sem desconto' : `${configuredDiscountPercent.toFixed(2).replace('.', ',')}% (cadastro do gestor)`}
+                        </span>
+                        <span className="text-base font-semibold tabular-nums text-app-text-primary dark:text-white">
+                          {discountAmount > 0 ? `- ${formatarMoeda(discountAmount)}` : formatarMoeda(0)}
+                        </span>
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-wider text-app-text-secondary dark:text-white/60">
-                          Justificativa / Convênio {discountAmount > 0 && <span className="text-[var(--app-danger-text)]">*</span>}
+                          Justificativa / Convênio
                         </Label>
                         <Input
                           placeholder="Ex: Sindicato Água Boa, Convênio XYZ"
                           value={justificativaDesconto}
-                          onChange={(e) => {
-                            setJustificativaDesconto(e.target.value)
-                            setDiscountError('')
-                          }}
+                          onChange={(e) => setJustificativaDesconto(e.target.value)}
                           disabled={isConsumo}
                           className="h-11 rounded-xl bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark"
                         />
                       </div>
-                      {discountError && (
-                        <p className="text-xs text-[var(--app-danger-text)]">{discountError}</p>
-                      )}
                       {isConsumo && (
                         <p className="text-xs text-[var(--app-warning-text)]">
                           Venda por consumo: calculada ao preço de custo, não lança no caixa
                         </p>
                       )}
                     </div>
-
-                    <div className="space-y-3 pt-4 border-t border-app-border dark:border-app-border-dark">
-                      <button
-                        type="button"
-                        onClick={() => setIsDiscountConfigOpen((prev) => !prev)}
-                        className="text-sm font-semibold text-app-primary dark:text-[var(--app-info-text)]"
-                      >
-                        {isDiscountConfigOpen ? 'Ocultar descontos por forma' : 'Configurar descontos por forma'}
-                      </button>
-                      {isDiscountConfigOpen && (
-                        <div className="space-y-3 rounded-xl border border-app-border dark:border-app-border-dark p-4 bg-white dark:bg-app-hover">
-                          {[
-                            { key: 'pix', label: 'Pix' },
-                            { key: 'dinheiro', label: 'Dinheiro' },
-                            { key: 'cartao_debito', label: 'Cartão Débito' },
-                            { key: 'cartao_credito', label: 'Cartão Crédito' },
-                          ].map((entry) => (
-                            <div key={entry.key} className="flex items-center justify-between gap-3">
-                              <span className="text-sm text-app-text-secondary dark:text-white/70">
-                                {entry.label}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  step="0.01"
-                                  value={discountConfig[entry.key as PaymentMethodKey]}
-                                  onChange={(e) =>
-                                    handleDiscountConfigChange(entry.key as PaymentMethodKey, e.target.value)
-                                  }
-                                  className="h-9 w-20 text-right"
-                                />
-                                <span className="text-xs text-app-text-muted">%</span>
-                              </div>
-                            </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => void handleSaveDiscountConfig()}
-                            disabled={isSavingDiscountConfig}
-                            className="w-full h-10"
-                          >
-                            {isSavingDiscountConfig ? 'Salvando...' : 'Salvar configuração'}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-
                   </div>
                 </div>
+              </div>
+              </div>
 
-                <div className="mt-6 border-t border-app-border/80 px-6 pb-6 pt-5 dark:border-app-border-dark sm:px-8 sm:pb-8 sm:pt-6">
-                  <div className="space-y-4 rounded-2xl bg-app-bg-secondary/35 p-4 dark:bg-app-surface-muted/60 sm:p-5">
-                    <div className="space-y-3 rounded-xl bg-app-bg-secondary dark:bg-app-hover p-4 border border-app-border dark:border-app-border-dark">
-                      <div className="flex justify-between text-sm text-app-text-secondary dark:text-white/60">
-                        <span>Subtotal</span>
-                        <span className="tabular-nums">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      {configuredDiscountAmount > 0 && !isConsumo && (
-                        <div className="flex justify-between text-xs text-app-text-secondary dark:text-white/60">
-                          <span>Desc. configurado ({configuredDiscountPercent.toFixed(2)}%)</span>
-                          <span className="tabular-nums">
-                            - R$ {configuredDiscountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                      )}
+              <div className="shrink-0 lg:col-span-4 lg:col-start-9 lg:row-start-2 border-t border-l-0 lg:border-l border-app-border/80 bg-app-card px-5 py-3 z-10 dark:border-app-border-dark dark:bg-app-card-dark">
+                  <div className="mb-3 flex items-end justify-between gap-3">
+                    <div className="text-xs leading-tight text-app-text-secondary dark:text-white/60">
+                      <p>
+                        Subtotal <span className="tabular-nums">{formatarMoeda(subtotal)}</span>
+                      </p>
                       {discountAmount > 0 && !isConsumo && (
-                        <div className="flex justify-between text-sm text-[var(--app-success-text)] font-medium">
-                          <span>Desconto total</span>
-                          <span className="tabular-nums">
-                            - R$ {discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
+                        <p className="text-[var(--app-success-text)]">
+                          Desconto <span className="tabular-nums">- {formatarMoeda(discountAmount)}</span>
+                        </p>
                       )}
-                      <div className="h-px bg-app-bg-tertiary dark:bg-app-hover" />
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-sm font-bold text-app-text-primary dark:text-white">
-                          Total a Pagar
-                        </span>
-                        <span className="text-2xl font-extrabold text-app-primary dark:text-[var(--app-info-text)] tabular-nums">
-                          R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
                     </div>
-
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-app-text-primary dark:text-white">Total a Pagar</p>
+                      <p className="text-xl font-extrabold leading-tight text-app-primary dark:text-[var(--app-info-text)] tabular-nums">
+                        {formatarMoeda(total)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={onClose}
+                      disabled={isSubmitting}
+                      className="h-11 shrink-0 rounded-xl border border-app-border px-4 font-semibold text-app-text-secondary hover:text-app-text-primary hover:bg-app-hover dark:border-app-border-dark dark:hover:bg-app-hover"
+                    >
+                      Cancelar
+                    </Button>
                     <Button
                       onClick={() => void handleSave()}
                       disabled={isSubmitting || cartItems.length === 0 || !selectedPatientId}
-                      className="w-full h-14 rounded-xl bg-app-primary hover:bg-app-primary-hover text-white font-bold shadow-xl shadow-sm text-lg transition-all hover:scale-[1.02] active:scale-98 disabled:opacity-50 disabled:hover:scale-100"
+                      className="h-11 min-w-0 flex-1 whitespace-nowrap rounded-xl bg-app-primary px-2 text-sm text-white font-bold shadow-sm transition-all hover:bg-app-primary-hover disabled:opacity-50"
                     >
                       {isSubmitting
                         ? 'Processando...'
@@ -794,16 +654,7 @@ export function NovaVendaModal({
                           ? 'Finalizar Prescrição/Vendas'
                           : 'Salvar prescrição ativa'}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={onClose}
-                      disabled={isSubmitting}
-                      className="w-full h-12 rounded-xl border border-transparent font-semibold text-app-text-secondary hover:border-app-border hover:text-app-text-primary hover:bg-app-hover dark:hover:border-app-border-dark dark:hover:bg-app-hover"
-                    >
-                      Cancelar
-                    </Button>
                   </div>
-                </div>
               </div>
             </div>
           </>

@@ -4,6 +4,8 @@ import { requirePermission } from '@/lib/authz'
 import { mapPrescricaoItem } from '@/lib/domain-mappers'
 import { estoqueAplicarMovimentacao } from '@/lib/estoque-movimentacao'
 import { stripPrescricaoFinancialFields } from '@/lib/financial-sanitize'
+import { calcularVenda, ehFormaComDesconto } from '@/lib/desconto-forma'
+import { lerDescontosPorForma } from '@/lib/desconto-forma-server'
 import { rotuloFormaPagamento } from '@/lib/recibo'
 import { emLotes } from '@/lib/em-lotes'
 import { margemDaPrescricao, margemDoItem, podeVerCustoMargem } from '@/lib/prescricao-margem'
@@ -280,31 +282,57 @@ function buildParcelamentoPayload(body: Record<string, unknown>) {
   }
 }
 
-function buildDescontoPayload(body: Record<string, unknown>) {
-  const rawTipo = body.descontoTipo
-  const descontoTipo =
-    rawTipo === 'value' || rawTipo === 'percent' ? rawTipo : null
-  const descontoPercentual =
-    body.descontoPercentual == null || body.descontoPercentual === ''
-      ? null
-      : Number(body.descontoPercentual)
-  const descontoValor =
-    body.descontoValor == null || body.descontoValor === ''
-      ? null
-      : Number(body.descontoValor)
-  const valorBruto =
-    body.valorBruto == null || body.valorBruto === '' ? null : Number(body.valorBruto)
+/** Vendedor e justificativa/convênio vêm da tela; o desconto em si nunca (ver `descontoDaVenda`). */
+function buildVendaMetaPayload(body: Record<string, unknown>) {
   const justificativa =
     typeof body.justificativaDesconto === 'string' && body.justificativaDesconto.trim().length > 0
       ? body.justificativaDesconto.trim()
       : null
   return {
-    valor_bruto: valorBruto,
-    desconto_tipo: descontoTipo,
-    desconto_percentual: descontoPercentual,
-    desconto_valor: descontoValor,
     justificativa_desconto: justificativa,
     vendedor_id: body.vendedorId ? String(body.vendedorId) : null,
+  }
+}
+
+/**
+ * Desconto travado pela forma de pagamento: o servidor recalcula pelo cadastro do gestor e confere o total
+ * enviado. Qualquer desconto/valor bruto vindo da tela é ignorado; só vale Convertida + forma com desconto + itens.
+ */
+async function descontoDaVenda(
+  supabase: SupabaseClient,
+  params: { items: ItemPayload[]; forma: string | null; isConvertida: boolean; valorTotal: number },
+) {
+  const semDesconto = { valor_bruto: null, desconto_tipo: null, desconto_percentual: null, desconto_valor: null }
+  if (!params.isConvertida || !ehFormaComDesconto(params.forma) || params.items.length === 0) {
+    return { payload: semDesconto, error: null as Response | null }
+  }
+  const { descontos, error } = await lerDescontosPorForma(supabase)
+  if (error || !descontos) {
+    return {
+      payload: semDesconto,
+      error: serverErrorResponse('Falha ao ler descontos por forma', 'SUPABASE_QUERY_FAILED', 500),
+    }
+  }
+  const venda = calcularVenda(params.items, params.forma, descontos)
+  if (Math.abs(venda.total - params.valorTotal) > 0.01) {
+    return {
+      payload: semDesconto,
+      error: serverErrorResponse(
+        'O total não confere com o desconto cadastrado para essa forma de pagamento. Feche e abra a venda de novo.',
+        'DESCONTO_FORMA_DIVERGENTE',
+        422,
+      ),
+    }
+  }
+  if (venda.desconto <= 0) return { payload: semDesconto, error: null as Response | null }
+  return {
+    payload: {
+      valor_bruto: venda.subtotal,
+      desconto_tipo: 'percent',
+      desconto_percentual: venda.percentual,
+      desconto_valor: venda.desconto,
+    },
+    error: null as Response | null,
   }
 }
 
@@ -510,6 +538,9 @@ export async function POST(request: NextRequest) {
     sessaoCaixaId = caixa.sessionId
   }
 
+  const desconto = await descontoDaVenda(supabase, { items, forma: formaPagamento, isConvertida, valorTotal })
+  if (desconto.error) return desconto.error
+
   const numero = body.numero ? String(body.numero) : generateNumero()
 
   const assinaturaRaw =
@@ -531,7 +562,8 @@ export async function POST(request: NextRequest) {
       observacoes: body.observacoes ? String(body.observacoes) : null,
       assinatura_base64: assinaturaRaw,
       assinado_em: assinaturaRaw ? new Date().toISOString() : null,
-      ...buildDescontoPayload(body),
+      ...desconto.payload,
+      ...buildVendaMetaPayload(body),
       ...buildParcelamentoPayload(body),
       ...buildFormaPagamentoPayload(body),
     })
@@ -698,7 +730,6 @@ export async function PUT(request: NextRequest) {
       data_prescricao: body.data ? String(body.data) : null,
       validade: body.validade ? String(body.validade) : null,
       observacoes: body.observacoes ? String(body.observacoes) : null,
-      ...buildDescontoPayload(body),
       ...buildParcelamentoPayload(body),
       ...buildFormaPagamentoPayload(body),
       updated_at: new Date().toISOString(),
