@@ -5,6 +5,7 @@ import { mapTarefaItem } from '@/lib/domain-mappers'
 import { validarCancelamento } from '@/lib/tarefa-status'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import { normalizeDiasSemana, normalizeTarefaRecorrencia } from '@/lib/tarefa-recorrencia'
+import { categoriaTarefaErro } from '@/lib/tarefa-categorias'
 import { criarSerie, encerrarSerie, materializarSeries } from '@/lib/tarefa-series'
 
 const TAREFA_SELECT =
@@ -202,6 +203,8 @@ export async function POST(request: NextRequest) {
   if (motivoErro) return serverErrorResponse(motivoErro, 'MOTIVO_OBRIGATORIO', 400)
 
   const supabase = getAppSupabase()
+  const categoriaErro = await categoriaTarefaErro(supabase, body.categoria, null)
+  if (categoriaErro) return serverErrorResponse(categoriaErro, 'INVALID_TASK_CATEGORY', 400)
   // Sem responsável informado, a tarefa é de quem a criou (senão ninguém, nem o criador, a veria).
   const responsavelId =
     (await resolveResponsavelId(supabase, body.responsavelId, body.responsavelNome)) ?? session.userId
@@ -251,6 +254,9 @@ export async function PUT(request: NextRequest) {
   if (!before) {
     return serverErrorResponse('Tarefa não encontrada', 'TASK_NOT_FOUND', 404)
   }
+
+  const categoriaErro = await categoriaTarefaErro(supabase, body.categoria, before.categoria)
+  if (categoriaErro) return serverErrorResponse(categoriaErro, 'INVALID_TASK_CATEGORY', 400)
 
   // Sem responsável no corpo (ex.: só mudar o status), mantém o atual em vez de apagá-lo.
   const responsavelInformado = body.responsavelId !== undefined || body.responsavelNome !== undefined

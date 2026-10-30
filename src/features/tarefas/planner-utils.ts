@@ -78,6 +78,30 @@ export function dentroDoPeriodo(data: string | undefined | null, de?: string, at
   return true
 }
 
+/**
+ * Setas do filtro De/Até: move o período um dia. Com De = Até move os dois; com intervalo,
+ * desloca o intervalo inteiro (mesma duração). Só uma ponta preenchida: move essa ponta.
+ * Sem datas: parte de hoje (`hojeKey`).
+ */
+export function shiftPeriodo(de: string, ate: string, direction: -1 | 1, hojeKey: string) {
+  if (!de && !ate) {
+    const dia = toDateKey(addDays(parseDateKey(hojeKey), direction))
+    return { de: dia, ate: dia }
+  }
+  const mover = (key: string) => (key ? toDateKey(addDays(parseDateKey(key), direction)) : '')
+  return { de: mover(de), ate: mover(ate) }
+}
+
+export type CardTarefa = 'pendentes' | 'fazendo' | 'alerta'
+
+/** Filtro dos cards do painel de tarefas; `null` = lista completa. */
+export function filtrarPorCard(tarefas: TarefaItem[], card: CardTarefa | null) {
+  if (!card) return tarefas
+  if (card === 'pendentes') return tarefas.filter((item) => item.status === 'Pendente')
+  if (card === 'fazendo') return tarefas.filter((item) => item.status === 'Em andamento')
+  return tarefas.filter((item) => item.alerta)
+}
+
 export function applyFilters(tarefas: TarefaItem[], filters: PlannerFilters) {
   const busca = filters.busca.trim().toLowerCase()
   return tarefas.filter((tarefa) => {

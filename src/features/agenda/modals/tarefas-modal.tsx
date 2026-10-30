@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
-import { dentroDoPeriodo } from '@/features/tarefas/planner-utils'
+import { dentroDoPeriodo, filtrarPorCard, shiftPeriodo, type CardTarefa } from '@/features/tarefas/planner-utils'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
@@ -15,7 +15,6 @@ import {
   Edit2,
   ExternalLink,
   FileText,
-  Layers3,
   Loader2,
   Plus,
   Repeat,
@@ -42,6 +41,11 @@ import {
 } from '@/lib/tarefa-recorrencia'
 import { TAREFA_STATUS_VALUES, tarefaStatusLabel } from '@/lib/tarefa-status'
 import { DiasSemanaPicker } from '@/features/tarefas/components/dias-semana-picker'
+import { CategoriaTarefaField } from '@/features/tarefas/components/categoria-tarefa-field'
+import { GerenciarCategoriasDialog } from '@/features/tarefas/components/gerenciar-categorias-dialog'
+import { PeriodoStepper } from '@/features/tarefas/components/periodo-stepper'
+import { TarefaResumoCards } from '@/features/tarefas/components/tarefa-resumo-cards'
+import { useTarefaCategorias } from '@/hooks/use-tarefa-categorias'
 
 interface TarefasModalProps {
   isOpen: boolean
@@ -114,6 +118,9 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
   const [filtroPessoa, setFiltroPessoa] = useState('todos')
   const [filtroDe, setFiltroDe] = useState(hojeLocalIso)
   const [filtroAte, setFiltroAte] = useState(hojeLocalIso)
+  const [cardAtivo, setCardAtivo] = useState<CardTarefa | null>(null)
+  const categoriasApi = useTarefaCategorias()
+  const [gerenciarAberto, setGerenciarAberto] = useState(false)
 
   const resetForm = () => {
     setFormData(emptyForm)
@@ -124,6 +131,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
     resetForm()
     setFiltroDe(hojeLocalIso())
     setFiltroAte(hojeLocalIso())
+    setCardAtivo(null)
     setEscopo('minhas')
     setFiltroPessoa('todos')
     setMostrarFormulario(false)
@@ -266,9 +274,16 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
     [tarefas, filtroDe, filtroAte, isGestao, escopo, filtroPessoa, user?.id],
   )
 
-  const tarefasPendentes = tarefasAbertas.filter((item) => item.status === 'Pendente').length
-  const tarefasEmAndamento = tarefasAbertas.filter((item) => item.status === 'Em andamento').length
-  const tarefasComAlerta = tarefasAbertas.filter((item) => item.alerta).length
+  const tarefasPendentes = filtrarPorCard(tarefasAbertas, 'pendentes').length
+  const tarefasEmAndamento = filtrarPorCard(tarefasAbertas, 'fazendo').length
+  const tarefasComAlerta = filtrarPorCard(tarefasAbertas, 'alerta').length
+  const tarefasVisiveis = useMemo(() => filtrarPorCard(tarefasAbertas, cardAtivo), [tarefasAbertas, cardAtivo])
+
+  const moverPeriodo = (direction: -1 | 1) => {
+    const next = shiftPeriodo(filtroDe, filtroAte, direction, hojeLocalIso())
+    setFiltroDe(next.de)
+    setFiltroAte(next.ate)
+  }
 
   const getPrioridadeBadge = (prioridade: string) => {
     switch (prioridade) {
@@ -316,29 +331,13 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-3 px-6 pt-5 md:grid-cols-3">
-          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Pendentes</p>
-              <Clock className="h-4 w-4 text-amber-500" />
-            </div>
-            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasPendentes}</p>
-          </div>
-          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Fazendo</p>
-              <Layers3 className="h-4 w-4 text-[var(--app-primary)]" />
-            </div>
-            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasEmAndamento}</p>
-          </div>
-          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Com alerta</p>
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-            </div>
-            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasComAlerta}</p>
-          </div>
-        </div>
+        <TarefaResumoCards
+          pendentes={tarefasPendentes}
+          fazendo={tarefasEmAndamento}
+          alerta={tarefasComAlerta}
+          ativo={cardAtivo}
+          onChange={setCardAtivo}
+        />
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -368,24 +367,31 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                 ))}
               </select>
             )}
-            <span className="flex items-center gap-2">
-              De
-              <Input type="date" value={filtroDe} onChange={(event) => setFiltroDe(event.target.value)} className="h-10 w-[150px]" aria-label="Data inicial" />
-            </span>
-            <span className="flex items-center gap-2">
-              Até
-              <Input type="date" value={filtroAte} onChange={(event) => setFiltroAte(event.target.value)} className="h-10 w-[150px]" aria-label="Data final" />
-            </span>
-            {(filtroDe || filtroAte) && (
-              <button type="button" className="underline" onClick={() => { setFiltroDe(''); setFiltroAte('') }}>
-                Ver todas
-              </button>
-            )}
+            <PeriodoStepper
+              de={filtroDe}
+              ate={filtroAte}
+              onChange={(de, ate) => {
+                setFiltroDe(de)
+                setFiltroAte(ate)
+              }}
+              onShift={moverPeriodo}
+            >
+              {(filtroDe || filtroAte) && (
+                <button type="button" className="underline" onClick={() => { setFiltroDe(''); setFiltroAte('') }}>
+                  Ver todas
+                </button>
+              )}
+            </PeriodoStepper>
           </div>
-          <Button className="h-11 rounded-[12px] bg-app-primary px-4 text-white shadow-sm hover:bg-app-primary-hover" onClick={() => setMostrarFormulario(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova tarefa
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" className="h-11 rounded-[12px]" onClick={() => setGerenciarAberto(true)}>
+              Gerenciar categorias
+            </Button>
+            <Button className="h-11 rounded-[12px] bg-app-primary px-4 text-white shadow-sm hover:bg-app-primary-hover" onClick={() => setMostrarFormulario(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova tarefa
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-auto px-6 pb-6">
@@ -396,18 +402,20 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando tarefas...
               </div>
-            ) : tarefasAbertas.length === 0 ? (
+            ) : tarefasVisiveis.length === 0 ? (
               <div className="px-6 py-14 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-app-bg-secondary dark:bg-app-hover">
                   <BarChart3 className="h-8 w-8 text-app-text-muted" />
                 </div>
-                <p className="mt-5 text-base text-app-text-primary dark:text-white">Nenhuma tarefa aberta.</p>
+                <p className="mt-5 text-base text-app-text-primary dark:text-white">
+                  {cardAtivo ? 'Nenhuma tarefa neste filtro.' : 'Nenhuma tarefa aberta.'}
+                </p>
                 <p className="mt-1 text-sm text-app-text-secondary dark:text-white/60">
                   Concluídas ficam apenas no relatório.
                 </p>
               </div>
             ) : (
-              tarefasAbertas.map((tarefa) => (
+              tarefasVisiveis.map((tarefa) => (
                 <div key={tarefa.id} className="border-b border-app-border/70 px-5 py-4 last:border-b-0 dark:border-app-border-dark/70">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
@@ -651,15 +659,13 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2">
-                <Label>Categoria / tag</Label>
-                <Input
-                  value={formData.categoria}
-                  onChange={(event) => setFormData({ ...formData, categoria: event.target.value })}
-                  placeholder="Ex: Rotina, comercial"
-                  className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
-                />
-              </div>
+              <CategoriaTarefaField
+                value={formData.categoria}
+                categorias={categoriasApi.categorias}
+                onChange={(categoria) => setFormData({ ...formData, categoria })}
+                onGerenciar={() => setGerenciarAberto(true)}
+                triggerClassName="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
+              />
             </div>
           </div>
 
@@ -675,6 +681,8 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
         </form>
       </DialogContent>
     </Dialog>
+
+    <GerenciarCategoriasDialog open={isOpen && gerenciarAberto} onOpenChange={setGerenciarAberto} api={categoriasApi} />
     </>
   )
 }

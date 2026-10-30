@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TarefaItem } from '@/hooks/use-tarefas'
-import { applyFilters, buildMonthGrid, buildWeekDays, groupEntrada, toDateKey } from './planner-utils'
+import { applyFilters, buildMonthGrid, buildWeekDays, filtrarPorCard, groupEntrada, shiftPeriodo, toDateKey } from './planner-utils'
 
 function tarefa(partial: Partial<TarefaItem>): TarefaItem {
   return {
@@ -102,5 +102,34 @@ describe('filtro por membro do time', () => {
     expect(applyFilters(lista, { ...base, responsavelId: 'b' }).map((x) => x.id)).toEqual(['2'])
     expect(applyFilters(lista, { ...base, responsavelId: 'todos' }).map((x) => x.id)).toEqual(['1', '2'])
     expect(applyFilters(lista, { ...base, escopo: 'minhas', responsavelId: 'b' }).map((x) => x.id)).toEqual([])
+  })
+})
+
+describe('shiftPeriodo (setas do filtro De/Até)', () => {
+  it('De = Até: move os dois um dia', () => {
+    expect(shiftPeriodo('2026-10-29', '2026-10-29', 1, '2026-10-30')).toEqual({ de: '2026-10-30', ate: '2026-10-30' })
+    expect(shiftPeriodo('2026-11-01', '2026-11-01', -1, '2026-10-30')).toEqual({ de: '2026-10-31', ate: '2026-10-31' })
+  })
+  it('intervalo: desloca o intervalo inteiro, mantendo a duração', () => {
+    expect(shiftPeriodo('2026-10-28', '2026-10-31', 1, '2026-10-30')).toEqual({ de: '2026-10-29', ate: '2026-11-01' })
+    expect(shiftPeriodo('2026-03-01', '2026-03-05', -1, '2026-10-30')).toEqual({ de: '2026-02-28', ate: '2026-03-04' })
+  })
+  it('uma ponta só move essa ponta; sem datas parte de hoje', () => {
+    expect(shiftPeriodo('2026-10-29', '', 1, '2026-10-30')).toEqual({ de: '2026-10-30', ate: '' })
+    expect(shiftPeriodo('', '', 1, '2026-10-30')).toEqual({ de: '2026-10-31', ate: '2026-10-31' })
+  })
+})
+
+describe('filtrarPorCard', () => {
+  const lista = [
+    tarefa({ id: '1', status: 'Pendente' }),
+    tarefa({ id: '2', status: 'Em andamento', alerta: true }),
+    tarefa({ id: '3', status: 'Pendente', alerta: true }),
+  ]
+  it('filtra pelo card ativo e devolve tudo sem card', () => {
+    expect(filtrarPorCard(lista, 'pendentes').map((t) => t.id)).toEqual(['1', '3'])
+    expect(filtrarPorCard(lista, 'fazendo').map((t) => t.id)).toEqual(['2'])
+    expect(filtrarPorCard(lista, 'alerta').map((t) => t.id)).toEqual(['2', '3'])
+    expect(filtrarPorCard(lista, null)).toHaveLength(3)
   })
 })
