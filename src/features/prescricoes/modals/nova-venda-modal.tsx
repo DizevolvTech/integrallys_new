@@ -327,8 +327,8 @@ export function NovaVendaModal({
                   </h3>
 
                   <div className="flex flex-col gap-4 bg-white dark:bg-app-hover p-6 rounded-2xl border border-app-border dark:border-app-border-dark shadow-sm">
-                    <div className="flex gap-4 items-end">
-                    <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap gap-4 items-end">
+                    <div className="w-full flex-1 space-y-2 sm:min-w-[200px]">
                       <Label className="text-xs font-semibold text-app-text-secondary dark:text-white/60 uppercase">
                         Buscar Produto
                       </Label>
@@ -383,7 +383,7 @@ export function NovaVendaModal({
                       </div>
                     </div>
 
-                    <div className="flex-1 min-w-[140px] space-y-2">
+                    <div className="w-full flex-1 space-y-2 sm:min-w-[140px]">
                       <Label className="text-xs font-semibold text-app-text-secondary dark:text-white/60 uppercase">
                         Posologia
                       </Label>
