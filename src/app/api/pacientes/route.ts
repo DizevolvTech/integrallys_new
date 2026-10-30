@@ -547,20 +547,33 @@ export async function PATCH(request: NextRequest) {
     return serverErrorResponse('Estágio CRM inválido', 'INVALID_CRM_STAGE', 400)
   }
 
-  const observacoes = pickString(body?.observacoes) || null
-  const proximaAcao = pickString(body?.proxima_acao) || null
-  const dataProximaAcao = pickString(body?.data_proxima_acao) || null
+  // Campo ausente no corpo = preserva o valor atual (mover o cartão no quadro só troca o estágio).
+  const opcional = (chave: string) =>
+    body && chave in body ? { [chave]: pickString(body[chave]) || null } : {}
 
   const supabase = getAppSupabase()
+  const scoped = await getScopedUnitId(session)
+  if (scoped.error) return supabaseErrorResponse(scoped.error, 'Falha ao atualizar CRM do paciente')
+  const { data: paciente, error: pacienteError } = await supabase
+    .from('pacientes')
+    .select('id,unidade_id')
+    .eq('id', pacienteId)
+    .maybeSingle()
+  if (pacienteError) return supabaseErrorResponse(pacienteError, 'Falha ao atualizar CRM do paciente')
+  if (!paciente) return serverErrorResponse('Paciente não encontrado', 'PACIENTE_NOT_FOUND', 404)
+  if (scoped.unidadeId && paciente.unidade_id && String(paciente.unidade_id) !== scoped.unidadeId) {
+    return serverErrorResponse('Paciente fora do escopo da unidade', 'PACIENTE_UNIT_FORBIDDEN', 403)
+  }
+
   const { error } = await supabase
     .from('crm_paciente_estagios')
     .upsert(
       [{
         paciente_id: pacienteId,
         estagio,
-        observacoes,
-        proxima_acao: proximaAcao,
-        data_proxima_acao: dataProximaAcao,
+        ...opcional('observacoes'),
+        ...opcional('proxima_acao'),
+        ...opcional('data_proxima_acao'),
         responsavel_id: session.userId,
         updated_at: new Date().toISOString(),
       }],

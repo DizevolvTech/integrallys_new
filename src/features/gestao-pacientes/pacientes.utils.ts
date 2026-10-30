@@ -17,3 +17,20 @@ export function isClientePaciente(vinculoTipos?: string[] | null): boolean {
   if (tipos.length === 0) return true
   return tipos.some((tipo) => !VINCULOS_NAO_CLIENTE.has(tipo))
 }
+
+export type TomInadimplencia = 'vencido' | 'parcial' | 'pendente'
+
+/**
+ * Cor da linha da Inadimplência: pagamento parcial = amarelo (mesma cor da agenda);
+ * senão vencido = vermelho; o restante (a vencer / sem vencimento) fica neutro.
+ */
+export function tomInadimplencia(row: { situacao?: string | null; status?: string | null }): TomInadimplencia {
+  if (String(row.status ?? '').trim().toLowerCase().includes('parcial')) return 'parcial'
+  return row.situacao === 'vencido' ? 'vencido' : 'pendente'
+}
+
+export const CLASSE_TOM_INADIMPLENCIA: Record<TomInadimplencia, string> = {
+  vencido: 'font-medium text-[var(--app-danger-text)]',
+  parcial: 'font-medium text-[var(--app-warning-text)]',
+  pendente: 'text-app-text-secondary dark:text-app-text-muted',
+}

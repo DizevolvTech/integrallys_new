@@ -1,7 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { hojeIsoSaoPaulo } from '@/lib/retornos-server'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+
+const SEM_PACIENTE = 'Sem paciente vinculado'
+const LOTE_IDS = 150
+
+async function carregarNomes(
+  supabase: ReturnType<typeof getAppSupabase>,
+  ids: string[],
+  destino: Map<string, string>,
+) {
+  const lotes: string[][] = []
+  for (let i = 0; i < ids.length; i += LOTE_IDS) lotes.push(ids.slice(i, i + LOTE_IDS))
+  const respostas = await Promise.all(lotes.map((lote) => supabase.from('pacientes').select('id,nome').in('id', lote)))
+  for (const { data } of respostas) for (const p of data ?? []) destino.set(String(p.id), String(p.nome ?? ''))
+}
 
 type InadimplenciaRow = {
   id: string
@@ -31,13 +46,14 @@ export async function GET(request: NextRequest) {
   const scoped = await getScopedUnitId(session)
   if (scoped.error) return supabaseErrorResponse(scoped.error, 'Falha ao carregar inadimplência')
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = hojeIsoSaoPaulo()
 
   let query = supabase
     .from('financeiro_lancamentos')
-    .select('id,descricao,valor,vencimento,status,unidade_id,beneficiario')
+    .select('id,descricao,valor,vencimento,status,unidade_id,beneficiario,paciente_id')
     .eq('tipo', 'receita')
-    .neq('status', 'Pago')
+    .eq('liquidado', false)
+    .eq('cancelado', false)
     .order('vencimento', { ascending: true, nullsFirst: false })
     .limit(300)
 
@@ -49,6 +65,13 @@ export async function GET(request: NextRequest) {
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao carregar inadimplência')
   }
+
+  // Nome do paciente vinculado ao lançamento (paciente_id); sem vínculo cai no beneficiário.
+  const nomeById = new Map<string, string>()
+  const idsLancamento = Array.from(
+    new Set((lancamentos ?? []).map((r) => (r.paciente_id ? String(r.paciente_id) : '')).filter(Boolean)),
+  )
+  await carregarNomes(supabase, idsLancamento, nomeById)
 
   const rows: InadimplenciaRow[] = (lancamentos ?? []).map((row) => {
     const vencimento = row.vencimento ? String(row.vencimento) : null
@@ -62,8 +85,10 @@ export async function GET(request: NextRequest) {
       valor: Number(row.valor ?? 0),
       vencimento,
       status: String(row.status ?? ''),
-      pacienteId: null,
-      pacienteNome: row.beneficiario ? String(row.beneficiario) : '—',
+      pacienteId: row.paciente_id ? String(row.paciente_id) : null,
+      pacienteNome:
+        (row.paciente_id ? nomeById.get(String(row.paciente_id)) : null) ||
+        (row.beneficiario ? String(row.beneficiario) : SEM_PACIENTE),
       situacao,
       linkFinanceiro:
         situacao === 'vencido'
@@ -81,8 +106,6 @@ export async function GET(request: NextRequest) {
     })
   }
   sortRows(rows)
-
-  const nomeById = new Map<string, string>()
 
   // Inclui saldos em aberto de agendamentos (parcial/pendente), além do ledger.
   const { data: agendaResumo, error: agendaError } = await supabase
@@ -104,13 +127,7 @@ export async function GET(request: NextRequest) {
     const pacienteIdsAgenda = Array.from(
       new Set((agRows ?? []).map((r) => (r.paciente_id ? String(r.paciente_id) : '')).filter(Boolean)),
     )
-    if (pacienteIdsAgenda.length > 0) {
-      const { data: pacientesAgenda } = await supabase
-        .from('pacientes')
-        .select('id,nome')
-        .in('id', pacienteIdsAgenda)
-      for (const p of pacientesAgenda ?? []) nomeById.set(String(p.id), String(p.nome ?? ''))
-    }
+    await carregarNomes(supabase, pacienteIdsAgenda, nomeById)
     const agById = new Map((agRows ?? []).map((r) => [String(r.id), r] as const))
     for (const resumo of agendaResumo) {
       const ag = agById.get(String(resumo.agendamento_id))
@@ -130,7 +147,7 @@ export async function GET(request: NextRequest) {
         vencimento: dataAg,
         status: String(resumo.situacao ?? 'Pendente'),
         pacienteId,
-        pacienteNome: (pacienteId ? nomeById.get(pacienteId) : null) || '—',
+        pacienteNome: (pacienteId ? nomeById.get(pacienteId) : null) || SEM_PACIENTE,
         situacao,
         linkFinanceiro: '/agenda',
       })

@@ -1,4 +1,4 @@
-import { addDaysIso, parseLocalDate } from '@/lib/procedimento-retorno'
+import { addDaysIso, diffDiasCivis, parseLocalDate } from '@/lib/procedimento-retorno'
 
 export const PRAZOS_RETORNO = [
   { id: '30', label: '30 dias' },
@@ -14,8 +14,11 @@ export type PrazoRetornoTipo = (typeof PRAZOS_RETORNO)[number]['id']
 
 export const PRAZO_TIPOS_VALIDOS: readonly string[] = PRAZOS_RETORNO.map((p) => p.id)
 
-export type SituacaoRetorno = 'no_prazo' | 'limite' | 'vencido'
-export const SITUACOES_RETORNO: readonly SituacaoRetorno[] = ['no_prazo', 'limite', 'vencido']
+export type SituacaoRetorno = 'no_prazo' | 'limite' | 'vencido' | 'sem_prazo'
+/** Situações dos cards clicáveis do topo (retorno sem prazo não entra neles). */
+export const SITUACOES_RETORNO = ['no_prazo', 'limite', 'vencido'] as const satisfies readonly SituacaoRetorno[]
+/** Situações aceitas no filtro da lista (inclui "Sem prazo"). */
+export const SITUACOES_RETORNO_FILTRO: readonly SituacaoRetorno[] = [...SITUACOES_RETORNO, 'sem_prazo']
 
 /** Dias de antecedência (antes do vencimento) em que o retorno entra em "limite". */
 export const DIAS_LIMITE_RETORNO = 10
@@ -66,4 +69,42 @@ export const ROTULO_SITUACAO_RETORNO: Record<SituacaoRetorno, string> = {
   no_prazo: 'No prazo',
   limite: 'Limite',
   vencido: 'Vencido',
+  sem_prazo: 'Sem prazo',
+}
+
+export type UnidadePrazoRetorno = 'dias' | 'semanas' | 'meses'
+export const UNIDADES_PRAZO_RETORNO: readonly UnidadePrazoRetorno[] = ['dias', 'semanas', 'meses']
+
+export type DefinicaoPrazo =
+  | { modo: 'data'; data: string }
+  | { modo: 'em'; quantidade: number; unidade: UnidadePrazoRetorno }
+
+export type PrazoDefinido =
+  | { ok: true; dataPrevista: string; prazoTipo: 'custom'; prazoDias: number | null }
+  | { ok: false; message: string }
+
+/** Data prevista ao definir/editar o prazo de um retorno em aberto (a contagem "em N …" parte de `hojeIso`). */
+export function resolverPrazoDefinido(
+  definicao: DefinicaoPrazo,
+  hojeIso: string,
+  dataBaseIso: string,
+): PrazoDefinido {
+  let dataPrevista: string | null
+  if (definicao.modo === 'data') {
+    dataPrevista = parseLocalDate(definicao.data) ? definicao.data : null
+    if (!dataPrevista) return { ok: false, message: 'Informe uma data válida.' }
+  } else {
+    const { quantidade, unidade } = definicao
+    if (!Number.isInteger(quantidade) || quantidade <= 0 || quantidade > 120) {
+      return { ok: false, message: 'Informe uma quantidade válida.' }
+    }
+    if (!UNIDADES_PRAZO_RETORNO.includes(unidade)) return { ok: false, message: 'Unidade de prazo inválida.' }
+    dataPrevista =
+      unidade === 'meses'
+        ? addMonthsIso(hojeIso, quantidade)
+        : addDaysIso(hojeIso, unidade === 'semanas' ? quantidade * 7 : quantidade)
+    if (!dataPrevista) return { ok: false, message: 'Data de hoje inválida.' }
+  }
+  const dias = diffDiasCivis(dataBaseIso, dataPrevista)
+  return { ok: true, dataPrevista, prazoTipo: 'custom', prazoDias: dias !== null && dias > 0 ? dias : null }
 }
