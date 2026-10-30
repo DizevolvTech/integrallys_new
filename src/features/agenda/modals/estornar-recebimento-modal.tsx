@@ -167,7 +167,8 @@ export function EstornarRecebimentoModal({
 
           {escolhido && (
             <p className="rounded-integrallys border border-app-border p-3 text-xs text-app-text-secondary dark:border-app-border-dark dark:text-white/70">
-              Se este recebimento entrou no caixa, será lançada uma saída de {moeda(escolhido.valor)} no caixa de hoje; se não entrou
+              Se este recebimento entrou no caixa, será lançada uma saída de {moeda(escolhido.valor)}{' '}
+              no caixa de hoje; se não entrou
               (ex.: lançado antes de o caixa abrir), nada sai do caixa. O lançamento original fica registrado como estornado, com
               seu nome e a data. Depois é só usar &quot;Emitir nova cobrança&quot; com o valor certo.
             </p>

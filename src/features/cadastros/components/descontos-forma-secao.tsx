@@ -19,9 +19,11 @@ export function DescontosFormaSecao() {
   const [form, setForm] = useState<Record<string, string>>({})
   const [salvando, setSalvando] = useState(false)
 
+  // Só preenche com o que veio do servidor: antes disso o campo fica vazio (sem 0 falso).
   useEffect(() => {
+    if (isLoading || error) return
     setForm(Object.fromEntries(FORMAS_COM_DESCONTO.map((forma) => [forma, String(descontos[forma])])))
-  }, [descontos])
+  }, [descontos, isLoading, error])
 
   const handleSalvar = async () => {
     const proximo = {} as DescontosPorForma
@@ -69,6 +71,7 @@ export function DescontosFormaSecao() {
                 max={100}
                 step="0.01"
                 disabled={isLoading}
+                placeholder={isLoading ? 'Carregando...' : undefined}
                 value={form[forma] ?? ''}
                 onChange={(event) => setForm((atual) => ({ ...atual, [forma]: event.target.value }))}
                 className="h-12 rounded-2xl pr-10"
