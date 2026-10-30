@@ -79,6 +79,7 @@ import {
   RemarcarConsultaModal,
   TarefasModal,
   VisualizarConsultaModal,
+  CompromissoDetalhesModal,
 } from './modals'
 import { NovoPacienteModal, EditarPacienteModal } from '@/features/gestao-pacientes/modals'
 import type { Patient } from '@/types/patient'
@@ -129,6 +130,7 @@ export function AgendaView() {
   const [isAdiarCompromissoOpen, setIsAdiarCompromissoOpen] = useState(false)
   const [isAgendarReuniaoOpen, setIsAgendarReuniaoOpen] = useState(false)
   const [isEditarCompromissoOpen, setIsEditarCompromissoOpen] = useState(false)
+  const [compromissoDetalhes, setCompromissoDetalhes] = useState<AgendaSlot | null>(null)
   const [isCancelarCompromissoOpen, setIsCancelarCompromissoOpen] = useState(false)
   const [isGerarAgendaOpen, setIsGerarAgendaOpen] = useState(false)
   const [isExcluirAgendaOpen, setIsExcluirAgendaOpen] = useState(false)
@@ -1205,7 +1207,9 @@ export function AgendaView() {
                         <Button
                           variant="outline"
                           className="rounded-xl"
-                          onClick={() => actions.openSlotModal('detalhes', item)}
+                          onClick={() =>
+                            item.pacienteId ? actions.openSlotModal('detalhes', item) : setCompromissoDetalhes(item)
+                          }
                         >
                           <FileText className="mr-2 h-4 w-4" />
                           Visualizar
@@ -1585,6 +1589,13 @@ export function AgendaView() {
         onClose={() => setIsAgendarReuniaoOpen(false)}
         professionals={agendaProfessionals}
         onSave={handleAgendarReuniao}
+      />
+      <CompromissoDetalhesModal
+        open={compromissoDetalhes !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) setCompromissoDetalhes(null)
+        }}
+        item={compromissoDetalhes}
       />
       <EditarCompromissoModal
         isOpen={isEditarCompromissoOpen}
