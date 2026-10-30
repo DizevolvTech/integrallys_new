@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Textarea } from '@/components/ui/textarea'
-import { useUsuarios } from '@/hooks/use-usuarios'
+import { useColaboradoresEstoque } from '../hooks/use-colaboradores-estoque'
 import type { EstoqueItem, MovimentacaoEstoqueInput } from '../hooks/use-estoque'
+
+const OUTROS = '__outros'
 
 interface BodyProps {
   items: EstoqueItem[]
@@ -19,21 +21,22 @@ interface BodyProps {
 }
 
 export function ConsumoInternoBody({ items, onConfirm, onClose }: BodyProps) {
-  const { data: usuarios } = useUsuarios()
+  const colaboradores = useColaboradoresEstoque()
+  const opcoesProduto = useMemo(() => items.map((item) => ({ value: item.id, label: item.produto, hint: `saldo: ${item.quantidade}` })), [items])
+  const opcoesQuem = useMemo(
+    () => [{ value: OUTROS, label: 'Outros' }, ...colaboradores],
+    [colaboradores],
+  )
   const [produtoId, setProdutoId] = useState('')
   const [quantidade, setQuantidade] = useState(0)
   const [justificativa, setJustificativa] = useState('')
-  const [especialistaId, setEspecialistaId] = useState('')
+  const [quemId, setQuemId] = useState('')
+  const [outrosTexto, setOutrosTexto] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === produtoId) ?? null,
     [items, produtoId],
-  )
-
-  const especialistas = useMemo(
-    () => usuarios.filter((user) => (user.perfil ?? '').toLowerCase() === 'especialista'),
-    [usuarios],
   )
 
   const submit = async () => {
@@ -50,19 +53,24 @@ export function ConsumoInternoBody({ items, onConfirm, onClose }: BodyProps) {
       return
     }
 
+    if (quemId === OUTROS && !outrosTexto.trim()) {
+      toast.error('Escreva quem consumiu e o motivo.')
+      return
+    }
+
     setIsSaving(true)
     try {
-      const especialista = especialistaId
-        ? especialistas.find((user) => user.id === especialistaId)
-        : null
+      const colaborador = quemId && quemId !== OUTROS ? colaboradores.find((item) => item.value === quemId) : null
       await onConfirm({
         produtoId,
         quantidade,
         observacoes: justificativa.trim(),
         tipoMovimentacao: 'consumo_interno',
-        vinculoTipo: especialista ? 'especialista' : null,
-        vinculoId: especialista ? especialista.id : null,
-        vinculoNome: especialista ? especialista.nome : null,
+        ...(quemId === OUTROS
+          ? { vinculoTipo: 'outro' as const, vinculoId: null, vinculoNome: outrosTexto.trim() }
+          : colaborador
+            ? { vinculoTipo: 'colaborador' as const, vinculoId: colaborador.value, vinculoNome: colaborador.label }
+            : { vinculoTipo: null, vinculoId: null, vinculoNome: null }),
       })
       onClose(false)
     } catch (err) {
@@ -77,18 +85,15 @@ export function ConsumoInternoBody({ items, onConfirm, onClose }: BodyProps) {
       <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="consumo-produto">Produto *</Label>
-          <Select value={produtoId} onValueChange={setProdutoId}>
-            <SelectTrigger id="consumo-produto" autoFocus>
-              <SelectValue preferPlaceholder placeholder="Selecione o produto" />
-            </SelectTrigger>
-            <SelectContent>
-              {items.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.produto}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            id="consumo-produto"
+            value={produtoId}
+            onChange={setProdutoId}
+            options={opcoesProduto}
+            placeholder="Selecione o produto"
+            searchPlaceholder="Digite o nome do produto..."
+            emptyText="Nenhum produto encontrado"
+          />
         </div>
 
         {selectedItem && (
@@ -129,32 +134,38 @@ export function ConsumoInternoBody({ items, onConfirm, onClose }: BodyProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="consumo-especialista">Especialista que consumiu (opcional)</Label>
-          <Select
-            value={especialistaId || 'nenhum'}
-            onValueChange={(value) => setEspecialistaId(value === 'nenhum' ? '' : value)}
-          >
-            <SelectTrigger id="consumo-especialista">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="nenhum">Não informar</SelectItem>
-              {especialistas.length === 0 && (
-                <SelectItem value="__empty_especialistas" disabled>
-                  Nenhum especialista ativo
-                </SelectItem>
-              )}
-              {especialistas.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="consumo-quem">Quem consumiu (opcional)</Label>
+          <Combobox
+            id="consumo-quem"
+            value={quemId}
+            onChange={setQuemId}
+            options={opcoesQuem}
+            placeholder="Não informar"
+            searchPlaceholder="Digite o nome de quem consumiu..."
+            emptyText="Nenhum usuário encontrado"
+          />
+          {quemId && (
+            <button type="button" className="text-xs text-app-text-muted underline" onClick={() => setQuemId('')}>
+              Limpar (não informar)
+            </button>
+          )}
           <p className="text-xs text-app-text-muted">
-            Use apenas se quiser indicar quem consumiu o item — opcional, sem rastreabilidade obrigatória.
+            Escolha um usuário do sistema ou &quot;Outros&quot; para escrever quem foi e o motivo.
           </p>
         </div>
+
+        {quemId === OUTROS && (
+          <div className="space-y-1.5">
+            <Label htmlFor="consumo-outros">Quem foi e por quê *</Label>
+            <Input
+              id="consumo-outros"
+              value={outrosTexto}
+              maxLength={200}
+              onChange={(event) => setOutrosTexto(event.target.value)}
+              placeholder="Ex.: Maria (limpeza) — higienização da sala"
+            />
+          </div>
+        )}
       </div>
 
       <DialogFooter className="border-t border-app-border dark:border-app-border-dark px-6 py-4 shrink-0 bg-app-card dark:bg-app-card-dark">

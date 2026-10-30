@@ -9,7 +9,8 @@ import {
   estoqueRegistrarEntrada,
   estoqueRpcHttpStatus,
 } from '@/lib/estoque-movimentacao'
-import { removerCustoProduto } from '@/lib/estoque-custo'
+import { perfilVeCustoEstoque, removerCustoProduto } from '@/lib/estoque-custo'
+import { normalizarVinculo, vinculoValido } from '@/lib/estoque-vinculo'
 import { stripEstoquePrices } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import { montarEntrada } from './entrada-input'
@@ -64,6 +65,8 @@ async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typ
 
   return NextResponse.json({
     data: (data ?? []).map((row) => removerCustoProduto(stripEstoquePrices(mapEstoqueItem(row), session?.role), session?.role)),
+    // Quadros de totais (qtd/venda/custo/margem) são da gestão; recepção só consulta os produtos.
+    totaisVisiveis: perfilVeCustoEstoque(session?.role),
     meta: session,
   })
 }
@@ -294,19 +297,24 @@ export async function POST(request: NextRequest) {
       return serverErrorResponse('Quantidade inválida', 'INVALID_STOCK_MOVEMENT', 400)
     }
 
-    const allowedVinculoTipos = ['cliente', 'especialista', 'fornecedor'] as const
-    const vinculoTipoRaw = typeof body.vinculoTipo === 'string' ? body.vinculoTipo : null
-    const vinculoTipo = allowedVinculoTipos.includes(vinculoTipoRaw as (typeof allowedVinculoTipos)[number])
-      ? vinculoTipoRaw
-      : null
-    const vinculoId =
-      vinculoTipo && vinculoTipo !== 'fornecedor' && typeof body.vinculoId === 'string' && body.vinculoId.trim().length > 0
-        ? body.vinculoId.trim()
-        : null
-    const vinculoNome =
-      vinculoTipo && typeof body.vinculoNome === 'string' && body.vinculoNome.trim().length > 0
-        ? body.vinculoNome.trim()
-        : null
+    const vinculo = normalizarVinculo(body)
+    if (!vinculoValido(vinculo)) {
+      return serverErrorResponse(
+        vinculo.tipo === 'outro' ? 'Informe quem foi e o motivo' : 'Selecione o colaborador',
+        'INVALID_STOCK_VINCULO',
+        400,
+      )
+    }
+    if (vinculo.tipo === 'colaborador' && vinculo.id) {
+      const { data: colaborador } = await supabase
+        .from('usuarios')
+        .select('nome')
+        .eq('id', vinculo.id)
+        .neq('perfil', 'paciente')
+        .maybeSingle()
+      if (!colaborador) return serverErrorResponse('Colaborador não encontrado', 'INVALID_STOCK_VINCULO', 400)
+      vinculo.nome = String(colaborador.nome ?? '')
+    }
 
     const tipoMovimentacaoRaw =
       typeof body.tipoMovimentacao === 'string' ? body.tipoMovimentacao : null
@@ -349,9 +357,9 @@ export async function POST(request: NextRequest) {
       quantidade,
       tipoMovimentacao,
       observacoes: typeof body.observacoes === 'string' ? body.observacoes : null,
-      vinculoTipo,
-      vinculoId,
-      vinculoNome,
+      vinculoTipo: vinculo.tipo,
+      vinculoId: vinculo.id,
+      vinculoNome: vinculo.nome,
       numeroNf,
       cnpjEmitente,
       forceNf: force,

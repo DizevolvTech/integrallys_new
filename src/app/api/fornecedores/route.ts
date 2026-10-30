@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
-import { mapFornecedorRow, validateFornecedorInput } from './fornecedor-input'
+import { fornecedorInsertRow, mapFornecedorRow, validateFornecedorInput } from './fornecedor-input'
 
 const SELECT_COLS = 'id,nome,telefone,email,status,unidade_id,fornecedor_dados'
 
@@ -48,15 +48,7 @@ export async function POST(request: NextRequest) {
   // Fornecedor é clínica-wide (espelha Profissionais/079): sem unidade. Leitura,
   // edição e exclusão também são globais — modelo coerente para um cadastro de
   // fornecedores compartilhado entre as unidades.
-  const { error } = await supabase.from('pacientes').insert({
-    nome: f.nome,
-    telefone: f.telefone,
-    email: f.email,
-    status: f.status,
-    vinculo_tipos: ['fornecedor'],
-    fornecedor_dados: f.fornecedorDados,
-    unidade_id: null,
-  })
+  const { error } = await supabase.from('pacientes').insert(fornecedorInsertRow(f))
 
   if (error) return supabaseErrorResponse(error, 'Falha ao criar fornecedor')
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
+import type { VinculoTipo } from '@/lib/estoque-vinculo'
 import type { ApiListResponse } from '@/types/api'
 
 export interface EstoqueItem {
@@ -38,7 +39,7 @@ export interface MovimentacaoEstoqueInput {
   produtoId: string
   quantidade: number
   observacoes?: string
-  vinculoTipo?: 'cliente' | 'especialista' | 'fornecedor' | null
+  vinculoTipo?: VinculoTipo | null
   vinculoId?: string | null
   vinculoNome?: string | null
   tipoMovimentacao?: 'saida' | 'consumo_interno'
@@ -78,6 +79,9 @@ export interface MovimentacaoFiltros {
   offset?: number
 }
 
+/** `totaisVisiveis` é decidido no servidor (gestão vê os quadros de totais; recepção não). */
+type EstoqueResponse = ApiListResponse<EstoqueItem> & { totaisVisiveis?: boolean }
+
 interface MovimentacoesResponse {
   data: MovimentacaoItem[]
   meta: { total: number; limit: number; offset: number }
@@ -87,6 +91,7 @@ export function useEstoque() {
   const api = useApi()
   const [data, setData] = useState<EstoqueItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [totaisVisiveis, setTotaisVisiveis] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoItem[]>([])
   const [movimentacoesTotal, setMovimentacoesTotal] = useState(0)
@@ -101,8 +106,9 @@ export function useEstoque() {
     setIsLoading(true)
     setError(null)
     try {
-      const response = await api.get<ApiListResponse<EstoqueItem>>('/api/estoque')
+      const response = await api.get<EstoqueResponse>('/api/estoque')
       setData(response.data)
+      setTotaisVisiveis(response.totaisVisiveis === true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar estoque')
     } finally {
@@ -116,9 +122,10 @@ export function useEstoque() {
       setIsLoading(true)
       setError(null)
       try {
-        const response = await api.get<ApiListResponse<EstoqueItem>>('/api/estoque')
+        const response = await api.get<EstoqueResponse>('/api/estoque')
         if (!mounted) return
         setData(response.data)
+        setTotaisVisiveis(response.totaisVisiveis === true)
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : 'Erro ao carregar estoque')
@@ -223,6 +230,7 @@ export function useEstoque() {
 
   return {
     data,
+    totaisVisiveis,
     isLoading,
     error,
     load,

@@ -40,7 +40,7 @@ function Vinculo({ mov }: { mov: MovimentacaoItem }) {
   return (
     <span>
       {mov.vinculoNome}
-      {mov.vinculoTipo && <span className="ml-1 text-[10px] uppercase tracking-wider text-app-text-muted">({mov.vinculoTipo})</span>}
+      {mov.vinculoTipo && <span className="ml-1 text-[10px] uppercase tracking-wider text-app-text-muted">({mov.vinculoTipo === 'outro' ? 'outros' : mov.vinculoTipo})</span>}
     </span>
   )
 }
