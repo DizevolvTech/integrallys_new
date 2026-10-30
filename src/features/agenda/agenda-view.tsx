@@ -21,6 +21,7 @@ import { useApi } from '@/hooks/use-api'
 import { useAgendaBloqueios } from '@/features/agenda/hooks/use-agenda-bloqueios'
 import { useAuth } from '@/hooks/use-auth'
 import { useListaEspera } from '@/hooks/use-lista-espera'
+import { buildAgendarUrl } from '@/features/lista-espera/lista-espera.utils'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useTarefas } from '@/hooks/use-tarefas'
 import { useUsuarios } from '@/hooks/use-usuarios'
@@ -102,7 +103,7 @@ export function AgendaView() {
   const api = useApi()
   const { data: bloqueios, create: createBloqueio, remove: removeBloqueio } = useAgendaBloqueios()
   const { data: pacientes, createPaciente, updatePaciente, units: pacienteUnits } = usePacientes()
-  const { data: waitlistItems, createItem: createWaitlistItem } = useListaEspera()
+  const { data: waitlistItems, createItem: createWaitlistItem, marcarAgendado: marcarListaEsperaAgendado } = useListaEspera()
   const { createTarefa } = useTarefas()
   const { data: usuarios } = useUsuarios()
   const { data: profissionaisCatalogo } = useProfissionais()
@@ -145,6 +146,7 @@ export function AgendaView() {
   const preselectedProcedimentoId = searchParams?.get('procedimentoId') ?? ''
   const preselectedTipo = searchParams?.get('tipo') === 'retorno' ? 'retorno' : ''
   const shouldOpenNewFromQuery = searchParams?.get('modal') === 'novo'
+  const listaEsperaOrigemId = searchParams?.get('listaEsperaId') ?? ''
 
   const receitaFutura = useMemo(
     () => waitlistItems.reduce((sum, item) => sum + (item.procedimentoValor ?? 0), 0),
@@ -441,6 +443,12 @@ export function AgendaView() {
       const [ano, mes, dia] = payload.data.split('-').map(Number)
       if (ano && mes && dia) calendar.setCurrentDate(new Date(ano, mes - 1, dia))
       actions.setActiveModal(null)
+      if (listaEsperaOrigemId) {
+        // Agendamento concluído: o paciente sai da fila (fica no histórico como 'agendado').
+        await marcarListaEsperaAgendado(listaEsperaOrigemId).catch(() =>
+          toast.error('Agendamento criado, mas não foi possível tirar o paciente da lista de espera.'),
+        )
+      }
       if (shouldOpenNewFromQuery) router.replace('/agenda')
     } catch (err) {
       // Repassa o erro ao modal: ele mostra a mensagem e continua aberto com os dados preenchidos.
@@ -1522,6 +1530,10 @@ export function AgendaView() {
         onClose={() => actions.setActiveModal(null)}
         patients={patientOptions}
         onSave={actions.handleAddToWaitlist}
+        onAgendar={(item) => {
+          actions.setActiveModal(null)
+          router.push(buildAgendarUrl(item))
+        }}
       />
       <RemarcarConsultaModal
         availableSlots={availableSlots}

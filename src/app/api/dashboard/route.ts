@@ -506,8 +506,8 @@ export async function GET(request: NextRequest) {
         .eq('ativo', true),
       supabase.from('prescricoes').select('id,paciente_id,validade').limit(2000),
       adminUnidadeId
-        ? supabase.from('lista_espera').select('*', { count: 'exact', head: true }).eq('unidade_id', adminUnidadeId)
-        : supabase.from('lista_espera').select('*', { count: 'exact', head: true }),
+        ? supabase.from('lista_espera').select('*', { count: 'exact', head: true }).eq('status', 'aguardando').eq('unidade_id', adminUnidadeId)
+        : supabase.from('lista_espera').select('*', { count: 'exact', head: true }).eq('status', 'aguardando'),
       supabase.from('produtos_estoque').select('id,nome,quantidade,estoque_minimo').eq('controla_estoque', true).limit(1000),
       supabase
         .from('agendamentos')

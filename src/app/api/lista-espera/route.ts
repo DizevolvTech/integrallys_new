@@ -15,6 +15,7 @@ async function listListaEspera(session: Awaited<ReturnType<typeof getRequestAuth
     supabase
       .from('lista_espera')
       .select('id,paciente_id,prioridade,especialista,procedimento,procedimento_id,especialista_id,preferencia_horario,entrada_em,observacoes')
+      .eq('status', 'aguardando')
       .order('entrada_em', { ascending: true }),
     supabase
       .from('usuarios')
@@ -297,6 +298,35 @@ export async function DELETE(request: NextRequest) {
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao remover item da lista de espera')
+  }
+
+  return listListaEspera(session)
+}
+
+/** Tira o paciente da fila ao concluir o agendamento (status 'agendado'; o registro fica no histórico). */
+export async function PATCH(request: NextRequest) {
+  const session = await getRequestAuth(request)
+  if (!session) {
+    return authErrorResponse()
+  }
+  const denied = await requirePermission(session.userId, 'lista-espera', 'update')
+  if (denied) return denied
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  if (!body?.id || body.status !== 'agendado') {
+    return serverErrorResponse('Item inválido', 'INVALID_WAITLIST_ITEM', 400)
+  }
+
+  const supabase = getAppSupabase()
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('lista_espera')
+    .update({ status: 'agendado', atendido_em: now, updated_at: now })
+    .eq('id', String(body.id))
+    .eq('status', 'aguardando')
+
+  if (error) {
+    return supabaseErrorResponse(error, 'Falha ao tirar paciente da lista de espera')
   }
 
   return listListaEspera(session)

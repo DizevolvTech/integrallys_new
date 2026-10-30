@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
+import { apiClient } from '@/lib/api-client'
 import type { ApiListResponse } from '@/types/api'
 
 export interface ListaEsperaItem {
@@ -16,6 +17,7 @@ export interface ListaEsperaItem {
   procedimentoValor?: number
   preferenciaHorario?: string
   entradaEm: string
+  entradaEmIso?: string
   observacoes?: string
 }
 
@@ -162,6 +164,16 @@ export function useListaEspera() {
     return response.data
   }
 
+  const marcarAgendado = async (id: string) => {
+    const response = await apiClient<ApiListResponse<ListaEsperaItem>>('/api/lista-espera', {
+      method: 'PATCH',
+      body: JSON.stringify({ id, status: 'agendado' }),
+    })
+    setData(response.data)
+    applyResponseMeta(response.meta as ListaEsperaMeta)
+    return response.data
+  }
+
   return {
     data,
     specialists,
@@ -174,5 +186,6 @@ export function useListaEspera() {
     createItem,
     updateItem,
     deleteItem,
+    marcarAgendado,
   }
 }

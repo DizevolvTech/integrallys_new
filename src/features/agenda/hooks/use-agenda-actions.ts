@@ -28,6 +28,7 @@ interface UseAgendaActionsProps {
     observacoes?: string
     procedimentoId?: string
     especialistaId?: string
+    preferenciaHorario?: string
   }) => Promise<void>
   createTarefa: (payload: {
     titulo: string
@@ -220,6 +221,7 @@ export function useAgendaActions({
     observacoes: string
     procedimentoId?: string
     especialistaId?: string
+    preferenciaHorario?: string
   }) => {
     try {
       await createWaitlistItem({
@@ -228,6 +230,7 @@ export function useAgendaActions({
         observacoes: payload.observacoes || undefined,
         procedimentoId: payload.procedimentoId || undefined,
         especialistaId: payload.especialistaId || undefined,
+        preferenciaHorario: payload.preferenciaHorario || undefined,
       })
       toast.success('Paciente adicionado à lista de espera.')
       setActiveModal(null)
