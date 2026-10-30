@@ -9,8 +9,8 @@ vi.mock('sonner', () => ({ toast: toasts }))
 vi.mock('@/features/procedimentos/hooks/use-procedimentos', () => ({
   useProcedimentos: () => ({ data: [], isLoading: false, error: null }),
 }))
-vi.mock('@/features/gestao-bancaria/hooks/use-contas-bancarias', () => ({
-  useContasBancarias: () => ({ data: [], isLoading: false, error: null, accessDenied: false }),
+vi.mock('@/features/gestao-bancaria/hooks/use-contas-pix', () => ({
+  useContasPix: () => ({ data: [] }),
 }))
 
 beforeAll(() => {

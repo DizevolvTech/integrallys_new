@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, CreditCard } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { CobrarOnlineModal } from '@/features/financeiro/modals/cobrar-online-modal'
 import { validarValorContraSaldo } from '@/lib/agendamento-pagamento'
-import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
+import { useContasPix } from '@/features/gestao-bancaria/hooks/use-contas-pix'
 
 interface CobrancaInfo {
   paciente: string
@@ -70,8 +70,7 @@ function isPix(metodo: string) {
 }
 
 export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, onConfirm, onEstornar }: EmitirCobrancaModalProps) {
-  const { data: contas } = useContasBancarias()
-  const contasAtivas = useMemo(() => contas.filter((item) => item.ativo), [contas])
+  const { data: contasAtivas } = useContasPix()
 
   const [metodo, setMetodo] = useState<string>('')
   const [valorRecebido, setValorRecebido] = useState<string>('')
@@ -334,7 +333,6 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
                     <SelectItem key={conta.id} value={conta.id}>
                       {conta.nome}
                       {conta.banco ? ` · ${conta.banco}` : ''}
-                      {conta.conta ? ` · ${conta.conta}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

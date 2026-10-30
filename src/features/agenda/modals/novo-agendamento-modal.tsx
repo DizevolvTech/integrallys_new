@@ -17,7 +17,7 @@ import { Switch } from '@/components/ui/switch'
 import { isHorarioPassado } from '../agenda.utils'
 import { mensagemSemHorario, resolveModalidade, type TipoAtendimento } from './novo-agendamento.utils'
 import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
-import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
+import { useContasPix } from '@/features/gestao-bancaria/hooks/use-contas-pix'
 
 interface PacienteOption {
   id: string
@@ -135,8 +135,7 @@ export function NovoAgendamentoModal({
   const [pagamentoContaId, setPagamentoContaId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { data: procedimentosCatalogo } = useProcedimentos()
-  const { data: contasBancarias } = useContasBancarias()
-  const contasAtivas = useMemo(() => contasBancarias.filter((item) => item.ativo), [contasBancarias])
+  const { data: contasAtivas } = useContasPix()
 
   const selectedProfessional = useMemo(
     () =>
