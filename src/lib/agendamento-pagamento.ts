@@ -140,3 +140,27 @@ export function buildMetodoLabel(resolved: PagamentoAgendamentoResolved) {
   if (resolved.parcelas && resolved.parcelas > 1) parts.push(`${resolved.parcelas}x`)
   return parts.join(' · ')
 }
+
+const moedaBR = (valor: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
+
+/**
+ * Cobrança não pode passar do saldo em aberto (valor do procedimento − já pago). Sem valor de procedimento
+ * cadastrado não há saldo para comparar. Troco em dinheiro não é cobrança: o valor lançado é o devido, nunca o entregue.
+ */
+export function validarValorContraSaldo(params: {
+  valorDevido: number
+  totalPago: number
+  valor: number
+}): { ok: true } | { ok: false; code: 'VALOR_ACIMA_DO_SALDO'; message: string; saldo: number } {
+  if (!(params.valorDevido > 0)) return { ok: true }
+  const saldo = Math.max(0, Number((params.valorDevido - params.totalPago).toFixed(2)))
+  if (params.valor - saldo > 0.005) {
+    return {
+      ok: false,
+      code: 'VALOR_ACIMA_DO_SALDO',
+      saldo,
+      message: `O valor informado (${moedaBR(params.valor)}) é maior que o saldo em aberto (${moedaBR(saldo)}). Informe até ${moedaBR(saldo)}.`,
+    }
+  }
+  return { ok: true }
+}

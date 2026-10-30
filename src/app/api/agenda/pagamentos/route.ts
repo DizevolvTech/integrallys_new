@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
-import { resolvePagamentoAgendamentoInput } from '@/lib/agendamento-pagamento'
+import { resolvePagamentoAgendamentoInput, validarValorContraSaldo } from '@/lib/agendamento-pagamento'
 import { registrarRecebimentoAgendamento } from '@/lib/recebimento-agendamento'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
@@ -34,17 +34,24 @@ export async function POST(request: NextRequest) {
 
   const supabase = getAppSupabase()
   const { data: agendamento, error: agError } = await supabase
-    .from('agendamentos')
-    .select('id')
-    .eq('id', agendamentoId)
+    .from('v_agendamento_pagamento_resumo')
+    .select('agendamento_id,valor_devido,total_pago')
+    .eq('agendamento_id', agendamentoId)
     .maybeSingle()
 
   if (agError) {
     return supabaseErrorResponse(agError, 'Falha ao validar agendamento')
   }
-  if (!agendamento?.id) {
+  if (!agendamento?.agendamento_id) {
     return serverErrorResponse('Agendamento não encontrado', 'AGENDAMENTO_NOT_FOUND', 404)
   }
+
+  const limite = validarValorContraSaldo({
+    valorDevido: Number(agendamento.valor_devido ?? 0),
+    totalPago: Number(agendamento.total_pago ?? 0),
+    valor: resolved.data.valor,
+  })
+  if (!limite.ok) return serverErrorResponse(limite.message, limite.code, 400)
 
   const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : '')
   const { error, caixaRegistrado } = await registrarRecebimentoAgendamento(supabase, session, {

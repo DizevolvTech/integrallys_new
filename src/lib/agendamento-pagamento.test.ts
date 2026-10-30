@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolvePagamentoAgendamentoInput } from './agendamento-pagamento'
+import { resolvePagamentoAgendamentoInput, validarValorContraSaldo } from './agendamento-pagamento'
 
 describe('resolvePagamentoAgendamentoInput', () => {
   it('exige valor e método', () => {
@@ -55,5 +55,27 @@ describe('resolvePagamentoAgendamentoInput', () => {
     })
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data.contaBancariaId).toBe('conta-1')
+  })
+})
+
+describe('validarValorContraSaldo', () => {
+  it('recusa valor acima do saldo em aberto e informa o saldo', () => {
+    const r = validarValorContraSaldo({ valorDevido: 300, totalPago: 120, valor: 240 })
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.code).toBe('VALOR_ACIMA_DO_SALDO')
+      expect(r.saldo).toBe(180)
+      expect(r.message).toMatch(/180,00/)
+    }
+  })
+
+  it('aceita valor igual ou menor que o saldo (parcial inclusive)', () => {
+    expect(validarValorContraSaldo({ valorDevido: 300, totalPago: 120, valor: 180 }).ok).toBe(true)
+    expect(validarValorContraSaldo({ valorDevido: 300, totalPago: 120, valor: 50.5 }).ok).toBe(true)
+  })
+
+  it('já quitado: qualquer valor é recusado; sem valor de procedimento não há limite', () => {
+    expect(validarValorContraSaldo({ valorDevido: 300, totalPago: 300, valor: 10 }).ok).toBe(false)
+    expect(validarValorContraSaldo({ valorDevido: 0, totalPago: 0, valor: 10 }).ok).toBe(true)
   })
 })
