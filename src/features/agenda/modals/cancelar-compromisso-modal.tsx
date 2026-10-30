@@ -42,19 +42,19 @@ export function CancelarCompromissoModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         hideCloseButton={true}
-        className="w-[95vw] sm:max-w-[600px] p-8 rounded-[24px] bg-app-card dark:bg-app-card-dark border-none shadow-2xl gap-8 custom-scrollbar"
+        className="w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto overflow-x-hidden p-5 sm:p-8 rounded-[24px] bg-app-card dark:bg-app-card-dark border-none shadow-2xl gap-8 custom-scrollbar"
       >
         <DialogTitle className="sr-only">Cancelar compromisso</DialogTitle>
         <div className="space-y-6">
-          <div className="flex items-start gap-5">
-            <div className="h-14 w-14 rounded-full app-status-danger dark:bg-transparent flex items-center justify-center shrink-0">
+          <div className="relative flex items-start gap-3 sm:gap-5">
+            <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-full app-status-danger dark:bg-transparent flex items-center justify-center shrink-0">
               <X className="h-7 w-7 text-[var(--app-danger-text)] dark:text-[var(--app-danger-text)]" />
             </div>
-            <div className="space-y-1 pr-8">
-              <h2 className="text-2xl font-normal text-app-text-primary dark:text-white leading-tight">
+            <div className="min-w-0 space-y-1 pr-10">
+              <h2 className="text-xl sm:text-2xl font-normal text-app-text-primary dark:text-white leading-tight break-words">
                 Cancelar compromisso
               </h2>
-              <p className="text-app-text-muted dark:text-app-text-muted text-base leading-relaxed">
+              <p className="text-app-text-muted dark:text-app-text-muted text-base leading-relaxed break-words">
                 {compromissoTitulo
                   ? `Tem certeza que deseja cancelar ${compromissoTitulo}?`
                   : 'Tem certeza que deseja cancelar este compromisso?'}
@@ -63,7 +63,7 @@ export function CancelarCompromissoModal({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-8 top-8 h-8 w-8 flex items-center justify-center rounded-lg border border-app-border dark:border-app-border-dark bg-white dark:bg-transparent hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors shrink-0"
+              className="absolute right-0 top-0 h-8 w-8 flex items-center justify-center rounded-lg border border-app-border dark:border-app-border-dark bg-white dark:bg-transparent hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors shrink-0"
             >
               <X className="h-4 w-4 text-app-text-muted" />
             </button>
@@ -91,16 +91,16 @@ export function CancelarCompromissoModal({
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-2">
             <Button
               variant="outline"
               onClick={onClose}
-              className="h-12 px-8 rounded-[12px] border-app-border text-app-text-primary hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover font-normal"
+              className="h-12 w-full sm:w-auto px-8 rounded-[12px] border-app-border text-app-text-primary hover:bg-app-bg-secondary dark:border-app-border-dark dark:text-white/80 dark:hover:bg-app-hover font-normal"
             >
               Manter compromisso
             </Button>
             <Button
-              className="h-12 px-8 rounded-[12px] bg-[#d93f48] hover:bg-[#c1323a] text-white font-normal shadow-lg shadow-red-500/20 transition-all hover:scale-[1.02] flex items-center gap-2"
+              className="h-12 w-full sm:w-auto px-8 rounded-[12px] bg-[#d93f48] justify-center hover:bg-[#c1323a] text-white font-normal shadow-lg shadow-red-500/20 transition-all hover:scale-[1.02] flex items-center gap-2"
               onClick={() => void handleConfirm()}
               disabled={isLoading}
             >
