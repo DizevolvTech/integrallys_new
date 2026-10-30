@@ -642,7 +642,7 @@ export function AgendaView() {
                   <span className="hidden sm:inline">
                     {activeTab === 'pessoal' ? 'Novo compromisso' : 'Marcar consulta'}
                   </span>
-                  <span className="sm:hidden">Marcar</span>
+                  <span className="sm:hidden">{activeTab === 'pessoal' ? 'Compromisso' : 'Marcar'}</span>
                 </Button>
               )}
               <Button

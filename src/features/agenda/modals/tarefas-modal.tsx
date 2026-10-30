@@ -301,7 +301,7 @@ export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
   return (
     <>
     <Dialog open={isOpen && !mostrarFormulario} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent size="xl" className="flex flex-col rounded-[24px] border-none bg-app-card p-0 shadow-2xl dark:bg-app-card-dark">
+      <DialogContent size="xl" hideCloseButton className="flex flex-col rounded-[24px] border-none bg-app-card p-0 shadow-2xl dark:bg-app-card-dark">
         <DialogHeader className="shrink-0 border-b border-app-border/60 bg-[linear-gradient(180deg,rgba(22,78,187,0.08),rgba(22,78,187,0.02))] px-6 pb-5 pt-6 dark:border-app-border-dark/60 dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(59,130,246,0.02))]">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
