@@ -490,7 +490,7 @@ export function NovaVendaModal({
                 </div>
               </div>
 
-              <div className="lg:col-span-4 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto bg-app-card dark:bg-app-card-dark border-t lg:border-t-0 lg:border-l border-app-border dark:border-app-border-dark z-10 relative custom-scrollbar">
+              <div className="lg:col-span-4 lg:col-start-9 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto bg-app-card dark:bg-app-card-dark border-t lg:border-t-0 lg:border-l border-app-border dark:border-app-border-dark z-10 relative custom-scrollbar">
                 <div className="p-5">
                   <h3 className="text-lg font-bold text-app-text-primary dark:text-white flex items-center gap-2 mb-4">
                     <CreditCard className="h-5 w-5 text-app-primary dark:text-[var(--app-info-text)]" />
