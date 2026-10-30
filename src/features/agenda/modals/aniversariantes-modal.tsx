@@ -92,13 +92,13 @@ export function AniversariantesModal({ isOpen, onClose }: AniversariantesModalPr
         </div>
 
         <div className="px-6 pb-6 overflow-x-auto overflow-y-auto min-h-0">
-          <div className="min-w-[520px] rounded-[12px] border border-app-border dark:border-app-border-dark overflow-hidden">
+          <div className="sm:min-w-[520px] rounded-[12px] border border-app-border dark:border-app-border-dark overflow-hidden">
             <div className="grid grid-cols-12 bg-app-bg-secondary/60 dark:bg-app-bg-dark/60 border-b border-app-border dark:border-app-border-dark text-xs uppercase tracking-wider text-app-text-muted">
-              <div className="col-span-4 px-2 py-3 sm:px-4">Cliente</div>
-              <div className="col-span-2 px-2 py-3 sm:px-4">Nascimento</div>
-              <div className="col-span-1 px-2 py-3 sm:px-4">Idade</div>
-              <div className="col-span-3 px-2 py-3 sm:px-4">Telefone</div>
-              <div className="col-span-2 px-2 py-3 sm:px-4 text-center">OK mensagem</div>
+              <div className="col-span-8 px-2 py-3 sm:col-span-4 sm:px-4">Cliente</div>
+              <div className="col-span-2 hidden px-2 py-3 sm:block sm:px-4">Nascimento</div>
+              <div className="col-span-1 hidden px-2 py-3 sm:block sm:px-4">Idade</div>
+              <div className="col-span-3 hidden px-2 py-3 sm:block sm:px-4">Telefone</div>
+              <div className="col-span-4 px-2 py-3 text-center sm:col-span-2 sm:px-4">OK mensagem</div>
             </div>
 
             {error && <div className="px-4 py-3 text-sm text-[var(--app-danger-text)]">{error}</div>}
@@ -114,19 +114,22 @@ export function AniversariantesModal({ isOpen, onClose }: AniversariantesModalPr
                 key={item.id}
                 className="grid grid-cols-12 border-b last:border-b-0 border-app-border dark:border-app-border-dark items-center"
               >
-                <div className="col-span-4 px-2 py-3 sm:px-4 text-sm text-app-text-primary dark:text-white">
+                <div className="col-span-8 px-2 py-3 text-sm text-app-text-primary sm:col-span-4 sm:px-4 dark:text-white">
                   {item.nome}
+                  <span className="block text-xs text-app-text-secondary sm:hidden dark:text-white/70">
+                    {formatDateBR(item.nascimento)} · {item.idade} anos{item.telefone ? ` · ${item.telefone}` : ''}
+                  </span>
                 </div>
-                <div className="col-span-2 px-2 py-3 sm:px-4 text-xs sm:text-sm text-app-text-secondary dark:text-white/80">
+                <div className="col-span-2 hidden px-2 py-3 text-xs text-app-text-secondary sm:block sm:px-4 sm:text-sm dark:text-white/80">
                   {formatDateBR(item.nascimento)}
                 </div>
-                <div className="col-span-1 px-2 py-3 sm:px-4 text-xs sm:text-sm text-app-text-secondary dark:text-white/80">
+                <div className="col-span-1 hidden px-2 py-3 text-xs text-app-text-secondary sm:block sm:px-4 sm:text-sm dark:text-white/80">
                   {item.idade}
                 </div>
-                <div className="col-span-3 px-2 py-3 sm:px-4 text-xs sm:text-sm text-app-text-secondary dark:text-white/80">
+                <div className="col-span-3 hidden px-2 py-3 text-xs text-app-text-secondary sm:block sm:px-4 sm:text-sm dark:text-white/80">
                   {item.telefone}
                 </div>
-                <div className="col-span-2 px-2 py-3 sm:px-4 flex justify-center">
+                <div className="col-span-4 flex justify-center px-2 py-3 sm:col-span-2 sm:px-4">
                   <button
                     type="button"
                     onClick={() => void marcar(item.id, !item.enviado)}

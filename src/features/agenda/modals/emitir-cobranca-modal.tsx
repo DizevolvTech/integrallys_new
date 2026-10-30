@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CobrarOnlineModal } from '@/features/financeiro/modals/cobrar-online-modal'
+import { validarValorContraSaldo } from '@/lib/agendamento-pagamento'
 import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
 
 interface CobrancaInfo {
@@ -131,6 +132,12 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
 
     if (!Number.isFinite(parsed) || parsed <= 0) {
       setError('Informe um valor válido.')
+      return
+    }
+
+    const limite = validarValorContraSaldo({ valorDevido: valorEfetivo, totalPago, valor: parsed })
+    if (!limite.ok) {
+      setError(limite.message)
       return
     }
 

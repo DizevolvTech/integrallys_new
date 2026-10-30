@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Activity, Clock, FileText, Stethoscope, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { DateInput } from '@/components/shared/date-input'
 import { ModalHeader } from '@/components/shared/modal-header'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -697,15 +698,10 @@ export function NovoAgendamentoModal({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-sm font-normal text-app-text-primary dark:text-white">Data</Label>
-              <Input
-                type="date"
-                value={data}
-                onChange={(event) => setData(event.target.value)}
-                className="h-11 rounded-integrallys bg-app-bg-secondary/50 dark:bg-app-bg-dark"
-              />
+              <DateInput value={data} onChange={setData} className="h-11" />
             </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2 text-sm font-normal text-app-text-primary dark:text-white">

@@ -39,6 +39,8 @@ import {
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { SegmentedControl } from '@/components/shared/segmented-control'
+import { removerSlotsBloqueados } from './slots-bloqueados'
+import { mensagemEstornoConcluido } from '@/lib/estorno-recebimento'
 import type { AgendaSlot, ViewMode } from './agenda.types'
 import { RetornosAlerta } from '@/features/retornos'
 import { AtendimentoView } from './atendimento-view'
@@ -92,7 +94,7 @@ export function AgendaView() {
     state.permissions.some((p) => p.resource === 'agenda' && p.actions.includes('create')),
   )
   const {
-    data,
+    data: agendaBruta,
     patients: agendaPatients,
     professionals: agendaProfessionals,
     error,
@@ -105,6 +107,8 @@ export function AgendaView() {
   } = useAgenda()
   const api = useApi()
   const { data: bloqueios, create: createBloqueio, remove: removeBloqueio, reload: reloadBloqueios } = useAgendaBloqueios()
+  // Horários livres cobertos por bloqueio (férias, folga, horário parcial) não aparecem na grade nem no seletor.
+  const data = useMemo(() => removerSlotsBloqueados(agendaBruta, bloqueios), [agendaBruta, bloqueios])
   const { data: pacientes, createPaciente, updatePaciente, units: pacienteUnits } = usePacientes()
   const { data: waitlistItems, createItem: createWaitlistItem, marcarAgendado: marcarListaEsperaAgendado } = useListaEspera()
   const { createTarefa } = useTarefas()
@@ -638,7 +642,7 @@ export function AgendaView() {
                   <span className="hidden sm:inline">
                     {activeTab === 'pessoal' ? 'Novo compromisso' : 'Marcar consulta'}
                   </span>
-                  <span className="sm:hidden">Marcar</span>
+                  <span className="sm:hidden">{activeTab === 'pessoal' ? 'Compromisso' : 'Marcar'}</span>
                 </Button>
               )}
               <Button
@@ -1559,11 +1563,11 @@ export function AgendaView() {
         }}
         agendamentoId={selectedAgendaItem?.id}
         pacienteNome={selectedAgendaItem?.paciente}
-        onEstornado={() => {
+        onEstornado={({ saidaCaixa }) => {
           const slot = actions.selectedSlot
           actions.setActiveModal(null)
           void reloadAgenda()
-          toast.success('Recebimento estornado. O valor saiu do caixa e o saldo do agendamento voltou a ficar em aberto.', {
+          toast.success(mensagemEstornoConcluido(saidaCaixa), {
             action: slot ? { label: 'Emitir nova cobrança', onClick: () => actions.handleOpenCharge(slot) } : undefined,
             duration: 12000,
           })
