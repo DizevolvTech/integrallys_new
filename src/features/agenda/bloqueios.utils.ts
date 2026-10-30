@@ -53,3 +53,17 @@ export function rotuloHorarioBloqueio(b: Pick<AgendaBloqueio, 'diaInteiro' | 'ho
   if (b.diaInteiro) return 'Dia inteiro'
   return `${b.horarioInicio?.slice(0, 5) ?? ''}–${b.horarioFim?.slice(0, 5) ?? ''}`
 }
+
+/** Texto do bloqueio para a cliente: só o título (bloqueios antigos traziam "Compromisso:<id>|<título>"). */
+export function textoDoBloqueio(justificativa: string | null | undefined): string {
+  const texto = (justificativa ?? '').trim()
+  const legado = /^Compromisso:[0-9a-f-]{36}\|(.*)$/i.exec(texto)
+  return legado ? legado[1].trim() : texto
+}
+
+/** Etiqueta do bloqueio: compromisso mostra "Compromisso: TÍTULO"; os demais, só o tipo. */
+export function rotuloDoBloqueio(b: Pick<AgendaBloqueio, 'tipo' | 'justificativa'>): string {
+  const titulo = textoDoBloqueio(b.justificativa)
+  if (b.tipo !== 'Compromisso' || !titulo) return b.tipo
+  return /^Compromisso:/i.test(titulo) ? titulo : `Compromisso: ${titulo}`
+}

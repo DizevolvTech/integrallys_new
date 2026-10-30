@@ -16,6 +16,8 @@ export interface AgendaBloqueio {
   justificativa: string | null
   createdBy: string | null
   createdAt: string
+  /** Compromisso pessoal que gerou o bloqueio (some junto com ele). */
+  agendamentoId?: string | null
 }
 
 export interface AgendaBloqueioInput {

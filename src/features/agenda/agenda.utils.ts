@@ -15,6 +15,11 @@ export function mapAgendaItemToSlot(item: AgendaItem): AgendaSlot {
     data: item.data,
     tipo: item.tipo,
     titulo: item.titulo,
+    local: item.local,
+    participantes: item.participantes,
+    compromissoGrupoId: item.compromissoGrupoId,
+    organizadorId: item.organizadorId,
+    participanteIds: item.participanteIds,
     modalidade: item.modalidade,
     plataformaOnline: item.plataformaOnline,
     urlOnline: item.urlOnline,
@@ -378,4 +383,23 @@ export function deslocarPeriodo(base: Date, modo: ViewMode, sentido: 1 | -1): Da
     next.setDate(next.getDate() + (modo === 'semana' ? 7 : 1) * sentido)
   }
   return next
+}
+
+/** Duração em minutos (texto) entre início e fim HH:MM; undefined se não calculável. */
+export function duracaoEmMinutos(hora: string, horaFim?: string): string | undefined {
+  if (!horaFim) return undefined
+  const parse = (v: string) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(v)
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null
+  }
+  const ini = parse(hora)
+  const fim = parse(horaFim)
+  if (ini === null || fim === null || fim <= ini) return undefined
+  return String(fim - ini)
+}
+
+/** Remove o prefixo "Duração: N" que compromissos antigos gravavam dentro das observações. */
+export function observacoesSemDuracao(observacoes?: string): string | undefined {
+  const limpo = (observacoes ?? '').replace(/^Duração:\s*[^•]*(•\s*)?/i, '').trim()
+  return limpo || undefined
 }

@@ -18,6 +18,10 @@ export interface AgendaItem {
   titulo?: string
   local?: string
   participantes?: string
+  /** Compromisso pessoal: id do grupo (uma cópia por participante) e profissionais do grupo. */
+  compromissoGrupoId?: string
+  organizadorId?: string
+  participanteIds?: string[]
   modalidade?: string
   plataformaOnline?: string
   urlOnline?: string
@@ -47,6 +51,10 @@ export interface AgendaInput {
   titulo?: string
   local?: string
   participantes?: string
+  /** Compromisso pessoal: usuários participantes (a agenda de cada um é bloqueada). */
+  participanteIds?: string[]
+  /** Compromisso pessoal: duração em minutos (alternativa a horarioFim). */
+  duracaoMin?: number
   modalidade?: string
   plataformaOnline?: string
   urlOnline?: string

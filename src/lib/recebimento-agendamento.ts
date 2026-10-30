@@ -94,6 +94,7 @@ export async function registrarRecebimentoAgendamento(
   const hoje = hojeClinica()
   const { error: lancamentoError } = await supabase.from('financeiro_lancamentos').insert({
     agendamento_id: agendamentoId,
+    pagamento_agendamento_id: pagamento?.id ?? null,
     paciente_id: agendamento?.paciente_id ?? null,
     profissional_id: agendamento?.profissional_id ?? null,
     procedimento_id: agendamento?.procedimento_id ?? null,
@@ -143,6 +144,7 @@ export async function registrarRecebimentoAgendamento(
     valor: resolved.valor,
     forma,
     origem: 'agendamento',
+    pagamento_agendamento_id: pagamento?.id ?? null,
     operador_nome: session.user?.name || null,
     data_movimento: agora,
     bandeira: forma === 'cartao_credito' || forma === 'cartao_debito' ? resolved.bandeira : null,

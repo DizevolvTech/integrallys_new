@@ -23,7 +23,7 @@ import {
   normalizeAgendaStatus,
   resolvePagamentoSituacao,
 } from '../agenda.utils'
-import { bloqueiosDoDia, corDoTipoBloqueio, isoDateLocal } from '../bloqueios.utils'
+import { bloqueiosDoDia, corDoTipoBloqueio, isoDateLocal, rotuloDoBloqueio, textoDoBloqueio } from '../bloqueios.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
 
 interface AgendaDayViewProps {
@@ -34,7 +34,7 @@ interface AgendaDayViewProps {
   selectedProfessional: string
   /** Filtro atual é "todos"/"agendamentos" — decide o texto do estado vazio. */
   showDaySlots: boolean
-  onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente', slot: AgendaSlot) => void
+  onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente' | 'estornar-recebimento', slot: AgendaSlot) => void
   onOpenCharge: (slot: AgendaSlot) => void
   /** Item 28: recibo ou NF — só aparece com a consulta quitada. */
   onOpenRecibo?: (slot: AgendaSlot) => void
@@ -100,7 +100,7 @@ export function AgendaDayView({
               key={`bloq-${b.id}`}
               style={{ order: b.diaInteiro ? -1 : toMinutes(b.horarioInicio) }}
               className={`rounded-integrallys border p-4 ${cor.card}`}
-              title={b.justificativa ?? undefined}
+              title={textoDoBloqueio(b.justificativa) || undefined}
             >
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex-shrink-0 w-[60px]">
@@ -117,15 +117,15 @@ export function AgendaDayView({
                 <div className="flex-1 min-w-[200px]">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cor.chip}`}>
-                      {b.tipo}
+                      {rotuloDoBloqueio(b)}
                     </span>
                     <span className="text-sm font-normal text-red-900 dark:text-red-100">
                       {profissionalNome ?? 'Todos profissionais'}
                     </span>
                   </div>
-                  {b.justificativa && (
+                  {b.justificativa && b.tipo !== 'Compromisso' && (
                     <p className="text-xs text-red-800/80 dark:text-red-200/80 mt-1 truncate">
-                      {b.justificativa}
+                      {textoDoBloqueio(b.justificativa)}
                     </p>
                   )}
                 </div>
@@ -303,6 +303,9 @@ export function AgendaDayView({
                               <DropdownMenuItem onClick={() => onOpenSlotModal('remarcar', item)}>Reagendar</DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => onOpenCharge(item)}>Emitir nova cobrança</DropdownMenuItem>
+                            {item.paciente && (item.totalPago ?? 0) > 0 && (
+                              <DropdownMenuItem onClick={() => onOpenSlotModal('estornar-recebimento', item)}>Estornar recebimento</DropdownMenuItem>
+                            )}
                             {onOpenRecibo && pagamentoSituacao === 'Pago' && item.pacienteId && (
                               <DropdownMenuItem onClick={() => onOpenRecibo(item)}>Emissão de recibo ou NF</DropdownMenuItem>
                             )}
