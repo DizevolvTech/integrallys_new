@@ -45,8 +45,8 @@ export function ResumoCardModal({ card, onClose, items, session }: ResumoCardMod
 
   return (
     <Dialog open={card !== null} onOpenChange={(aberto) => !aberto && onClose()}>
-      <DialogContent size={tipo ? 'xl' : 'md'} className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark">
-        <div className="bg-app-card p-6 dark:bg-app-card-dark sm:p-8">
+      <DialogContent size={tipo ? 'xl' : 'md'} className="max-h-[90vh] w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark">
+        <div className="flex max-h-[90vh] flex-col bg-app-card p-4 dark:bg-app-card-dark sm:p-8">
           <DialogHeader className="space-y-2">
             <DialogTitle className="flex items-center gap-2 text-xl font-normal text-app-text-primary dark:text-white">
               <Banknote className="h-5 w-5 text-[var(--app-primary)]" />
@@ -55,10 +55,36 @@ export function ResumoCardModal({ card, onClose, items, session }: ResumoCardMod
             <DialogDescription className="text-sm text-app-text-muted">Caixa de {periodo}.</DialogDescription>
           </DialogHeader>
 
-          <div className="mt-6 space-y-4" data-testid={`resumo-${card ?? 'vazio'}`}>
+          <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto sm:mt-6" data-testid={`resumo-${card ?? 'vazio'}`}>
             {tipo && (
               <>
-                <div className="max-h-[420px] overflow-auto rounded-integrallys-lg border border-app-border dark:border-app-border-dark">
+                <ul className="space-y-2 md:hidden" data-testid="resumo-cartoes">
+                  {linhas.length === 0 ? (
+                    <li className="py-6 text-center text-sm text-app-text-secondary dark:text-white/60">
+                      Nenhuma {tipo === 'entrada' ? 'entrada' : 'saída'} neste período.
+                    </li>
+                  ) : (
+                    linhas.map((item) => {
+                      const vinculo = vinculoTexto(item)
+                      return (
+                        <li key={item.id} className="rounded-xl border border-app-border p-3 text-sm dark:border-app-border-dark">
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="min-w-0 break-words text-app-text-primary dark:text-white">{item.descricao}</span>
+                            <span className={`shrink-0 whitespace-nowrap ${tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}`}>
+                              {brl(item.valor)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-app-text-secondary dark:text-white/60">
+                            {diaDoMovimento(item)} · {item.hora || '--:--'}
+                          </p>
+                          {vinculo && <p className="text-xs text-app-text-secondary dark:text-white/60">{vinculo}</p>}
+                          <p className="text-xs text-app-text-secondary dark:text-white/60">Forma: {formaDetalheTexto(item)}</p>
+                        </li>
+                      )
+                    })
+                  )}
+                </ul>
+                <div className="hidden max-h-[420px] overflow-auto rounded-integrallys-lg border border-app-border dark:border-app-border-dark md:block">
                   <Table>
                     <TableHeader>
                       <TableRow className="border-none bg-app-bg-secondary/50 dark:bg-app-hover/20">
@@ -166,7 +192,7 @@ export function ResumoCardModal({ card, onClose, items, session }: ResumoCardMod
               ))}
           </div>
 
-          <DialogFooter className="mt-6">
+          <DialogFooter className="mt-4 shrink-0 sm:mt-6">
             <Button variant="outline" className="h-11 rounded-xl border-app-border dark:border-app-border-dark" onClick={onClose}>
               Fechar
             </Button>

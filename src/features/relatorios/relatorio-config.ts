@@ -113,6 +113,16 @@ const profissional = (key = 'profissional_id', label = 'Profissional'): FiltroRe
 })
 const convenio: FiltroRelatorio = { key: 'convenio', label: 'Plano/convênio', tipo: 'texto' }
 
+/** Quantidade e % do total (soma das quantidades do próprio resumo, que cobre todo o filtro). */
+const itensComPct = (itens: unknown) => {
+  const l = lista(itens)
+  const total = l.reduce((acc, i) => acc + num(i.qtd), 0)
+  return l.map((i) => {
+    const pct = i.pct != null ? num(i.pct) : total > 0 ? (num(i.qtd) / total) * 100 : 0
+    return { nome: String(i.nome), valor: `${num(i.qtd)} · ${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` }
+  })
+}
+
 const listaResumo = (titulo: string, itens: unknown): ResumoLista => ({
   titulo,
   itens: lista(itens).map((i) => ({ nome: String(i.nome), valor: String(i.qtd) })),
@@ -304,7 +314,10 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       listaResumo('Por mídia', t.porMidia),
       listaResumo('Por cidade', t.porCidade),
       listaResumo('Por convênio', t.porConvenio),
-      listaResumo('Por sexo', t.porSexo),
+      {
+        titulo: 'Por sexo',
+        itens: itensComPct(t.porSexo),
+      },
       {
         titulo: 'Por faixa etária',
         itens: lista(t.porFaixaEtaria).map((i) => ({

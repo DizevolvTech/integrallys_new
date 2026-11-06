@@ -37,13 +37,16 @@ describe('Pacientes: sexo, faixa etária e resumos novos', () => {
     expect(faixas).toEqual(['todos', 'ate_14', '15_24', '25_34', '35_44', '45_54', '55_64', '65_mais', 'nao_informado'])
   })
 
-  it('Por sexo (quantidade) e Por faixa etária (quantidade e %)', () => {
+  it('Por sexo e Por faixa etária (quantidade e %)', () => {
     const r = CONFIG_RELATORIOS.pacientes.resumos!({
-      porSexo: [{ nome: 'Feminino', qtd: 4 }],
+      porSexo: [{ nome: 'Feminino', qtd: 4 }, { nome: 'Masculino', qtd: 7 }],
       porFaixaEtaria: [{ nome: '25 a 34 anos', qtd: 5, pct: 31.3 }],
     })
     expect(r.map((x) => x.titulo)).toEqual(['Por mídia', 'Por cidade', 'Por convênio', 'Por sexo', 'Por faixa etária'])
-    expect(r[3].itens).toEqual([{ nome: 'Feminino', valor: '4' }])
+    expect(r[3].itens).toEqual([
+      { nome: 'Feminino', valor: '4 · 36,4%' },
+      { nome: 'Masculino', valor: '7 · 63,6%' },
+    ])
     expect(r[4].itens[0].valor).toBe('5 · 31,3%')
   })
 })
