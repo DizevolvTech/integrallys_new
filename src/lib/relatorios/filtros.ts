@@ -26,7 +26,7 @@ const CHAVES: Record<RelatorioTipo, Record<string, Regra>> = {
   },
   pacientes: {
     q: 'texto', midia: 'texto', cidade: 'texto', convenio: 'texto', sexo: 'texto', mes_nascimento: 'inteiro',
-    nascimento: 'data', profissional_id: 'uuid', procedimento_id: 'uuid', unidade_id: 'uuid',
+    faixa_etaria: 'texto', nascimento: 'data', profissional_id: 'uuid', procedimento_id: 'uuid', unidade_id: 'uuid',
     nao_comparecimento: 'texto',
   },
   vendas: {
@@ -47,6 +47,7 @@ const CHAVES: Record<RelatorioTipo, Record<string, Regra>> = {
   tarefas: { q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', responsavel_id: 'uuid', status: 'texto' },
   aniversariantes: { q: 'texto', data: 'data', modo: 'texto', unidade_id: 'uuid', enviado: 'texto' },
   desempenho: { inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid' },
+  'desempenho-detalhe': { inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid', metrica: 'texto' },
 }
 
 export interface EscopoRelatorio {

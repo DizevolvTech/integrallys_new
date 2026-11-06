@@ -17,6 +17,7 @@ export type RelatorioTipo =
   | 'tarefas'
   | 'aniversariantes'
   | 'desempenho'
+  | 'desempenho-detalhe'
 
 export interface RelatorioTab {
   id: string
@@ -47,6 +48,8 @@ export const PERFIS_POR_TIPO: Record<RelatorioTipo, Perfil[]> = {
   tarefas: GESTAO_E_RECEPCAO,
   aniversariantes: [...GESTAO_E_RECEPCAO, 'especialista'],
   desempenho: [...GESTAO_E_RECEPCAO, 'especialista'],
+  // Lista dos registros atrás de cada cartão do Desempenho geral: mesmo público do resumo.
+  'desempenho-detalhe': [...GESTAO_E_RECEPCAO, 'especialista'],
 }
 
 /** Tipos em que o especialista é forçado ao próprio profissional_id. */
@@ -57,6 +60,7 @@ export const TIPOS_DO_PROPRIO_ESPECIALISTA: RelatorioTipo[] = [
   'repasse',
   'comissoes',
   'desempenho',
+  'desempenho-detalhe',
 ]
 
 const ABAS_GESTAO: RelatorioTab[] = [

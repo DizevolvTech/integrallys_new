@@ -51,4 +51,16 @@ describe('montarFiltros', () => {
   it('mantém o filtro de vendas por consumo', () => {
     expect(montarFiltros('vendas', qs('forma=consumo'), recepcao).forma).toBe('consumo')
   })
+
+  it('Pacientes aceita sexo e faixa etária; detalhe do Desempenho aceita o indicador', () => {
+    const f = montarFiltros('pacientes', qs('sexo=nao_informado&faixa_etaria=65_mais'), admin)
+    expect(f).toMatchObject({ sexo: 'nao_informado', faixa_etaria: '65_mais' })
+    const d = montarFiltros('desempenho-detalhe', qs(`metrica=faltas&inicio=2026-10-01&role=admin&q=x`), admin)
+    expect(d).toMatchObject({ metrica: 'faltas', inicio: '2026-10-01' })
+    expect(d).not.toHaveProperty('q')
+  })
+
+  it('especialista continua preso ao próprio profissional no detalhe do Desempenho', () => {
+    expect(montarFiltros('desempenho-detalhe', qs(`profissional_id=${OUTRO_PROF}`), especialista).profissional_id).toBe(ESPECIALISTA)
+  })
 })
