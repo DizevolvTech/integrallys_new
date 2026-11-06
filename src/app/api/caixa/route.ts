@@ -127,18 +127,15 @@ async function getCaixaPayload(
   request: NextRequest,
   session: Awaited<ReturnType<typeof getRequestAuth>>,
   preferredUnitId?: string | null,
-  forcarHoje = false,
 ) {
   const supabase = getAppSupabase();
   const todayKey = getTodayKey();
   const params = request.nextUrl.searchParams;
 
-  const periodoResult = forcarHoje
-    ? resolverPeriodo({}, todayKey)
-    : resolverPeriodo(
-        { data: params.get("data"), de: params.get("de"), ate: params.get("ate") },
-        todayKey,
-      );
+  const periodoResult = resolverPeriodo(
+    { data: params.get("data"), de: params.get("de"), ate: params.get("ate") },
+    todayKey,
+  );
   if (!periodoResult.ok) {
     return { response: serverErrorResponse(periodoResult.error, periodoResult.code, 400) };
   }
@@ -153,6 +150,16 @@ async function getCaixaPayload(
       response: supabaseErrorResponse(
         unitError as never,
         "Falha ao resolver unidade do caixa",
+      ),
+    };
+  }
+
+  if (!unitId) {
+    return {
+      response: serverErrorResponse(
+        "Nenhuma unidade disponível para operação de caixa",
+        "CAIXA_UNIT_REQUIRED",
+        400,
       ),
     };
   }
@@ -189,7 +196,7 @@ async function getCaixaPayload(
     abertoEm && !periodo.multiplo && Date.parse(abertoEm) > Date.parse(periodo.inicioIso) ? abertoEm : periodo.inicioIso;
 
   const [movimentosResult, aberturaPor] = await Promise.all([
-    carregarMovimentosPeriodo(supabase, unitId!, inicioIso, periodo.fimIso),
+    carregarMovimentosPeriodo(supabase, unitId, inicioIso, periodo.fimIso),
     caixaSession?.opened_by_id
       ? supabase.from("usuarios").select("nome").eq("id", String(caixaSession.opened_by_id)).maybeSingle()
       : Promise.resolve({ data: null }),
