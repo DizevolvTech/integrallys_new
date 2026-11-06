@@ -40,3 +40,24 @@ export function diaDoMovimento(item: { dia?: string; data?: string }): string {
   if (item.dia) return item.dia
   return (item.data ?? '').split(' ')[0]?.replace(',', '') || '—'
 }
+
+/** "Cartão · Visa · 3× de R$ 33,33" / "PIX · Conta PJ Sicredi": a forma com bandeira, parcelas ou conta do PIX. */
+export function formaDetalheTexto(item: {
+  forma?: string | null
+  bandeira?: string | null
+  parcelas?: number | null
+  valorParcela?: number | null
+  contaBancariaNome?: string | null
+}): string {
+  const partes: string[] = [formaCaixaLabel(item.forma)]
+  if (item.contaBancariaNome && item.forma === 'pix') partes.push(item.contaBancariaNome)
+  if (item.bandeira) partes.push(item.bandeira)
+  if (item.parcelas && item.parcelas > 1) {
+    partes.push(
+      item.valorParcela != null
+        ? `${item.parcelas}× de R$ ${item.valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : `${item.parcelas}×`,
+    )
+  }
+  return partes.join(' · ')
+}

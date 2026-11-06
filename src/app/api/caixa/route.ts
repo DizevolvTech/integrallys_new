@@ -1,4 +1,5 @@
 import { calcularDinheiroNaGaveta, validarTransferenciaCofre } from "@/features/caixa/fechamento";
+import { normalizarFormaCaixa, resumoPorForma } from "@/features/caixa/resumo-caixa";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   getAppSupabase,
@@ -14,14 +15,110 @@ import {
   getScopedUnitId,
   isScopedRole,
 } from "@/lib/request-auth";
+import { lerDetalhesMovimento, type DetalhesMovimento } from "./movimento-input";
+import { hojeClinicaChave, resolverPeriodo } from "@/features/caixa/periodo-caixa";
+import { nomeDoVinculo } from "./vinculo-lookup";
 
-function getTodayKey() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+const getTodayKey = () => hojeClinicaChave();
+
+/** Dia passado é só consulta: editar ou estornar movimento de outro dia é recusado. */
+function movimentoDeDiaPassado(dataMovimento: unknown): Response | null {
+  if (!dataMovimento) return null;
+  const dia = hojeClinicaChave(new Date(String(dataMovimento)));
+  if (dia >= getTodayKey()) return null;
+  return serverErrorResponse(
+    "Movimentação de um dia anterior: o caixa passado é só para consulta",
+    "CAIXA_DIA_ANTERIOR",
+    409,
+  );
+}
+
+type SupabaseClient = ReturnType<typeof getAppSupabase>;
+
+const COLUNAS_MOVIMENTO =
+  "id,descricao,tipo,valor,data_movimento,forma,operador_nome,sessao_id,bandeira,parcelas,valor_parcela,forma_pagamento_id,conta_bancaria_id,vinculo_tipo,vinculo_id,vinculo_nome";
+const BLOCO_LEITURA = 1000;
+const MAX_LINHAS_PERIODO = 10_000;
+const MAX_LINHAS_LISTA = 1000;
+
+/** Lê os movimentos do período em blocos (o PostgREST limita 1000 linhas por consulta). */
+async function carregarMovimentosPeriodo(
+  supabase: SupabaseClient,
+  unitId: string,
+  inicioIso: string,
+  fimIso: string,
+) {
+  const linhas: Record<string, unknown>[] = [];
+  for (let de = 0; de < MAX_LINHAS_PERIODO; de += BLOCO_LEITURA) {
+    const { data, error } = await supabase
+      .from("caixa_movimentos")
+      .select(COLUNAS_MOVIMENTO)
+      .eq("unidade_id", unitId)
+      .gte("data_movimento", inicioIso)
+      .lt("data_movimento", fimIso)
+      .order("data_movimento", { ascending: false })
+      .order("id", { ascending: false })
+      .range(de, de + BLOCO_LEITURA - 1);
+    if (error) return { error, linhas: [] as Record<string, unknown>[], truncado: false };
+    linhas.push(...((data ?? []) as Record<string, unknown>[]));
+    if ((data ?? []).length < BLOCO_LEITURA) return { error: null, linhas, truncado: false };
+  }
+  return { error: null, linhas, truncado: true };
+}
+
+/** Nomes das contas do PIX usadas no período (ids em lotes). */
+async function carregarNomesContas(supabase: SupabaseClient, ids: string[]) {
+  const nomes = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data } = await supabase
+      .from("contas_bancarias")
+      .select("id,nome")
+      .in("id", ids.slice(i, i + 150));
+    for (const conta of data ?? []) nomes.set(String(conta.id), String(conta.nome ?? ""));
+  }
+  return nomes;
+}
+
+/** Valida conta do PIX e vínculo contra o cadastro e devolve os campos prontos para gravar. */
+async function resolverDetalhes(
+  supabase: SupabaseClient,
+  detalhes: DetalhesMovimento,
+): Promise<{ response: Response } | { colunas: Record<string, unknown> }> {
+  if (detalhes.contaBancariaId) {
+    const { data: conta, error } = await supabase
+      .from("contas_bancarias")
+      .select("id")
+      .eq("id", detalhes.contaBancariaId)
+      .eq("ativo", true)
+      .maybeSingle();
+    if (error) return { response: supabaseErrorResponse(error, "Falha ao validar a conta do PIX") };
+    if (!conta) {
+      return { response: serverErrorResponse("Conta do PIX não encontrada", "CAIXA_CONTA_PIX_INVALIDA", 400) };
+    }
+  }
+  let vinculoNome = detalhes.vinculoNome;
+  if (detalhes.vinculoTipo && detalhes.vinculoTipo !== "outro" && detalhes.vinculoId) {
+    const achado = await nomeDoVinculo(detalhes.vinculoTipo, detalhes.vinculoId);
+    if (achado.error) {
+      return { response: serverErrorResponse("Falha ao validar o vínculo", "CAIXA_VINCULO_LOOKUP", 500) };
+    }
+    if (!achado.nome) {
+      return { response: serverErrorResponse("Pessoa vinculada não encontrada", "CAIXA_VINCULO_INVALIDO", 400) };
+    }
+    vinculoNome = achado.nome;
+  }
+  return {
+    colunas: {
+      forma: detalhes.forma,
+      bandeira: detalhes.bandeira,
+      parcelas: detalhes.parcelas,
+      valor_parcela: detalhes.valorParcela,
+      conta_bancaria_id: detalhes.contaBancariaId,
+      vinculo_tipo: detalhes.vinculoTipo,
+      vinculo_id: detalhes.vinculoId,
+      vinculo_nome: vinculoNome,
+    },
+  };
 }
 
 const resolveUnitId = resolverUnidadeCaixa;
@@ -30,13 +127,26 @@ async function getCaixaPayload(
   request: NextRequest,
   session: Awaited<ReturnType<typeof getRequestAuth>>,
   preferredUnitId?: string | null,
+  forcarHoje = false,
 ) {
   const supabase = getAppSupabase();
   const todayKey = getTodayKey();
+  const params = request.nextUrl.searchParams;
+
+  const periodoResult = forcarHoje
+    ? resolverPeriodo({}, todayKey)
+    : resolverPeriodo(
+        { data: params.get("data"), de: params.get("de"), ate: params.get("ate") },
+        todayKey,
+      );
+  if (!periodoResult.ok) {
+    return { response: serverErrorResponse(periodoResult.error, periodoResult.code, 400) };
+  }
+  const periodo = periodoResult.periodo;
 
   const { unitId, error: unitError } = await resolveUnitId(
     session!,
-    preferredUnitId ?? request.nextUrl.searchParams.get("unitId"),
+    preferredUnitId ?? params.get("unitId"),
   );
   if (unitError) {
     return {
@@ -47,16 +157,19 @@ async function getCaixaPayload(
     };
   }
 
-  const sessionQuery = await supabase
-    .from("caixa_sessoes")
-    .select(
-      "id,status,saldo_inicial,saldo_final,valor_transferido,saldo_restante,aberto_em,fechado_em,unidade_id",
-    )
-    .eq("data_operacao", todayKey)
-    .eq("unidade_id", unitId)
-    .order("aberto_em", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Um dia: a sessão daquele dia. Vários dias: só os movimentos (não há "saldo inicial" único).
+  const sessionQuery = periodo.multiplo
+    ? { data: null, error: null }
+    : await supabase
+        .from("caixa_sessoes")
+        .select(
+          "id,status,saldo_inicial,saldo_final,valor_transferido,saldo_restante,aberto_em,fechado_em,unidade_id,opened_by_id",
+        )
+        .eq("data_operacao", periodo.de)
+        .eq("unidade_id", unitId)
+        .order("aberto_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
   if (sessionQuery.error) {
     return {
@@ -70,59 +183,96 @@ async function getCaixaPayload(
   const caixaSession = sessionQuery.data;
   const sessionId = caixaSession?.id ? String(caixaSession.id) : null;
 
-  const movimentosQuery = await supabase
-    .from("caixa_movimentos")
-    .select(
-      "id,descricao,tipo,valor,data_movimento,forma,operador_nome,sessao_id,bandeira,parcelas,valor_parcela,forma_pagamento_id",
-    )
-    .eq("unidade_id", unitId)
-    // Caixa reaberto no mesmo dia: a sessão nova começa do zero (só movimentos desde a reabertura).
-    .gte("data_movimento", caixaSession?.aberto_em ? String(caixaSession.aberto_em) : `${todayKey}T00:00:00`)
-    .lte("data_movimento", `${todayKey}T23:59:59.999`)
-    .order("data_movimento", { ascending: false });
+  // Caixa reaberto no mesmo dia: a sessão nova começa do zero (só movimentos desde a reabertura).
+  const abertoEm = caixaSession?.aberto_em ? String(caixaSession.aberto_em) : null;
+  const inicioIso =
+    abertoEm && !periodo.multiplo && Date.parse(abertoEm) > Date.parse(periodo.inicioIso) ? abertoEm : periodo.inicioIso;
 
-  if (movimentosQuery.error) {
+  const [movimentosResult, aberturaPor] = await Promise.all([
+    carregarMovimentosPeriodo(supabase, unitId!, inicioIso, periodo.fimIso),
+    caixaSession?.opened_by_id
+      ? supabase.from("usuarios").select("nome").eq("id", String(caixaSession.opened_by_id)).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  if (movimentosResult.error) {
     return {
       response: supabaseErrorResponse(
-        movimentosQuery.error,
+        movimentosResult.error,
         "Falha ao carregar movimentos de caixa",
       ),
     };
   }
 
-  const movimentos = (movimentosQuery.data ?? []).map((row) =>
-    mapCaixaItem(row),
-  );
-  const entradas = movimentos
-    .filter((item) => item.tipo === "entrada")
-    .reduce((acc, item) => acc + item.valor, 0);
-  const saidas = movimentos
+  const idsContas = [
+    ...new Set(
+      movimentosResult.linhas
+        .map((row) => (row.conta_bancaria_id ? String(row.conta_bancaria_id) : ""))
+        .filter(Boolean),
+    ),
+  ];
+  const nomesContas = await carregarNomesContas(supabase, idsContas);
+
+  const todos = movimentosResult.linhas.map((row) => {
+    const item = mapCaixaItem(row);
+    const contaId = row.conta_bancaria_id ? String(row.conta_bancaria_id) : null;
+    return {
+      ...item,
+      // Vendas antigas gravaram "credito"/"debito"; aqui tudo sai na forma do caixa.
+      forma: normalizarFormaCaixa(row.forma ? String(row.forma) : null),
+      dataIso: row.data_movimento ? String(row.data_movimento) : null,
+      contaBancariaId: contaId,
+      contaBancariaNome: contaId ? (nomesContas.get(contaId) ?? null) : null,
+      vinculoTipo: row.vinculo_tipo ? String(row.vinculo_tipo) : null,
+      vinculoId: row.vinculo_id ? String(row.vinculo_id) : null,
+      vinculoNome: row.vinculo_nome ? String(row.vinculo_nome) : null,
+    };
+  });
+
+  const resumo = resumoPorForma(todos);
+  const entradas = resumo.totalEntradas;
+  const saidas = todos
     .filter((item) => item.tipo === "saida")
     .reduce((acc, item) => acc + item.valor, 0);
   const saldoInicial = Number(caixaSession?.saldo_inicial ?? 0);
-  const saldoAtual =
-    (caixaSession?.status ?? "fechado") === "aberto"
+  const isOpen = !periodo.consulta && caixaSession?.status === "aberto";
+  const saldoAtual = periodo.multiplo
+    ? entradas - saidas
+    : caixaSession?.status === "aberto"
       ? saldoInicial + entradas - saidas
       : Number(caixaSession?.saldo_final ?? saldoInicial + entradas - saidas);
 
+  const lista = todos.slice(0, MAX_LINHAS_LISTA);
+
   return {
     response: NextResponse.json({
-      data: movimentos,
+      data: lista,
       meta: {
         ...session,
         caixa: {
           sessionId,
           unitId,
-          isOpen: caixaSession?.status === "aberto",
+          isOpen,
           saldoInicial,
           saldoAtual,
           entradas,
           saidas,
-          movimentos: movimentos.length,
+          movimentos: todos.length,
           valorTransferido: Number(caixaSession?.valor_transferido ?? 0),
           saldoRestante: Number(caixaSession?.saldo_restante ?? 0),
           openedAt: caixaSession?.aberto_em ?? null,
+          openedByName: aberturaPor.data?.nome ? String(aberturaPor.data.nome) : null,
           closedAt: caixaSession?.fechado_em ?? null,
+          temSessao: Boolean(caixaSession),
+          periodo: {
+            de: periodo.de,
+            ate: periodo.ate,
+            multiplo: periodo.multiplo,
+            consulta: periodo.consulta,
+          },
+          resumoFormas: resumo.linhas,
+          // Lista cortada: os totais acima continuam somando tudo.
+          listaCortada: todos.length > lista.length || movimentosResult.truncado,
         },
       },
     }),
@@ -247,25 +397,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const formaUsada = body.forma ?? "dinheiro";
-    const isCardForma = formaUsada === "cartao_credito" || formaUsada === "cartao_debito";
-    const bandeira =
-      isCardForma && typeof body.bandeira === "string" && body.bandeira.trim().length > 0
-        ? body.bandeira.trim()
-        : null;
-    const parcelas =
-      formaUsada === "cartao_credito" && typeof body.parcelas === "number" && body.parcelas >= 1 && body.parcelas <= 12
-        ? Math.round(body.parcelas)
-        : null;
-    const valorParcela =
-      parcelas !== null && typeof body.valorParcela === "number" && body.valorParcela >= 0
-        ? Number(body.valorParcela.toFixed(2))
-        : null;
+    const detalhesLidos = lerDetalhesMovimento(body);
+    if (!detalhesLidos.ok) {
+      return serverErrorResponse(detalhesLidos.error, detalhesLidos.code, 400);
+    }
+    const resolvido = await resolverDetalhes(supabase, detalhesLidos.value);
+    if ("response" in resolvido) return resolvido.response;
 
     // Item 9b — auto-vincula ao catálogo de formas pela forma controlada
     // (não-cartão). Determinístico: valor de select, não texto livre. Cartões
     // geram sua própria forma no item 9c, então ficam null aqui.
-    const formaTipo = String(formaUsada);
+    const formaTipo = detalhesLidos.value.forma;
     let formaPagamentoId: string | null = null;
     if (formaTipo === "dinheiro" || formaTipo === "pix" || formaTipo === "transferencia") {
       const { data: formaCatalogo } = await supabase
@@ -288,14 +430,11 @@ export async function POST(request: NextRequest) {
       descricao: body.descricao,
       tipo: action,
       valor: body.valor,
-      forma: formaUsada,
       origem: "manual",
       operador_nome: session.user.name || null,
       data_movimento: new Date().toISOString(),
-      bandeira,
-      parcelas,
-      valor_parcela: valorParcela,
       forma_pagamento_id: formaPagamentoId,
+      ...resolvido.colunas,
     });
 
     if (error) {
@@ -449,7 +588,7 @@ export async function PUT(request: NextRequest) {
   const supabase = getAppSupabase();
   const { data: existing, error: existingError } = await supabase
     .from("caixa_movimentos")
-    .select("unidade_id")
+    .select("unidade_id,data_movimento")
     .eq("id", String(body.id))
     .maybeSingle();
 
@@ -476,6 +615,28 @@ export async function PUT(request: NextRequest) {
       403,
     );
   }
+  const diaPassado = movimentoDeDiaPassado(existing?.data_movimento);
+  if (diaPassado) return diaPassado;
+
+  const detalhesLidos = lerDetalhesMovimento(body);
+  if (!detalhesLidos.ok) {
+    return serverErrorResponse(detalhesLidos.error, detalhesLidos.code, 400);
+  }
+  const resolvido = await resolverDetalhes(supabase, detalhesLidos.value);
+  if ("response" in resolvido) return resolvido.response;
+  // Quem não envia o campo (ex.: edição pelo financeiro) não apaga o que já estava gravado.
+  const colunas = { ...resolvido.colunas };
+  if (!("bandeira" in body) && !("parcelas" in body)) {
+    delete colunas.bandeira;
+    delete colunas.parcelas;
+    delete colunas.valor_parcela;
+  }
+  if (!("contaBancariaId" in body)) delete colunas.conta_bancaria_id;
+  if (!("vinculoTipo" in body)) {
+    delete colunas.vinculo_tipo;
+    delete colunas.vinculo_id;
+    delete colunas.vinculo_nome;
+  }
 
   const { error } = await supabase
     .from("caixa_movimentos")
@@ -483,7 +644,7 @@ export async function PUT(request: NextRequest) {
       descricao: String(body.descricao),
       valor: Number(body.valor),
       tipo: body.tipo === "saida" ? "saida" : "entrada",
-      forma: body.forma ? String(body.forma) : "dinheiro",
+      ...colunas,
       updated_at: new Date().toISOString(),
     })
     .eq("id", String(body.id));
@@ -524,7 +685,7 @@ export async function DELETE(request: NextRequest) {
   const supabase = getAppSupabase();
   const { data: existing, error: existingError } = await supabase
     .from("caixa_movimentos")
-    .select("unidade_id")
+    .select("unidade_id,data_movimento")
     .eq("id", String(body.id))
     .maybeSingle();
 
@@ -551,6 +712,9 @@ export async function DELETE(request: NextRequest) {
       403,
     );
   }
+
+  const diaPassado = movimentoDeDiaPassado(existing?.data_movimento);
+  if (diaPassado) return diaPassado;
 
   const { error } = await supabase
     .from("caixa_movimentos")
