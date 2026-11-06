@@ -288,6 +288,13 @@ export function AgendaView() {
   const findPacienteId = (slot: AgendaSlot) =>
     slot.pacienteId || pacientes.find((item) => item.nome === slot.paciente)?.id
   const calendar = useAgendaCalendar(activeAgendaSlots)
+  // Link com ?data=aaaa-mm-dd (ex.: selo "Retorno pendente" da Prescrição/Vendas) abre a agenda nesse dia.
+  const dataDoLink = searchParams?.get('data') ?? ''
+  const { setCurrentDate: irParaData } = calendar
+  useEffect(() => {
+    const [ano, mes, dia] = /^\d{4}-\d{2}-\d{2}$/.test(dataDoLink) ? dataDoLink.split('-').map(Number) : []
+    if (ano && mes && dia) irParaData(new Date(ano, mes - 1, dia))
+  }, [dataDoLink, irParaData])
   const showDaySlots =
     calendar.selectedFilter === 'todos' || calendar.selectedFilter === 'agendamentos'
   const actions = useAgendaActions({

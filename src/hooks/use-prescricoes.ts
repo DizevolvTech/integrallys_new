@@ -56,6 +56,8 @@ export interface PrescricaoItem {
   valoresOcultos?: boolean
   /** Forma de pagamento da venda (rótulo pronto do servidor). */
   formaPagamento?: string
+  bandeira?: string
+  contaBancariaId?: string
   /** Só gestor/admin/master (decidido no servidor). */
   custoTotal?: number
   margemTotal?: number
@@ -82,6 +84,8 @@ export interface PrescricaoInput {
   validade?: string
   observacoes?: string
   formaPagamento?: string
+  bandeira?: string
+  contaBancariaId?: string
   unidadeId?: string
   items?: PrescricaoItemInput[]
   assinaturaBase64?: string

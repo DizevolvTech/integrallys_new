@@ -10,9 +10,7 @@ import {
   Package,
   User,
   ShoppingBag,
-  Banknote,
   Lock,
-  QrCode,
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -40,6 +38,10 @@ import { usePaymentConfig } from '@/features/prescricoes/hooks/use-payment-confi
 import { useDescontosForma } from '@/features/formas-pagamento/hooks/use-descontos-forma'
 import { calcularVenda } from '@/lib/desconto-forma'
 import { formatarMoeda } from '@/lib/moeda'
+import { validarPagamentoVenda } from '@/lib/venda-pagamento'
+import { hojeIso } from '@/features/relatorios/format'
+import { PAGAMENTO_VENDA_VAZIO, PagamentoVendaFields, type PagamentoVendaEstado } from '../components/pagamento-venda-fields'
+import { ValidadeOrcamentoDialog } from '../components/validade-orcamento-dialog'
 
 export interface NovaVendaModalProduct {
   id: string
@@ -88,8 +90,8 @@ export function NovaVendaModal({
 
   const [selectedPatientId, setSelectedPatientId] = useState('')
   const [selectedSellerId, setSelectedSellerId] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('')
-  const [installmentCount, setInstallmentCount] = useState(1)
+  const [pagamento, setPagamento] = useState<PagamentoVendaEstado>(PAGAMENTO_VENDA_VAZIO)
+  const [isValidadeOpen, setIsValidadeOpen] = useState(false)
   const [patientSearch, setPatientSearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
 
@@ -103,6 +105,8 @@ export function NovaVendaModal({
   const { descontos } = useDescontosForma()
   const [justificativaDesconto, setJustificativaDesconto] = useState('')
 
+  const paymentMethod = pagamento.forma
+  const installmentCount = pagamento.parcelas
   const isConsumo = paymentMethod === 'consumo'
 
   // Desconto travado: vem do cadastro do gestor (Cadastros > Descontos por forma); o servidor recalcula e confere.
@@ -119,14 +123,10 @@ export function NovaVendaModal({
   const isCartaoCredito = paymentMethod === 'cartao_credito'
   const installmentValue = isCartaoCredito && installmentCount > 0 ? total / installmentCount : 0
   const installmentFeePercent = isCartaoCredito ? getCardFee(installmentCount) : 0
-
-  const handlePaymentMethodChange = (methodId: string) => {
-    const nextMethod = methodId === paymentMethod ? '' : methodId
-    setPaymentMethod(nextMethod)
-    if (nextMethod !== 'cartao_credito') {
-      setInstallmentCount(1)
-    }
-  }
+  // Com forma escolhida, a venda só conclui com os dados dela (bandeira no cartão, conta no PIX).
+  const pendenciaPagamento = paymentMethod
+    ? validarPagamentoVenda({ forma: paymentMethod, bandeira: pagamento.bandeira, contaBancariaId: pagamento.contaBancariaId, numeroParcelas: installmentCount })
+    : null
 
   const handleAddProduct = () => {
     const product = products.find((p) => p.id === selectedProductId)
@@ -159,10 +159,9 @@ export function NovaVendaModal({
   const resetForm = () => {
     setSelectedPatientId('')
     setSelectedSellerId('')
-    setPaymentMethod('')
+    setPagamento(PAGAMENTO_VENDA_VAZIO)
     setCartItems([])
     setJustificativaDesconto('')
-    setInstallmentCount(1)
     setSelectedProductId('')
     setQuantity(1)
     setPosology('')
@@ -170,7 +169,7 @@ export function NovaVendaModal({
     setProductSearch('')
   }
 
-  const handleSave = async () => {
+  const handleSave = async (validade?: string) => {
     if (isSubmitting) return
 
     setIsSubmitting(true)
@@ -189,6 +188,9 @@ export function NovaVendaModal({
         valorTotal: total,
         numeroParcelas: isCartaoCredito ? installmentCount : undefined,
         valorParcela: isCartaoCredito ? Number(installmentValue.toFixed(2)) : undefined,
+        bandeira: isCartaoCredito || paymentMethod === 'cartao_debito' ? pagamento.bandeira : undefined,
+        contaBancariaId: paymentMethod === 'pix' ? pagamento.contaBancariaId : undefined,
+        validade: paymentMethod ? undefined : validade,
         justificativaDesconto: justificativaDesconto.trim() || undefined,
         vendedorId: selectedSellerId || undefined,
         status: paymentMethod ? 'Convertida' : 'Ativa',
@@ -227,6 +229,7 @@ export function NovaVendaModal({
   )
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent size="2xl" className="bg-app-card dark:bg-app-card-dark rounded-[24px] border-none p-0 flex flex-col shadow-2xl">
         {isSuccess ? (
@@ -498,83 +501,16 @@ export function NovaVendaModal({
                   </h3>
 
                   <div className="space-y-5">
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold text-app-text-primary dark:text-white/70">
-                        Forma de Pagamento
-                        {!paymentMethod && (
-                          <span className="text-xs font-normal text-app-text-muted ml-2">
-                            (Opcional — salva como ativa)
-                          </span>
-                        )}
-                      </Label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { id: 'dinheiro', label: 'Dinheiro', icon: Banknote },
-                          { id: 'pix', label: 'PIX', icon: QrCode },
-                          { id: 'cartao_credito', label: 'Crédito', icon: CreditCard },
-                          { id: 'cartao_debito', label: 'Débito', icon: CreditCard },
-                          { id: 'consumo', label: 'Consumo', icon: Package },
-                        ].map((method) => (
-                          <button
-                            key={method.id}
-                            type="button"
-                            onClick={() => handlePaymentMethodChange(method.id)}
-                            className={`
-                              h-14 rounded-xl border-2 text-xs font-semibold transition-all flex flex-col items-center justify-center gap-0.5
-                              ${
-                                paymentMethod === method.id
-                                  ? 'border-[var(--app-primary)] app-status-info dark:bg-transparent text-app-primary dark:text-[var(--app-info-text)] shadow-md ring-1 ring-[#0039A6]/20'
-                                  : 'border-app-border dark:border-app-border-dark bg-app-card dark:bg-app-card-dark text-app-text-secondary hover:border-app-hover-strong dark:hover:border-app-hover-strong hover:bg-app-hover dark:hover:bg-app-hover'
-                              }
-                            `}
-                          >
-                            <method.icon
-                              className={`h-4 w-4 ${
-                                paymentMethod === method.id
-                                  ? 'text-app-primary dark:text-[var(--app-info-text)]'
-                                  : 'text-app-text-muted'
-                              }`}
-                            />
-                            <span>{method.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                      {paymentMethod === 'cartao_credito' && (
-                        <div className="space-y-2 pt-1">
-                          <Label className="text-sm font-medium text-app-text-secondary dark:text-white/60">
-                            Quantidade de parcelas
-                          </Label>
-                          <Select
-                            value={String(installmentCount)}
-                            onValueChange={(value) => setInstallmentCount(Number(value))}
-                          >
-                            <SelectTrigger className="h-11 rounded-xl bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from({ length: 12 }, (_, idx) => idx + 1).map((parcel) => (
-                                <SelectItem key={parcel} value={String(parcel)}>
-                                  {`1/${parcel}`}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {total > 0 && (
-                            <p className="text-xs text-app-text-secondary dark:text-white/60">
-                              {installmentCount}x de{' '}
-                              <span className="font-semibold text-app-text-primary dark:text-white">
-                                {formatarMoeda(installmentValue)}
-                              </span>
-                              {installmentFeePercent > 0 && (
-                                <span className="ml-1 text-app-text-muted">
-                                  (taxa da operadora {installmentFeePercent.toFixed(2).replace('.', ',')}%)
-                                </span>
-                              )}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <PagamentoVendaFields
+                      value={pagamento}
+                      onChange={setPagamento}
+                      total={total}
+                      taxaParcelas={installmentFeePercent}
+                      dica={paymentMethod ? undefined : '(Opcional — salva como ativa)'}
+                    />
+                    {pendenciaPagamento && (
+                      <p role="alert" className="text-xs text-[var(--app-danger-text)]">{pendenciaPagamento.message}</p>
+                    )}
 
                     <div className="space-y-3 pt-4 border-t border-app-border dark:border-app-border-dark">
                       <Label className="text-sm font-semibold text-app-text-primary dark:text-white/70">
@@ -644,8 +580,8 @@ export function NovaVendaModal({
                       Cancelar
                     </Button>
                     <Button
-                      onClick={() => void handleSave()}
-                      disabled={isSubmitting || cartItems.length === 0 || !selectedPatientId}
+                      onClick={() => (paymentMethod ? void handleSave() : setIsValidadeOpen(true))}
+                      disabled={isSubmitting || cartItems.length === 0 || !selectedPatientId || pendenciaPagamento !== null}
                       className="h-11 min-w-0 flex-1 whitespace-nowrap rounded-xl bg-app-primary px-2 text-sm text-white font-bold shadow-sm transition-all hover:bg-app-primary-hover disabled:opacity-50"
                     >
                       {isSubmitting
@@ -661,5 +597,16 @@ export function NovaVendaModal({
         )}
       </DialogContent>
     </Dialog>
+      <ValidadeOrcamentoDialog
+        isOpen={isValidadeOpen}
+        hoje={hojeIso()}
+        isSubmitting={isSubmitting}
+        onCancel={() => setIsValidadeOpen(false)}
+        onConfirm={async (validade) => {
+          await handleSave(validade)
+          setIsValidadeOpen(false)
+        }}
+      />
+    </>
   )
 }

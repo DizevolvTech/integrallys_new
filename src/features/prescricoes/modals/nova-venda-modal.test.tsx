@@ -7,6 +7,9 @@ import { NovaVendaModal } from './nova-venda-modal'
 const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toasts }))
 vi.mock('@/features/prescricoes/hooks/use-payment-config', () => ({ usePaymentConfig: () => ({ getCardFee: () => 0 }) }))
+vi.mock('@/features/gestao-bancaria/hooks/use-contas-pix', () => ({
+  useContasPix: () => ({ data: [{ id: 'conta1', nome: 'Conta Nubank', banco: 'Nu' }] }),
+}))
 vi.mock('@/features/formas-pagamento/hooks/use-descontos-forma', () => ({
   useDescontosForma: () => ({
     descontos: { pix: 5, dinheiro: 0, cartao_debito: 0, cartao_credito: 0 },
@@ -71,6 +74,7 @@ describe('NovaVendaModal — venda finalizada', () => {
     const onSave = vi.fn().mockRejectedValue(new Error('Caixa não aberto — abra o caixa do dia antes de finalizar a venda'))
     const user = await montarVenda(onSave)
     await user.click(screen.getByRole('button', { name: 'Crédito' }))
+    await user.click(screen.getByRole('option', { name: 'Visa' }))
     await user.click(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' }))
 
     await waitFor(() =>
@@ -84,6 +88,7 @@ describe('NovaVendaModal — venda finalizada', () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     const user = await montarVenda(onSave)
     await user.click(screen.getByRole('button', { name: 'Crédito' }))
+    await user.click(screen.getByRole('option', { name: 'Visa' }))
     await user.click(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' }))
 
     expect(await screen.findByText('Prescrição/Vendas realizada!')).toBeInTheDocument()
@@ -96,6 +101,7 @@ describe('NovaVendaModal — desconto da forma travado', () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     const user = await montarVenda(onSave)
     await user.click(screen.getByRole('button', { name: 'PIX' }))
+    await user.click(screen.getByRole('option', { name: /Conta Nubank/ }))
 
     expect(screen.getByTestId('desconto-forma-travado')).toHaveTextContent('5,00%')
     expect(screen.queryByText(/Configurar descontos por forma/)).toBeNull()
@@ -108,5 +114,72 @@ describe('NovaVendaModal — desconto da forma travado', () => {
     expect(payload.valorTotal).toBe(95)
     expect(payload).not.toHaveProperty('descontoValor')
     expect(payload).not.toHaveProperty('descontoPercentual')
+  })
+})
+
+describe('NovaVendaModal — dados obrigatórios da forma', () => {
+  it('crédito/débito exigem bandeira e o botão fica desabilitado até escolher', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const user = await montarVenda(onSave)
+    await user.click(screen.getByRole('button', { name: 'Débito' }))
+    expect(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Escolha a bandeira do cartão')
+    expect(screen.queryByText('Quantidade de parcelas')).toBeNull() // débito não tem parcelas
+
+    await user.click(screen.getByRole('option', { name: 'American Express' }))
+    await user.click(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0]).toMatchObject({ formaPagamento: 'cartao_debito', bandeira: 'American Express', status: 'Convertida' })
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty('numeroParcelas', expect.anything())
+  })
+
+  it('crédito mostra parcelas e grava bandeira + parcelas', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const user = await montarVenda(onSave)
+    await user.click(screen.getByRole('button', { name: 'Crédito' }))
+    expect(screen.getByText('Quantidade de parcelas')).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: '1/3' }))
+    await user.click(screen.getByRole('option', { name: 'Hipercard' }))
+    await user.click(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0]).toMatchObject({ formaPagamento: 'cartao_credito', bandeira: 'Hipercard', numeroParcelas: 3, valorParcela: 33.33 })
+  })
+
+  it('PIX exige a conta do PIX', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const user = await montarVenda(onSave)
+    await user.click(screen.getByRole('button', { name: 'PIX' }))
+    expect(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Escolha a conta do PIX')
+    await user.click(screen.getByRole('option', { name: /Conta Nubank/ }))
+    await user.click(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0]).toMatchObject({ formaPagamento: 'pix', contaBancariaId: 'conta1' })
+  })
+})
+
+describe('NovaVendaModal — validade do orçamento', () => {
+  it('Salvar prescrição ativa abre "Validade do orçamento" com hoje + 7 dias e grava a validade', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-06T15:00:00Z') })
+    try {
+      const onSave = vi.fn().mockResolvedValue(undefined)
+      const user = await montarVenda(onSave)
+      await user.click(screen.getByRole('button', { name: 'Salvar prescrição ativa' }))
+      expect(onSave).not.toHaveBeenCalled()
+      expect(screen.getByText('Validade do orçamento')).toBeInTheDocument()
+      const campo = screen.getByLabelText('Válido até') as HTMLInputElement
+      expect(campo.value).toBe('2026-11-13')
+      expect(campo.min).toBe('2026-11-06')
+
+      await user.clear(campo)
+      await user.type(campo, '2026-11-20')
+      const botoes = screen.getAllByRole('button', { name: 'Salvar prescrição ativa' })
+      await user.click(botoes[botoes.length - 1])
+      await waitFor(() => expect(onSave).toHaveBeenCalled())
+      expect(onSave.mock.calls[0][0]).toMatchObject({ status: 'Ativa', validade: '2026-11-20' })
+      expect(onSave.mock.calls[0][0]).not.toHaveProperty('formaPagamento', expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
