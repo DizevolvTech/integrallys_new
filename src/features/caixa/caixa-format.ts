@@ -1,10 +1,13 @@
+import { BANDEIRAS_VENDA } from '@/lib/bandeiras-cartao'
+
 // Rótulos do caixa compartilhados pela tela da recepção (Caixa) e pela aba Caixa do gestor.
 
 /** Vídeo de 26/10: "Suprimento" passa a se chamar Recebimento e "Sangria", Pagamento. */
 export const ROTULO_ENTRADA_CAIXA = 'Recebimento'
 export const ROTULO_SAIDA_CAIXA = 'Pagamento'
 
-export const BANDEIRAS_CARTAO = ['Visa', 'Mastercard', 'Elo', 'Amex', 'Hipercard', 'Outros'] as const
+/** Mesma lista da venda (Prescrição/Vendas), para o caixa e os relatórios agruparem a bandeira igual. */
+export const BANDEIRAS_CARTAO = BANDEIRAS_VENDA
 
 export const FORMAS_RECEBIMENTO_CAIXA = [
   { value: 'dinheiro', label: 'Dinheiro' },
