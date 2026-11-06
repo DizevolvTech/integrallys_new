@@ -77,7 +77,7 @@ describe('ConverterVendaModal', () => {
   it('crédito envia bandeira e parcelas; débito não tem parcelas', async () => {
     const { onConfirm, user } = montar()
     await user.click(screen.getByRole('button', { name: 'Crédito' }))
-    await user.click(screen.getByRole('option', { name: '1/2' }))
+    await user.click(screen.getByRole('option', { name: /^2x/ }))
     await user.click(screen.getByRole('option', { name: 'Elo' }))
     await user.click(screen.getByRole('button', { name: 'Converter em venda' }))
     await waitFor(() => expect(onConfirm).toHaveBeenCalled())

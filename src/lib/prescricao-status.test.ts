@@ -51,7 +51,7 @@ describe('statusExibicaoPrescricao', () => {
     expect(statusExibicaoPrescricao('Cancelada', null, hoje)).toEqual({ rotulo: 'Cancelada', tom: 'cancelada' })
   })
   it('Pendente dentro da validade conta como ativa; com validade passada vira Vencida', () => {
-    expect(statusExibicaoPrescricao('Pendente', '13/11/2026', hoje)).toEqual({ rotulo: 'Pendente', tom: 'ativa' })
+    expect(statusExibicaoPrescricao('Pendente', '13/11/2026', hoje)).toEqual({ rotulo: 'Ativa', tom: 'ativa' })
     expect(statusExibicaoPrescricao('Pendente', '21/10/2026', hoje)).toEqual({ rotulo: 'Vencida', tom: 'vencida' })
     expect(statusExibicaoPrescricao('Ativa', '2026-10-26', hoje)).toEqual({ rotulo: 'Vencida', tom: 'vencida' })
   })

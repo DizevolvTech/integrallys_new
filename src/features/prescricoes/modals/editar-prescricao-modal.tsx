@@ -20,6 +20,32 @@ interface EditarPrescricaoModalProps {
   onSave?: (prescricao: PrescricaoInput) => void | Promise<void>
 }
 
+const moeda = (valor: number) => `R$ ${Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+
+/** Mesmos itens que o carrinho do "Converter em venda" mostra (vêm do registro carregado pela lista). */
+function LinhasItens({ itens }: { itens: NonNullable<PrescricaoItem['items']> }) {
+  if (itens.length === 0) {
+    return (
+      <TableRow>
+        <TableCell colSpan={5} className="py-12 text-center text-app-text-secondary dark:text-white/60">Nenhum item nesta prescrição.</TableCell>
+      </TableRow>
+    )
+  }
+  return (
+    <>
+      {itens.map((item, idx) => (
+        <TableRow key={`${item.productName}-${idx}`}>
+          <TableCell className="pl-6 font-medium text-app-text-primary dark:text-white">{item.productName}</TableCell>
+          <TableCell className="text-center">{item.quantity}</TableCell>
+          <TableCell className="text-app-text-secondary dark:text-white/60">{item.posology || '-'}</TableCell>
+          <TableCell className="whitespace-nowrap text-right">{moeda(item.unitPrice)}</TableCell>
+          <TableCell className="whitespace-nowrap pr-6 text-right font-semibold">{moeda(item.total)}</TableCell>
+        </TableRow>
+      ))}
+    </>
+  )
+}
+
 export function EditarPrescricaoModal({ isOpen, onClose, prescricao, patients, onSave }: EditarPrescricaoModalProps) {
   const [patientId, setPatientId] = useState('')
   const [status, setStatus] = useState<'Ativa' | 'Vencida'>('Ativa')
@@ -58,8 +84,8 @@ export function EditarPrescricaoModal({ isOpen, onClose, prescricao, patients, o
               <div className="space-y-3 md:col-span-2"><Label className="text-sm font-bold text-app-text-primary dark:text-white/70 uppercase tracking-wide">Observações</Label><Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} className="min-h-[110px] rounded-xl" /></div>
             </div>
             <div className="rounded-2xl border border-app-border dark:border-app-border-dark overflow-hidden bg-white dark:bg-app-hover">
-              <div className="px-6 py-5 border-b border-app-border dark:border-app-border-dark"><h3 className="text-xl font-bold text-app-text-primary dark:text-white flex items-center gap-2"><CheckCircle2 size={20} className="text-[var(--app-success-text)]" />Itens da venda</h3><p className="text-sm text-app-text-secondary dark:text-white/60 mt-1">Os itens detalhados aparecerão aqui assim que a API retornar a composição completa da venda.</p></div>
-              <Table><TableHeader><TableRow className="hover:bg-transparent border-b border-app-border dark:border-app-border-dark"><TableHead className="pl-6">Produto</TableHead><TableHead className="text-center">Qtd</TableHead><TableHead>Posologia</TableHead><TableHead className="text-right">Valor Unit.</TableHead><TableHead className="text-right pr-6">Total</TableHead></TableRow></TableHeader><TableBody><TableRow><TableCell colSpan={5} className="py-12 text-center text-app-text-secondary dark:text-white/60">Nenhum item detalhado retornado pela API.</TableCell></TableRow></TableBody></Table>
+              <div className="px-6 py-5 border-b border-app-border dark:border-app-border-dark"><h3 className="text-xl font-bold text-app-text-primary dark:text-white flex items-center gap-2"><CheckCircle2 size={20} className="text-[var(--app-success-text)]" />Itens da venda</h3><p className="text-sm text-app-text-secondary dark:text-white/60 mt-1">Itens registrados nesta prescrição/venda.</p></div>
+              <Table><TableHeader><TableRow className="hover:bg-transparent border-b border-app-border dark:border-app-border-dark"><TableHead className="pl-6">Produto</TableHead><TableHead className="text-center">Qtd</TableHead><TableHead>Posologia</TableHead><TableHead className="text-right">Valor Unit.</TableHead><TableHead className="text-right pr-6">Total</TableHead></TableRow></TableHeader><TableBody><LinhasItens itens={prescricao.items ?? []} /></TableBody></Table>
             </div>
           </div>
           <div className="col-span-12 lg:col-span-4 bg-app-card dark:bg-app-card-dark flex flex-col h-full border-l border-app-border dark:border-app-border-dark shadow-2xl z-10 relative overflow-hidden">

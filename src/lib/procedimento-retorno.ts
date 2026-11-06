@@ -64,6 +64,8 @@ export function validateRetornoAgendamento(params: {
   valorConsulta: number | null
   dataAgendamento: string
   ultimaDataAtendimento: string | null
+  /** Paciente com retorno pendente em aberto ou venda convertida: pode agendar mesmo sem atendimento concluído. */
+  retornoLiberado?: boolean
 }): RetornoValidation {
   if (!params.temRetorno) {
     return {
@@ -71,6 +73,14 @@ export function validateRetornoAgendamento(params: {
       code: 'RETORNO_NAO_CONFIGURADO',
       message: 'Este procedimento não possui retorno cadastrado. Agende como consulta.',
     }
+  }
+
+  if (!params.ultimaDataAtendimento && params.retornoLiberado) {
+    const liberado =
+      params.valorRetorno != null && Number.isFinite(params.valorRetorno)
+        ? params.valorRetorno
+        : params.valorConsulta
+    return { ok: true, valor: liberado != null && Number.isFinite(liberado) ? liberado : null }
   }
 
   if (!params.ultimaDataAtendimento) {

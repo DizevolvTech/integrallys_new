@@ -18,6 +18,27 @@ export type AgendamentoProcedimentoResolved = {
 }
 
 /**
+ * Paciente liberado para retorno sem atendimento concluído: tem retorno pendente em aberto
+ * (inclusive vindo de venda/prescrição "Mais tarde") ou venda convertida.
+ */
+async function pacienteComRetornoLiberado(supabase: SupabaseClient, pacienteId: string): Promise<boolean> {
+  const { data: pendente } = await supabase
+    .from('retornos_pendentes')
+    .select('id')
+    .eq('paciente_id', pacienteId)
+    .eq('status', 'pendente')
+    .limit(1)
+  if (pendente && pendente.length > 0) return true
+  const { data: venda } = await supabase
+    .from('prescricoes')
+    .select('id')
+    .eq('paciente_id', pacienteId)
+    .eq('status', 'Convertida')
+    .limit(1)
+  return Boolean(venda && venda.length > 0)
+}
+
+/**
  * Resolve procedimento + valor para POST/PUT de agendamento.
  * Se tipo=retorno, aplica valor_retorno e valida prazo (padrão 35 dias).
  */
@@ -183,6 +204,9 @@ export async function resolveAgendamentoProcedimento(
       }
     }
 
+    const ultimaData = ultimo?.data_agendamento ? String(ultimo.data_agendamento).slice(0, 10) : null
+    const retornoLiberado = ultimaData ? false : await pacienteComRetornoLiberado(supabase, pacienteId)
+
     const validated = validateRetornoAgendamento({
       temRetorno: Boolean(proc.tem_retorno) || procedimentoDeRetorno,
       prazoDias: procedimentoDeRetorno
@@ -193,7 +217,8 @@ export async function resolveAgendamentoProcedimento(
       valorRetorno: proc.valor_retorno != null ? Number(proc.valor_retorno) : null,
       valorConsulta: valorFromProc,
       dataAgendamento,
-      ultimaDataAtendimento: ultimo?.data_agendamento ? String(ultimo.data_agendamento).slice(0, 10) : null,
+      ultimaDataAtendimento: ultimaData,
+      retornoLiberado,
     })
 
     if (!validated.ok) {

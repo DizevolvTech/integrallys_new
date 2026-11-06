@@ -70,3 +70,22 @@ describe('retorno com especialista e procedimento próprios', () => {
     expect(await validarAlvoRetorno(fakeSupabase().client, {})).toBeNull()
   })
 })
+
+describe('"Mais tarde" da venda', () => {
+  it('só considera aberto o retorno da view retornos_em_aberto (não o já coberto por agendamento)', async () => {
+    const tabelas: string[] = []
+    const { client, inserts } = fakeSupabase()
+    const sup = client as unknown as { from: (t: string) => Record<string, unknown> }
+    const original = sup.from.bind(sup)
+    ;(sup as { from: unknown }).from = (t: string) => {
+      tabelas.push(t)
+      const q = original(t) as Record<string, unknown>
+      q.limit = async () => ({ data: [], error: null })
+      return q
+    }
+    const r = await registrarRetorno(sup as never, { pacienteId: 'pac', origem: 'prescricao', criadoPorId: 'u', dataBase: '2026-11-06' })
+    expect(tabelas[0]).toBe('retornos_em_aberto')
+    expect(r).toMatchObject({ ok: true, criado: true })
+    expect(inserts[0]).toMatchObject({ origem: 'prescricao', status: 'pendente' })
+  })
+})

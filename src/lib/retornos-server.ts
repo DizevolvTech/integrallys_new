@@ -45,11 +45,12 @@ export async function registrarRetorno(
   if (!calculo.ok) return { ok: false, message: calculo.message, code: 'INVALID_PRAZO', status: 400 }
 
   if (isPrescricao) {
+    // Só conta o retorno realmente em aberto (view): um pendente já coberto por agendamento de retorno
+    // posterior não impede o novo "Mais tarde" de criar o selo.
     const { data: aberto, error: abertoError } = await supabase
-      .from('retornos_pendentes')
+      .from('retornos_em_aberto')
       .select('id')
       .eq('paciente_id', p.pacienteId)
-      .eq('status', 'pendente')
       .limit(1)
     if (abertoError) return { ok: false, message: 'Falha ao registrar retorno', code: 'DB_ERROR', status: 500 }
     if (aberto && aberto.length > 0) {

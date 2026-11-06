@@ -14,6 +14,8 @@ function makeSupabase(config: {
   procedimento?: Row | null
   vinculos?: Row[]
   ultimoAgendamento?: Row | null
+  retornoPendente?: boolean
+  vendaConvertida?: boolean
 }) {
   return {
     from(table: string) {
@@ -49,6 +51,16 @@ function makeSupabase(config: {
                   }),
                 }),
               }),
+            }),
+          }),
+        }
+      }
+      if (table === 'retornos_pendentes' || table === 'prescricoes') {
+        const tem = table === 'retornos_pendentes' ? config.retornoPendente : config.vendaConvertida
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({ limit: async () => ({ data: tem ? [{ id: 'x' }] : [], error: null }) }),
             }),
           }),
         }
@@ -288,6 +300,41 @@ describe('resolveAgendamentoProcedimento', () => {
       expect(result.code).toBe('RETORNO_SEM_ATENDIMENTO_PREVIO')
       expect(result.message).toContain('atendimento anterior concluído')
     }
+  })
+
+  const paramsRetorno = {
+    procedimentoId: 'proc-ret',
+    valorProcedimento: null,
+    profissionalId: 'prof-1',
+    tipo: 'retorno',
+    pacienteId: 'pac-1',
+    dataAgendamento: '2026-11-10',
+  }
+
+  it('retorno sem atendimento anterior mas com retorno pendente em aberto: aceita', async () => {
+    const result = await resolveAgendamentoProcedimento(
+      makeSupabase({ procedimento: retornoGenerico, vinculos: [{ procedimento_id: 'proc-ret' }], ultimoAgendamento: null, retornoPendente: true }) as never,
+      paramsRetorno,
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.ehRetorno).toBe(true)
+  })
+
+  it('retorno sem atendimento anterior mas com venda convertida: aceita', async () => {
+    const result = await resolveAgendamentoProcedimento(
+      makeSupabase({ procedimento: retornoGenerico, vinculos: [{ procedimento_id: 'proc-ret' }], ultimoAgendamento: null, vendaConvertida: true }) as never,
+      paramsRetorno,
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it('retorno sem atendimento, sem retorno pendente e sem venda: continua recusando', async () => {
+    const result = await resolveAgendamentoProcedimento(
+      makeSupabase({ procedimento: retornoGenerico, vinculos: [{ procedimento_id: 'proc-ret' }], ultimoAgendamento: null }) as never,
+      paramsRetorno,
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('RETORNO_SEM_ATENDIMENTO_PREVIO')
   })
 
   it('procedimento "Retorno (até 30 dias)" respeita os 30 dias do nome', async () => {

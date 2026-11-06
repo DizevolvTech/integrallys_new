@@ -13,7 +13,7 @@ export function normalizarStatusPrescricao(status?: string | null): StatusPrescr
   return 'Outro'
 }
 
-export const FILTROS_STATUS_PRESCRICAO = ['Pendente', 'Ativa', 'Vencida', 'Convertida', 'Cancelada'] as const
+export const FILTROS_STATUS_PRESCRICAO = ['Ativa', 'Vencida', 'Convertida', 'Cancelada'] as const
 
 export type ClassePrescricao = 'ativa' | 'vencida' | 'concluida' | 'outra'
 
@@ -59,7 +59,8 @@ export function statusExibicaoPrescricao(
   const classe = classificarPrescricao(status, validade, hojeIso)
   if (classe === 'vencida') return { rotulo: 'Vencida', tom: 'vencida' }
   if (classe === 'concluida') return { rotulo: 'Convertida', tom: 'concluida' }
-  if (classe === 'ativa') return { rotulo: normalizado === 'Pendente' ? 'Pendente' : 'Ativa', tom: 'ativa' }
+  // Pendente vigente conta e aparece como Ativa (pedido da cliente).
+  if (classe === 'ativa') return { rotulo: 'Ativa', tom: 'ativa' }
   if (normalizado === 'Cancelada') return { rotulo: 'Cancelada', tom: 'cancelada' }
   return { rotulo: status ?? '-', tom: 'neutro' }
 }

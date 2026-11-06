@@ -116,9 +116,10 @@ describe('PrescricoesView — ações da linha', () => {
   })
 
   it('Pendente com validade futura conta nas Ativas; validade passada vira Vencida', () => {
-    lista.atual = [linha({}), linha({ id: 'a2', numero: 'EN-1', status: 'Pendente', validade: '01/01/2020' })]
+    lista.atual = [linha({ status: 'Pendente' }), linha({ id: 'a2', numero: 'EN-1', status: 'Pendente', validade: '01/01/2020' })]
     render(<PrescricoesView />)
-    expect(screen.getAllByText('Pendente').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Pendente')).toBeNull() // vigente aparece como Ativa
+    expect(screen.getAllByText('Ativa').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Vencida').length).toBeGreaterThan(0)
     const cardAtivas = screen.getByRole('button', { name: /Ativas/ })
     expect(cardAtivas).toHaveTextContent('1')

@@ -138,7 +138,7 @@ describe('NovaVendaModal — dados obrigatórios da forma', () => {
     const user = await montarVenda(onSave)
     await user.click(screen.getByRole('button', { name: 'Crédito' }))
     expect(screen.getByText('Quantidade de parcelas')).toBeInTheDocument()
-    await user.click(screen.getByRole('option', { name: '1/3' }))
+    await user.click(screen.getByRole('option', { name: /^3x/ }))
     await user.click(screen.getByRole('option', { name: 'Hipercard' }))
     await user.click(screen.getByRole('button', { name: 'Finalizar Prescrição/Vendas' }))
     await waitFor(() => expect(onSave).toHaveBeenCalled())

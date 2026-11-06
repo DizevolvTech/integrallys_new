@@ -41,6 +41,12 @@ interface PagamentoVendaFieldsProps {
  * Forma de pagamento da venda e seus dados: crédito (parcelas + bandeira), débito (bandeira), PIX (conta do PIX).
  * Usado na nova venda e na conversão de uma prescrição ativa em venda.
  */
+/** Rótulo do seletor: "1x" (à vista) ou "Nx de R$ valor" quando o total é conhecido. */
+export function rotuloParcelas(parcelas: number, total: number): string {
+  if (!(total > 0) || parcelas <= 1) return `${parcelas}x`
+  return `${parcelas}x de ${formatarMoeda(total / parcelas)}`
+}
+
 export function PagamentoVendaFields({ value, onChange, total, taxaParcelas = 0, dica }: PagamentoVendaFieldsProps) {
   const { data: contasPix } = useContasPix()
   const credito = value.forma === 'cartao_credito'
@@ -86,7 +92,7 @@ export function PagamentoVendaFields({ value, onChange, total, taxaParcelas = 0,
             </SelectTrigger>
             <SelectContent>
               {Array.from({ length: 12 }, (_, idx) => idx + 1).map((parcela) => (
-                <SelectItem key={parcela} value={String(parcela)}>{`1/${parcela}`}</SelectItem>
+                <SelectItem key={parcela} value={String(parcela)}>{rotuloParcelas(parcela, total)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
