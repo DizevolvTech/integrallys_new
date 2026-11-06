@@ -30,7 +30,7 @@ export function validadeParaIso(validade?: string | null): string | null {
 /**
  * Regra única dos cards Ativas / Vencidas / Concluídas (Prescrição/Vendas e Relatórios):
  * - concluída: status Convertida;
- * - ativa: status Ativa com validade de hoje em diante (ou sem validade);
+ * - ativa: status Ativa ou Pendente (orçamento ainda não fechado) com validade de hoje em diante (ou sem validade);
  * - vencida: status Vencida, ou Ativa/Pendente com validade anterior a hoje;
  * - canceladas e demais ficam fora dos cards. O valor é sempre o valor total do registro.
  */
@@ -41,5 +41,34 @@ export function classificarPrescricao(status: string | null | undefined, validad
   if (normalizado !== 'Ativa' && normalizado !== 'Pendente') return 'outra'
   const iso = validadeParaIso(validade)
   if (iso && iso < hojeIso) return 'vencida'
-  return normalizado === 'Ativa' ? 'ativa' : 'outra'
+  return 'ativa'
+}
+
+export type TomStatusPrescricao = 'ativa' | 'vencida' | 'concluida' | 'cancelada' | 'neutro'
+
+/**
+ * Rótulo e cor do status na lista, nos cards e no filtro: Ativa verde, Vencida amarela,
+ * Convertida (Concluída) azul, Cancelada vermelha. Ativa/Pendente com validade passada aparece como Vencida.
+ */
+export function statusExibicaoPrescricao(
+  status: string | null | undefined,
+  validade: string | null | undefined,
+  hojeIso: string,
+): { rotulo: string; tom: TomStatusPrescricao } {
+  const normalizado = normalizarStatusPrescricao(status)
+  const classe = classificarPrescricao(status, validade, hojeIso)
+  if (classe === 'vencida') return { rotulo: 'Vencida', tom: 'vencida' }
+  if (classe === 'concluida') return { rotulo: 'Convertida', tom: 'concluida' }
+  if (classe === 'ativa') return { rotulo: normalizado === 'Pendente' ? 'Pendente' : 'Ativa', tom: 'ativa' }
+  if (normalizado === 'Cancelada') return { rotulo: 'Cancelada', tom: 'cancelada' }
+  return { rotulo: status ?? '-', tom: 'neutro' }
+}
+
+/** Classes de cor (claro/escuro) de cada tom, para selo, ponto do filtro e cards. */
+export const CLASSE_TOM_STATUS: Record<TomStatusPrescricao, string> = {
+  ativa: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300',
+  vencida: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300',
+  concluida: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300',
+  cancelada: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300',
+  neutro: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300',
 }

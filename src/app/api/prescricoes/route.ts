@@ -7,6 +7,8 @@ import { stripPrescricaoFinancialFields } from '@/lib/financial-sanitize'
 import { calcularVenda, ehFormaComDesconto } from '@/lib/desconto-forma'
 import { lerDescontosPorForma } from '@/lib/desconto-forma-server'
 import { rotuloFormaPagamento } from '@/lib/recibo'
+import { detalhesPagamentoCaixa, ehFormaVenda, formaCaixaDaVenda, validarPagamentoVenda } from '@/lib/venda-pagamento'
+import { validadeOrcamentoValida } from '@/lib/prescricao-validade'
 import { emLotes } from '@/lib/em-lotes'
 import { margemDaPrescricao, margemDoItem, podeVerCustoMargem } from '@/lib/prescricao-margem'
 import { isPrescriptionImmutable } from '@/lib/prescricao-immutability'
@@ -69,12 +71,51 @@ async function resolveUnitId(
   }
 }
 
-const FORMAS_PAGAMENTO_VALIDAS = ['pix', 'dinheiro', 'cartao_credito', 'cartao_debito', 'consumo']
+interface PagamentoVenda {
+  forma: string | null
+  bandeira: string | null
+  contaBancariaId: string | null
+  numeroParcelas: number | null
+}
 
-/** Grava a forma de pagamento da venda (base do filtro "Vendas por consumo" nos relatórios). */
-function buildFormaPagamentoPayload(body: Record<string, unknown>) {
-  const forma = typeof body.formaPagamento === 'string' ? body.formaPagamento.trim() : ''
-  return FORMAS_PAGAMENTO_VALIDAS.includes(forma) ? { forma_pagamento: forma } : {}
+const textoOuNulo = (valor: unknown) => (typeof valor === 'string' && valor.trim() !== '' ? valor.trim() : null)
+
+/** Forma de pagamento e detalhes (bandeira, conta do PIX, parcelas) enviados pela tela. */
+function lerPagamento(body: Record<string, unknown>): PagamentoVenda {
+  const forma = textoOuNulo(body.formaPagamento)
+  const parcelas = Number(body.numeroParcelas)
+  return {
+    forma: ehFormaVenda(forma) ? forma : null,
+    bandeira: textoOuNulo(body.bandeira),
+    contaBancariaId: textoOuNulo(body.contaBancariaId),
+    numeroParcelas: Number.isFinite(parcelas) ? Math.floor(parcelas) : null,
+  }
+}
+
+/**
+ * Grava a forma de pagamento da venda (base do filtro "Vendas por consumo" nos relatórios) e só os
+ * detalhes que a forma usa: bandeira no cartão, parcelas no crédito, conta do PIX no PIX.
+ */
+function buildFormaPagamentoPayload(pagamento: PagamentoVenda) {
+  if (!pagamento.forma) return {}
+  const cartao = pagamento.forma === 'cartao_credito' || pagamento.forma === 'cartao_debito'
+  return {
+    forma_pagamento: pagamento.forma,
+    bandeira: cartao ? pagamento.bandeira : null,
+    conta_bancaria_id: pagamento.forma === 'pix' ? pagamento.contaBancariaId : null,
+  }
+}
+
+/** Confere a regra de pagamento da venda concluída e se a conta do PIX existe. Devolve a resposta de erro, se houver. */
+async function conferirPagamentoDaVenda(supabase: SupabaseClient, pagamento: PagamentoVenda) {
+  const erro = validarPagamentoVenda(pagamento)
+  if (erro) return serverErrorResponse(erro.message, erro.code, 400)
+  if (pagamento.forma === 'pix' && pagamento.contaBancariaId) {
+    const conta = await supabase.from('contas_bancarias').select('id').eq('id', pagamento.contaBancariaId).maybeSingle()
+    if (conta.error) return supabaseErrorResponse(conta.error, 'Falha ao conferir a conta do PIX')
+    if (!conta.data) return serverErrorResponse('Conta do PIX não encontrada', 'CONTA_PIX_INVALIDA', 400)
+  }
+  return null
 }
 
 function paymentMethodLabel(method: string | undefined | null) {
@@ -91,21 +132,6 @@ function paymentMethodLabel(method: string | undefined | null) {
       return 'Consumo'
     default:
       return method ? String(method) : 'Não informado'
-  }
-}
-
-function paymentMethodToCaixaForma(method: string | undefined | null) {
-  switch (method) {
-    case 'pix':
-      return 'pix'
-    case 'dinheiro':
-      return 'dinheiro'
-    case 'cartao_credito':
-      return 'credito'
-    case 'cartao_debito':
-      return 'debito'
-    default:
-      return 'dinheiro'
   }
 }
 
@@ -147,7 +173,7 @@ async function listPrescricoes(session: Awaited<ReturnType<typeof getRequestAuth
   const { data, error } = await supabase
     .from('prescricoes')
     .select(
-      'id,paciente_id,numero,valor_total,valor_bruto,numero_parcelas,valor_parcela,desconto_tipo,desconto_percentual,desconto_valor,justificativa_desconto,vendedor_id,status,data_prescricao,tipo,validade,observacoes,forma_pagamento',
+      'id,paciente_id,numero,valor_total,valor_bruto,numero_parcelas,valor_parcela,desconto_tipo,desconto_percentual,desconto_valor,justificativa_desconto,vendedor_id,status,data_prescricao,tipo,validade,observacoes,forma_pagamento,bandeira,conta_bancaria_id',
     )
     // CR-M05-D · ordenação padrão por data da prescrição (mais recente primeiro);
     // created_at como tiebreaker para casos onde data_prescricao é null/igual.
@@ -240,7 +266,12 @@ async function listPrescricoes(session: Awaited<ReturnType<typeof getRequestAuth
         }),
         session?.role,
       )
-      const comForma = { ...mapped, formaPagamento: row.forma_pagamento ? rotuloFormaPagamento(String(row.forma_pagamento)) : undefined }
+      const comForma = {
+        ...mapped,
+        formaPagamento: row.forma_pagamento ? rotuloFormaPagamento(String(row.forma_pagamento)) : undefined,
+        bandeira: row.bandeira ? String(row.bandeira) : undefined,
+        contaBancariaId: row.conta_bancaria_id ? String(row.conta_bancaria_id) : undefined,
+      }
       return verCusto ? { ...comForma, ...margemDaPrescricao(itens, mapped.valorTotal) } : comForma
     }),
     meta: session,
@@ -261,7 +292,9 @@ function generateNumero() {
   return `PRESC-${Date.now().toString().slice(-8)}`
 }
 
-function buildParcelamentoPayload(body: Record<string, unknown>) {
+function buildParcelamentoPayload(body: Record<string, unknown>, forma: string | null = null) {
+  // Débito, PIX, dinheiro e consumo não têm parcelas (a venda concluída guarda só as do crédito).
+  if (forma && forma !== 'cartao_credito') return { numero_parcelas: null, valor_parcela: null }
   const rawParcelas = body.numeroParcelas
   const parsedParcelas =
     rawParcelas == null || rawParcelas === '' ? null : Number(rawParcelas)
@@ -452,7 +485,8 @@ async function lancarCaixa(
     sessaoId: string
     valor: number
     descricao: string
-    formaPagamento: string | null
+    pagamento: PagamentoVenda
+    paciente: { id: string; nome: string }
   },
 ) {
   const { error } = await supabase.from('caixa_movimentos').insert({
@@ -462,7 +496,11 @@ async function lancarCaixa(
     descricao: params.descricao,
     tipo: 'entrada',
     valor: params.valor,
-    forma: paymentMethodToCaixaForma(params.formaPagamento),
+    forma: formaCaixaDaVenda(params.pagamento.forma),
+    ...detalhesPagamentoCaixa({ ...params.pagamento, valorTotal: params.valor }),
+    vinculo_tipo: 'paciente',
+    vinculo_id: params.paciente.id,
+    vinculo_nome: params.paciente.nome,
     origem: 'prescricao',
     operador_nome: params.session!.user?.name || null,
     data_movimento: new Date().toISOString(),
@@ -493,15 +531,21 @@ export async function POST(request: NextRequest) {
   }
 
   const items = normalizeItemsPayload(body.items)
-  const formaPagamento =
-    typeof body.formaPagamento === 'string' && body.formaPagamento.trim() !== ''
-      ? String(body.formaPagamento)
-      : null
+  const pagamento = lerPagamento(body)
+  const formaPagamento = pagamento.forma
   const isConvertida = String(body.status) === 'Convertida'
   const precisaCaixa = isConvertida && formaPagamento !== null && formaPagamento !== 'consumo'
   const valorTotal = Number(body.valorTotal)
 
   const supabase = getAppSupabase()
+
+  // Venda concluída exige forma de pagamento (consumo vale) e os dados da forma; orçamento sem forma segue como Ativa.
+  if (isConvertida) {
+    const recusa = await conferirPagamentoDaVenda(supabase, pagamento)
+    if (recusa) return recusa
+  } else if (body.validade && !validadeOrcamentoValida(String(body.validade), getTodayKey())) {
+    return serverErrorResponse('A validade não pode ser anterior a hoje', 'VALIDADE_INVALIDA', 400)
+  }
 
   let unitId: string | null = null
   let sessaoCaixaId: string | null = null
@@ -564,8 +608,8 @@ export async function POST(request: NextRequest) {
       assinado_em: assinaturaRaw ? new Date().toISOString() : null,
       ...desconto.payload,
       ...buildVendaMetaPayload(body),
-      ...buildParcelamentoPayload(body),
-      ...buildFormaPagamentoPayload(body),
+      ...buildParcelamentoPayload(body, isConvertida ? formaPagamento : null),
+      ...buildFormaPagamentoPayload(pagamento),
     })
     .select('id')
     .single()
@@ -597,7 +641,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (precisaCaixa && unitId && sessaoCaixaId) {
-    const pacienteNome = await fetchPacienteNome(supabase, String(body.pacienteId))
+    const pacienteId = String(body.pacienteId)
+    const pacienteNome = await fetchPacienteNome(supabase, pacienteId)
     const descricao = `Venda ${numero} - ${pacienteNome} (${paymentMethodLabel(formaPagamento)})`
     const caixaResult = await lancarCaixa(supabase, {
       session,
@@ -605,7 +650,8 @@ export async function POST(request: NextRequest) {
       sessaoId: sessaoCaixaId,
       valor: valorTotal,
       descricao,
-      formaPagamento,
+      pagamento,
+      paciente: { id: pacienteId, nome: pacienteNome },
     })
     if (caixaResult.error) {
       await restoreStockFromItems(supabase, items, session, numero)
@@ -619,6 +665,21 @@ export async function POST(request: NextRequest) {
   }
 
   return listPrescricoes(session)
+}
+
+/** Desfaz uma conversão que falhou no meio: devolve o estoque e volta a prescrição ao estado anterior. */
+async function reverterConversao(
+  supabase: SupabaseClient,
+  params: {
+    id: string
+    numero: string
+    session: Awaited<ReturnType<typeof getRequestAuth>>
+    itens: Array<{ productId: string | null; quantidade: number }>
+    anterior: Record<string, unknown>
+  },
+) {
+  await restoreStockFromItems(supabase, params.itens, params.session, params.numero)
+  await supabase.from('prescricoes').update(params.anterior).eq('id', params.id)
 }
 
 export async function PUT(request: NextRequest) {
@@ -638,7 +699,7 @@ export async function PUT(request: NextRequest) {
 
   const currentQuery = await supabase
     .from('prescricoes')
-    .select('status,numero,profissional_id')
+    .select('status,numero,profissional_id,validade,valor_total,forma_pagamento,bandeira,conta_bancaria_id,numero_parcelas,valor_parcela,valor_bruto,desconto_tipo,desconto_percentual,desconto_valor')
     .eq('id', String(body.id))
     .maybeSingle()
 
@@ -674,70 +735,190 @@ export async function PUT(request: NextRequest) {
   const nextStatus = String(body.status)
   const transitionToConvertida =
     previousStatus !== 'Convertida' && nextStatus === 'Convertida'
+  const numero = currentQuery.data?.numero ? String(currentQuery.data.numero) : 'N/A'
+  const pacienteId = String(body.pacienteId)
 
-  // Baixa de estoque ANTES de gravar Convertida — evita status final sem estoque.
-  if (transitionToConvertida) {
-    const itensQuery = await supabase
-      .from('prescricao_itens')
-      .select('produto_id,quantidade,descricao')
-      .eq('prescricao_id', String(body.id))
-
-    if (itensQuery.error) {
-      return supabaseErrorResponse(
-        itensQuery.error,
-        'Falha ao carregar itens para baixa de estoque',
-      )
-    }
-
-    const numero = currentQuery.data?.numero ? String(currentQuery.data.numero) : 'N/A'
-
-    for (const raw of itensQuery.data ?? []) {
-      if (!raw.produto_id) continue
-      const produtoId = String(raw.produto_id)
-      const quantidade = Number(raw.quantidade ?? 0)
-      if (quantidade <= 0) continue
-
-      const result = await estoqueAplicarMovimentacao(supabase, {
-        produtoId,
-        usuarioId: session.userId,
-        tipo: 'saida',
-        quantidade,
-        tipoMovimentacao: 'saida',
-        observacoes: `Saída por conversão de prescrição ${numero}`,
-      })
-
-      if (!result.ok) {
-        if (result.code === 'INSUFFICIENT_STOCK') {
-          return serverErrorResponse(
-            `Estoque insuficiente para ${String(raw.descricao ?? produtoId)}`,
-            'STOCK_INSUFFICIENT',
-            409,
-          )
-        }
-        return serverErrorResponse(result.message, result.code, 500)
-      }
-    }
+  // Validade nova (diferente da gravada) não pode ficar no passado.
+  const validadeNova = body.validade ? String(body.validade) : null
+  const validadeAtual = currentQuery.data?.validade ? String(currentQuery.data.validade).slice(0, 10) : null
+  if (!transitionToConvertida && validadeNova && validadeNova !== validadeAtual && !validadeOrcamentoValida(validadeNova, getTodayKey())) {
+    return serverErrorResponse('A validade não pode ser anterior a hoje', 'VALIDADE_INVALIDA', 400)
   }
 
+  if (!transitionToConvertida) {
+    const { error } = await supabase
+      .from('prescricoes')
+      .update({
+        paciente_id: pacienteId,
+        numero: body.numero ? String(body.numero) : generateNumero(),
+        valor_total: Number(body.valorTotal),
+        status: nextStatus,
+        tipo: body.tipo ? String(body.tipo) : null,
+        data_prescricao: body.data ? String(body.data) : null,
+        validade: validadeNova,
+        observacoes: body.observacoes ? String(body.observacoes) : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', String(body.id))
+    if (error) {
+      return supabaseErrorResponse(error, 'Falha ao atualizar prescrição')
+    }
+    return listPrescricoes(session)
+  }
+
+  // ---- Conversão em venda (mesma regra da nova venda): forma obrigatória, caixa aberto, desconto da forma,
+  // baixa de estoque e lançamento no caixa. Estoque só baixa depois de tudo conferido e volta se algo falhar. ----
+  const lido = lerPagamento(body)
+  const pagamento: PagamentoVenda = lido.forma
+    ? lido
+    : { ...lido, forma: ehFormaVenda(currentQuery.data?.forma_pagamento) ? String(currentQuery.data?.forma_pagamento) : null }
+  const recusa = await conferirPagamentoDaVenda(supabase, pagamento)
+  if (recusa) return recusa
+
+  const itensQuery = await supabase
+    .from('prescricao_itens')
+    .select('id,produto_id,quantidade,descricao,valor_unitario,custo_unitario')
+    .eq('prescricao_id', String(body.id))
+  if (itensQuery.error) {
+    return supabaseErrorResponse(itensQuery.error, 'Falha ao carregar itens para baixa de estoque')
+  }
+  const itensDb = itensQuery.data ?? []
+  const consumo = pagamento.forma === 'consumo'
+  // Consumo: a venda vale pelo preço de custo gravado em cada item (recepção nunca vê o custo).
+  const precoDoItem = (raw: (typeof itensDb)[number]) =>
+    consumo && raw.custo_unitario != null ? Number(raw.custo_unitario) : raw.valor_unitario != null ? Number(raw.valor_unitario) : null
+  const itensVenda: ItemPayload[] = itensDb.map((raw) => ({
+    productId: raw.produto_id ? String(raw.produto_id) : null,
+    descricao: String(raw.descricao ?? ''),
+    quantidade: Number(raw.quantidade ?? 0),
+    valorUnitario: precoDoItem(raw),
+  }))
+  const totalConsumo = itensVenda.reduce((soma, it) => soma + (it.valorUnitario ?? 0) * it.quantidade, 0)
+  const valorTotal = consumo && itensVenda.length > 0 ? Math.round((totalConsumo + Number.EPSILON) * 100) / 100 : Number(body.valorTotal)
+
+  let unitId: string | null = null
+  let sessaoCaixaId: string | null = null
+  if (!consumo) {
+    const resolved = await resolveUnitId(supabase, session.userId, typeof body.unidadeId === 'string' ? body.unidadeId : null)
+    if (resolved.error) return supabaseErrorResponse(resolved.error, 'Falha ao resolver unidade da venda')
+    if (!resolved.unitId) {
+      return serverErrorResponse('Nenhuma unidade disponível para registrar a venda', 'UNIT_REQUIRED', 400)
+    }
+    unitId = resolved.unitId
+    const caixa = await ensureCaixaAberto(supabase, unitId)
+    if (caixa.error) return supabaseErrorResponse(caixa.error, 'Falha ao verificar caixa aberto')
+    if (!caixa.sessionId) {
+      return serverErrorResponse(
+        'Caixa não aberto — abra o caixa do dia antes de finalizar a venda',
+        'CAIXA_NOT_OPEN',
+        409,
+      )
+    }
+    sessaoCaixaId = caixa.sessionId
+  }
+
+  const desconto = await descontoDaVenda(supabase, { items: itensVenda, forma: pagamento.forma, isConvertida: true, valorTotal })
+  if (desconto.error) return desconto.error
+
+  const baixas = itensVenda.filter((it) => it.productId && it.quantidade > 0)
+  const baixados: Array<{ productId: string | null; quantidade: number }> = []
+  for (const it of baixas) {
+    const result = await estoqueAplicarMovimentacao(supabase, {
+      produtoId: String(it.productId),
+      usuarioId: session.userId,
+      tipo: 'saida',
+      quantidade: it.quantidade,
+      tipoMovimentacao: 'saida',
+      observacoes: `Saída por conversão de prescrição ${numero}`,
+    })
+    if (!result.ok) {
+      await restoreStockFromItems(supabase, baixados, session, numero)
+      if (result.code === 'INSUFFICIENT_STOCK') {
+        return serverErrorResponse(`Estoque insuficiente para ${it.descricao || String(it.productId)}`, 'STOCK_INSUFFICIENT', 409)
+      }
+      return serverErrorResponse(result.message, result.code, 500)
+    }
+    baixados.push({ productId: it.productId ?? null, quantidade: it.quantidade })
+  }
+
+  const dadosAnteriores = currentQuery.data
+  const anterior = {
+    status: previousStatus,
+    valor_total: dadosAnteriores?.valor_total ?? Number(body.valorTotal),
+    forma_pagamento: dadosAnteriores?.forma_pagamento ?? null,
+    bandeira: dadosAnteriores?.bandeira ?? null,
+    conta_bancaria_id: dadosAnteriores?.conta_bancaria_id ?? null,
+    numero_parcelas: dadosAnteriores?.numero_parcelas ?? null,
+    valor_parcela: dadosAnteriores?.valor_parcela ?? null,
+    valor_bruto: dadosAnteriores?.valor_bruto ?? null,
+    desconto_tipo: dadosAnteriores?.desconto_tipo ?? null,
+    desconto_percentual: dadosAnteriores?.desconto_percentual ?? null,
+    desconto_valor: dadosAnteriores?.desconto_valor ?? null,
+  }
+  const reverter = () => reverterConversao(supabase, { id: String(body.id), numero, session, itens: baixados, anterior })
+
+  const parcelamento = buildParcelamentoPayload(
+    { numeroParcelas: pagamento.numeroParcelas, valorParcela: body.valorParcela ?? (pagamento.numeroParcelas ? valorTotal / pagamento.numeroParcelas : null) },
+    pagamento.forma,
+  )
+  const justificativa = textoOuNulo(body.justificativaDesconto)
   const { error } = await supabase
     .from('prescricoes')
     .update({
-      paciente_id: String(body.pacienteId),
+      paciente_id: pacienteId,
       numero: body.numero ? String(body.numero) : generateNumero(),
-      valor_total: Number(body.valorTotal),
+      valor_total: valorTotal,
       status: nextStatus,
       tipo: body.tipo ? String(body.tipo) : null,
       data_prescricao: body.data ? String(body.data) : null,
-      validade: body.validade ? String(body.validade) : null,
+      validade: validadeNova,
       observacoes: body.observacoes ? String(body.observacoes) : null,
-      ...buildParcelamentoPayload(body),
-      ...buildFormaPagamentoPayload(body),
+      ...desconto.payload,
+      ...parcelamento,
+      ...buildFormaPagamentoPayload(pagamento),
+      ...(body.vendedorId ? { vendedor_id: String(body.vendedorId) } : {}),
+      ...(justificativa ? { justificativa_desconto: justificativa } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq('id', String(body.id))
-
   if (error) {
+    await restoreStockFromItems(supabase, baixados, session, numero)
     return supabaseErrorResponse(error, 'Falha ao atualizar prescrição')
+  }
+
+  if (consumo) {
+    const regravar = await Promise.all(
+      itensDb
+        .filter((raw) => raw.custo_unitario != null)
+        .map((raw) => supabase.from('prescricao_itens').update({ valor_unitario: Number(raw.custo_unitario) }).eq('id', raw.id)),
+    )
+    if (regravar.some((r) => r.error)) {
+      await Promise.all(
+        itensDb.map((raw) => supabase.from('prescricao_itens').update({ valor_unitario: raw.valor_unitario }).eq('id', raw.id)),
+      )
+      await reverter()
+      return serverErrorResponse('Falha ao registrar os itens do consumo — conversão revertida', 'ITEMS_UPDATE_FAILED', 500)
+    }
+  }
+
+  if (unitId && sessaoCaixaId) {
+    const pacienteNome = await fetchPacienteNome(supabase, pacienteId)
+    const caixaResult = await lancarCaixa(supabase, {
+      session,
+      unitId,
+      sessaoId: sessaoCaixaId,
+      valor: valorTotal,
+      descricao: `Venda ${numero} - ${pacienteNome} (${paymentMethodLabel(pagamento.forma)})`,
+      pagamento,
+      paciente: { id: pacienteId, nome: pacienteNome },
+    })
+    if (caixaResult.error) {
+      await reverter()
+      return supabaseErrorResponse(
+        caixaResult.error,
+        'Falha ao lançar venda no caixa — conversão revertida (estoque restaurado)',
+      )
+    }
   }
 
   return listPrescricoes(session)
