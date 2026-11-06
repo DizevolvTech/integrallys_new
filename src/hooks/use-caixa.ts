@@ -19,6 +19,25 @@ export interface CaixaItem {
   parcelas?: number | null
   valorParcela?: number | null
   formaPagamentoId?: string
+  dataIso?: string | null
+  contaBancariaId?: string | null
+  contaBancariaNome?: string | null
+  vinculoTipo?: string | null
+  vinculoId?: string | null
+  vinculoNome?: string | null
+}
+
+export interface CaixaFormaResumo {
+  forma: string
+  label: string
+  value: number
+  contas?: { label: string; value: number }[]
+}
+
+/** Período exibido: um dia ({ de } = { ate }) ou um intervalo. Vazio = hoje. */
+export interface CaixaPeriodo {
+  de?: string
+  ate?: string
 }
 
 export interface CaixaSessionState {
@@ -29,6 +48,17 @@ export interface CaixaSessionState {
   entradas: number
   saidas: number
   movimentos: number
+  openedAt: string | null
+  openedByName: string | null
+  closedAt: string | null
+  temSessao: boolean
+  /** Dia passado ou intervalo: só leitura. */
+  consulta: boolean
+  multiplo: boolean
+  de: string | null
+  ate: string | null
+  resumoFormas: CaixaFormaResumo[]
+  listaCortada: boolean
 }
 
 interface CaixaMetaResponse extends Record<string, unknown> {
@@ -40,6 +70,13 @@ interface CaixaMetaResponse extends Record<string, unknown> {
     entradas?: number
     saidas?: number
     movimentos?: number
+    openedAt?: string | null
+    openedByName?: string | null
+    closedAt?: string | null
+    temSessao?: boolean
+    periodo?: { de: string; ate: string; multiplo: boolean; consulta: boolean }
+    resumoFormas?: CaixaFormaResumo[]
+    listaCortada?: boolean
   }
 }
 
@@ -63,6 +100,10 @@ export interface CaixaMovimentacaoPayload {
   bandeira?: string | null
   parcelas?: number | null
   valorParcela?: number | null
+  contaBancariaId?: string | null
+  vinculoTipo?: string | null
+  vinculoId?: string | null
+  vinculoNome?: string | null
 }
 
 export interface CloseCaixaPayload {
@@ -72,20 +113,47 @@ export interface CloseCaixaPayload {
   resumo?: Record<string, unknown>
 }
 
-export function useCaixa() {
+function sessaoDaResposta(response: CaixaResponse): CaixaSessionState {
+  const caixa = response.meta.caixa
+  return {
+    sessionId: caixa?.sessionId ?? null,
+    isOpen: caixa?.isOpen ?? false,
+    saldoInicial: caixa?.saldoInicial ?? 0,
+    saldoAtual: caixa?.saldoAtual ?? 0,
+    entradas: caixa?.entradas ?? 0,
+    saidas: caixa?.saidas ?? 0,
+    movimentos: caixa?.movimentos ?? 0,
+    openedAt: caixa?.openedAt ?? null,
+    openedByName: caixa?.openedByName ?? null,
+    closedAt: caixa?.closedAt ?? null,
+    temSessao: caixa?.temSessao ?? false,
+    consulta: caixa?.periodo?.consulta ?? false,
+    multiplo: caixa?.periodo?.multiplo ?? false,
+    de: caixa?.periodo?.de ?? null,
+    ate: caixa?.periodo?.ate ?? null,
+    resumoFormas: caixa?.resumoFormas ?? [],
+    listaCortada: caixa?.listaCortada ?? false,
+  }
+}
+
+function urlDoPeriodo(periodo?: CaixaPeriodo) {
+  const query = new URLSearchParams()
+  if (periodo?.de) query.set('de', periodo.de)
+  if (periodo?.ate) query.set('ate', periodo.ate)
+  const texto = query.toString()
+  return texto ? `/api/caixa?${texto}` : '/api/caixa'
+}
+
+export function useCaixa(periodo?: CaixaPeriodo) {
   const api = useApi()
   const [data, setData] = useState<CaixaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [session, setSession] = useState<CaixaSessionState>({
-    sessionId: null,
-    isOpen: false,
-    saldoInicial: 0,
-    saldoAtual: 0,
-    entradas: 0,
-    saidas: 0,
-    movimentos: 0,
-  })
+  const [session, setSession] = useState<CaixaSessionState>(() =>
+    sessaoDaResposta({ data: [], meta: {} } as unknown as CaixaResponse),
+  )
+  const de = periodo?.de
+  const ate = periodo?.ate
 
   useEffect(() => {
     let mounted = true
@@ -93,18 +161,10 @@ export function useCaixa() {
       setIsLoading(true)
       setError(null)
       try {
-        const response = await api.get<CaixaResponse>('/api/caixa')
+        const response = await api.get<CaixaResponse>(urlDoPeriodo({ de, ate }))
         if (!mounted) return
         setData(response.data)
-        setSession({
-          sessionId: response.meta.caixa?.sessionId ?? null,
-          isOpen: response.meta.caixa?.isOpen ?? false,
-          saldoInicial: response.meta.caixa?.saldoInicial ?? 0,
-          saldoAtual: response.meta.caixa?.saldoAtual ?? 0,
-          entradas: response.meta.caixa?.entradas ?? 0,
-          saidas: response.meta.caixa?.saidas ?? 0,
-          movimentos: response.meta.caixa?.movimentos ?? 0,
-        })
+        setSession(sessaoDaResposta(response))
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : 'Erro ao carregar caixa')
@@ -117,19 +177,11 @@ export function useCaixa() {
     return () => {
       mounted = false
     }
-  }, [api])
+  }, [api, de, ate])
 
   const updateFromResponse = (response: CaixaResponse) => {
     setData(response.data)
-    setSession({
-      sessionId: response.meta.caixa?.sessionId ?? null,
-      isOpen: response.meta.caixa?.isOpen ?? false,
-      saldoInicial: response.meta.caixa?.saldoInicial ?? 0,
-      saldoAtual: response.meta.caixa?.saldoAtual ?? 0,
-      entradas: response.meta.caixa?.entradas ?? 0,
-      saidas: response.meta.caixa?.saidas ?? 0,
-      movimentos: response.meta.caixa?.movimentos ?? 0,
-    })
+    setSession(sessaoDaResposta(response))
   }
 
   const openCaixa = async (payload: OpenCaixaPayload) => {

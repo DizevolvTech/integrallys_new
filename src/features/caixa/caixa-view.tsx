@@ -20,6 +20,12 @@ import { useCaixa, type CaixaItem } from '@/hooks/use-caixa'
 import { cn } from '@/lib/utils'
 import { calcularDinheiroNaGaveta, sugerirTransferenciaCofre, validarTransferenciaCofre } from '@/features/caixa/fechamento'
 import { DetalheFormaModal } from '@/features/caixa/modals/detalhe-forma-modal'
+import { ResumoCardModal, type ResumoCard } from '@/features/caixa/modals/resumo-card-modal'
+import { FiltroDataCaixa, type PeriodoEscolhido } from '@/features/caixa/components/filtro-data-caixa'
+import { FormaDetalhesCampos, erroFormaDetalhes } from '@/features/caixa/components/forma-detalhes-campos'
+import { VINCULO_VAZIO, VinculoCampo, erroVinculo, type VinculoValor } from '@/features/caixa/components/vinculo-campo'
+import { hojeClinicaChave, diaParaExibicao } from '@/features/caixa/periodo-caixa'
+import { vinculoTexto } from '@/features/caixa/resumo-caixa'
 import { usePaymentConfig } from '@/features/prescricoes/hooks/use-payment-config'
 import { toast } from 'sonner'
 import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
@@ -51,7 +57,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { diaDoMovimento, formaCaixaLabel } from './caixa-format'
+import { diaDoMovimento, formaDetalheTexto } from './caixa-format'
 import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
 type CaixaModal = 'abrircaixa' | 'suprimento' | 'sangria' | 'fecharcaixa' | 'edit_caixa' | null
@@ -87,6 +93,7 @@ interface CardBreakdown {
 }
 
 const BANDEIRA_DESCONHECIDA = 'Sem bandeira'
+const LINHAS_POR_PAGINA = 50
 
 function buildCardBreakdown(items: CaixaItem[], getCardFee: (parcelas: number) => number): CardBreakdown {
   const debitoMap = new Map<string, BandeiraBreakdownRow>()
@@ -190,7 +197,8 @@ function CartaoBandeiraBreakdown({
 }
 
 export function CaixaView() {
-  const { data, error, isLoading, session, openCaixa, addMovimentacao, closeCaixa, updateMovimentacao, deleteMovimentacao } = useCaixa()
+  const [periodo, setPeriodo] = useState<PeriodoEscolhido>(() => ({ de: hojeClinicaChave(), ate: hojeClinicaChave() }))
+  const { data, error, isLoading, session, openCaixa, addMovimentacao, closeCaixa, updateMovimentacao, deleteMovimentacao } = useCaixa(periodo)
   const { getCardFee, hasMaquininhaConfig, isLoading: isPaymentConfigLoading } = usePaymentConfig()
   const [activeModal, setActiveModal] = useState<CaixaModal>(null)
   const [selectedMovimentacaoId, setSelectedMovimentacaoId] = useState<string | null>(null)
@@ -202,14 +210,21 @@ export function CaixaView() {
     forma: 'dinheiro',
     bandeira: '',
     parcelas: '1',
+    contaBancariaId: '',
     valorTransferido: '',
     observacoes: '',
   })
+  const [vinculo, setVinculo] = useState<VinculoValor>(VINCULO_VAZIO)
+  const [resumoCard, setResumoCard] = useState<ResumoCard | null>(null)
+  const [limiteLista, setLimiteLista] = useState(LINHAS_POR_PAGINA)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [resumoFechamento, setResumoFechamento] = useState<ResumoFechamentoSnapshot | null>(null)
   const [detalheFormaOpen, setDetalheFormaOpen] = useState(false)
   const [detalheForma, setDetalheForma] = useState<string | null>(null)
   const isClosed = !session.isOpen
+  const consulta = session.consulta
+  const visiveis = data.slice(0, limiteLista)
+  const periodoTexto = session.de ? (session.multiplo ? `${diaParaExibicao(session.de)} a ${diaParaExibicao(session.ate ?? session.de)}` : diaParaExibicao(session.de)) : ''
 
   const handleOpenDetalheForma = (forma: string) => {
     setDetalheForma(forma)
@@ -221,19 +236,17 @@ export function CaixaView() {
     setDetalheForma(null)
   }
 
+  // Os totais e o resumo por forma vêm do servidor (somam o período inteiro, mesmo com a lista cortada).
   const summary = useMemo(() => {
-    const totalEntradas = data.filter((item) => item.tipo === 'entrada').reduce((sum, item) => sum + item.valor, 0)
-    const totalSaidas = data.filter((item) => item.tipo === 'saida').reduce((sum, item) => sum + item.valor, 0)
-    const saldoInicial = session.saldoInicial
-    const saldoAtual = isClosed ? session.saldoAtual : saldoInicial + totalEntradas - totalSaidas
-    const resumoForma = [
-      { label: 'Dinheiro', forma: 'dinheiro', value: data.filter((i) => (i.forma === 'dinheiro' || !i.forma) && i.tipo === 'entrada').reduce((sum, i) => sum + i.valor, 0) },
-      { label: 'PIX', forma: 'pix', value: data.filter((i) => i.forma === 'pix' && i.tipo === 'entrada').reduce((sum, i) => sum + i.valor, 0) },
-      { label: 'Cartão crédito', forma: 'cartao_credito', value: data.filter((i) => i.forma === 'cartao_credito' && i.tipo === 'entrada').reduce((sum, i) => sum + i.valor, 0) },
-      { label: 'Cartão débito', forma: 'cartao_debito', value: data.filter((i) => i.forma === 'cartao_debito' && i.tipo === 'entrada').reduce((sum, i) => sum + i.valor, 0) },
-    ]
-    return { saldoInicial, totalEntradas, totalSaidas, saldoAtual, resumoForma }
-  }, [data, session, isClosed])
+    const resumoForma = session.resumoFormas.map((linha) => ({ label: linha.label, forma: linha.forma, value: linha.value, contas: linha.contas }))
+    return {
+      saldoInicial: session.saldoInicial,
+      totalEntradas: session.entradas,
+      totalSaidas: session.saidas,
+      saldoAtual: session.saldoAtual,
+      resumoForma,
+    }
+  }, [session])
 
   const dinheiroNaGaveta = useMemo(
     () => calcularDinheiroNaGaveta(summary.saldoInicial, data),
@@ -246,8 +259,10 @@ export function CaixaView() {
 
   const cardBreakdown = useMemo(() => buildCardBreakdown(data, getCardFee), [data, getCardFee])
 
-  const resetForm = () =>
-    setForm({ saldoInicial: '', descricao: '', valor: '', tipo: 'entrada', forma: 'dinheiro', bandeira: '', parcelas: '1', valorTransferido: '', observacoes: '' })
+  const resetForm = () => {
+    setForm({ saldoInicial: '', descricao: '', valor: '', tipo: 'entrada', forma: 'dinheiro', bandeira: '', parcelas: '1', contaBancariaId: '', valorTransferido: '', observacoes: '' })
+    setVinculo(VINCULO_VAZIO)
+  }
 
   const handleModalClose = () => {
     setActiveModal(null)
@@ -262,10 +277,49 @@ export function CaixaView() {
     if (type === 'edit_caixa' && itemId) {
       const item = data.find((i) => i.id === itemId)
       if (item) {
-        setForm((c) => ({ ...c, descricao: item.descricao, valor: String(item.valor), tipo: item.tipo, forma: item.forma || 'dinheiro' }))
+        setForm((c) => ({
+          ...c,
+          descricao: item.descricao,
+          valor: String(item.valor),
+          tipo: item.tipo,
+          forma: item.forma || 'dinheiro',
+          bandeira: item.bandeira ?? '',
+          parcelas: String(item.parcelas ?? 1),
+          contaBancariaId: item.contaBancariaId ?? '',
+        }))
+        setVinculo(
+          item.vinculoTipo
+            ? { tipo: item.vinculoTipo as VinculoValor['tipo'], id: item.vinculoId ?? '', nome: item.vinculoNome ?? '' }
+            : VINCULO_VAZIO,
+        )
       }
     }
     setActiveModal(type as CaixaModal)
+  }
+
+  /** Monta o lançamento a partir do formulário; devolve null (e avisa) se faltar conta do PIX, bandeira ou vínculo. */
+  const montarPayloadMovimento = (tipo: 'entrada' | 'saida', descricaoPadrao: string, vinculoObrigatorio: boolean) => {
+    const problema = erroFormaDetalhes(form) ?? erroVinculo(vinculo, vinculoObrigatorio)
+    if (problema) {
+      toast.error(problema)
+      return null
+    }
+    const valorNum = Number(form.valor || 0)
+    const isCard = form.forma === 'cartao_credito' || form.forma === 'cartao_debito'
+    const parcelasNum = form.forma === 'cartao_credito' ? Number(form.parcelas) || 1 : null
+    return {
+      descricao: form.descricao || descricaoPadrao,
+      valor: valorNum,
+      tipo,
+      forma: form.forma,
+      bandeira: isCard ? form.bandeira : null,
+      parcelas: parcelasNum,
+      valorParcela: parcelasNum && valorNum > 0 ? Number((valorNum / parcelasNum).toFixed(2)) : null,
+      contaBancariaId: form.forma === 'pix' ? form.contaBancariaId : null,
+      vinculoTipo: vinculo.tipo || null,
+      vinculoId: vinculo.tipo && vinculo.tipo !== 'outro' ? vinculo.id : null,
+      vinculoNome: vinculo.tipo === 'outro' ? vinculo.nome.trim() : null,
+    }
   }
 
   const handleSubmit = async () => {
@@ -274,28 +328,12 @@ export function CaixaView() {
       if (activeModal === 'abrircaixa') {
         await openCaixa({ saldoInicial: Number(form.saldoInicial || 0), observacoes: form.observacoes || undefined })
         toast.success('Caixa aberto com sucesso.')
-      } else if (activeModal === 'suprimento') {
-        const valorNum = Number(form.valor || 0)
-        const isCard = form.forma === 'cartao_credito' || form.forma === 'cartao_debito'
-        const parcelasNum = form.forma === 'cartao_credito' ? Number(form.parcelas) || 1 : null
-        if (isCard && !form.bandeira) {
-          toast.error('Informe a bandeira do cartão.')
-          return
-        }
-        await addMovimentacao({
-          descricao: form.descricao || 'Recebimento',
-          valor: valorNum,
-          tipo: 'entrada',
-          forma: form.forma,
-          bandeira: isCard && form.bandeira ? form.bandeira : null,
-          parcelas: parcelasNum,
-          valorParcela:
-            parcelasNum && parcelasNum > 0 && valorNum > 0 ? Number((valorNum / parcelasNum).toFixed(2)) : null,
-        })
-        toast.success('Recebimento lançado com sucesso.')
-      } else if (activeModal === 'sangria') {
-        await addMovimentacao({ descricao: form.descricao || 'Pagamento', valor: Number(form.valor || 0), tipo: 'saida', forma: form.forma })
-        toast.success('Pagamento lançado com sucesso.')
+      } else if (activeModal === 'suprimento' || activeModal === 'sangria') {
+        const tipo = activeModal === 'suprimento' ? 'entrada' : 'saida'
+        const payload = montarPayloadMovimento(tipo, activeModal === 'suprimento' ? 'Recebimento' : 'Pagamento', true)
+        if (!payload) return
+        await addMovimentacao(payload)
+        toast.success(activeModal === 'suprimento' ? 'Recebimento lançado com sucesso.' : 'Pagamento lançado com sucesso.')
       } else if (activeModal === 'fecharcaixa') {
         const valorTransferidoNum = form.valorTransferido ? Number(form.valorTransferido) : 0
         if (erroCofre) {
@@ -324,7 +362,9 @@ export function CaixaView() {
         setResumoFechamento(snapshot)
         toast.success('Caixa fechado com sucesso.')
       } else if (activeModal === 'edit_caixa' && selectedMovimentacaoId) {
-        await updateMovimentacao({ id: selectedMovimentacaoId, descricao: form.descricao, valor: Number(form.valor || 0), tipo: form.tipo as 'entrada' | 'saida', forma: form.forma })
+        const payload = montarPayloadMovimento(form.tipo as 'entrada' | 'saida', form.descricao, false)
+        if (!payload) return
+        await updateMovimentacao({ ...payload, id: selectedMovimentacaoId })
         toast.success('Movimentação atualizada com sucesso.')
       }
       handleModalClose()
@@ -336,21 +376,9 @@ export function CaixaView() {
   }
 
   type Movimento = (typeof data)[number]
-  const formaTexto = (item: Movimento) => {
-                        const parts: string[] = [formaCaixaLabel(item.forma)]
-                        if (item.bandeira) parts.push(item.bandeira)
-                        if (item.parcelas && item.parcelas > 1) {
-                          const valorParcela = item.valorParcela
-                          parts.push(
-                            valorParcela != null
-                              ? `${item.parcelas}× de R$ ${valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                              : `${item.parcelas}×`,
-                          )
-                        }
-                        return parts.join(' · ')
-                      }
+  const formaTexto = (item: Movimento) => formaDetalheTexto(item)
 
-  const renderAcoes = (item: Movimento) => (
+  const renderAcoes = (item: Movimento) => consulta ? null : (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()} className="h-8 w-8 text-app-text-muted hover:text-app-text-primary mx-auto transition-colors">
@@ -383,6 +411,7 @@ export function CaixaView() {
 
   return (
     <div className="app-page">
+      <FiltroDataCaixa periodo={periodo} onChange={(novo) => { setPeriodo(novo); setLimiteLista(LINHAS_POR_PAGINA) }} />
       {/* UI-18: banner de status sempre visível ao chegar no turno.
           Sessão atual não expõe `abertura_em` (CaixaSessionState só tem
           isOpen/saldos/contadores), então não exibimos timestamp — fix
@@ -390,13 +419,27 @@ export function CaixaView() {
       <div
         className={cn(
           'flex items-center gap-3 rounded-xl p-4',
-          !isClosed
-            ? 'bg-[var(--app-success-bg)] text-[var(--app-success-text)]'
-            : 'bg-[var(--app-warning-bg)] text-[var(--app-warning-text)]',
+          consulta
+            ? 'bg-app-bg-secondary text-app-text-primary dark:bg-app-hover/30 dark:text-white'
+            : !isClosed
+              ? 'bg-[var(--app-success-bg)] text-[var(--app-success-text)]'
+              : 'bg-[var(--app-warning-bg)] text-[var(--app-warning-text)]',
         )}
         role="status"
       >
-        {!isClosed ? (
+        {consulta ? (
+          <>
+            <Eye className="h-5 w-5 shrink-0" />
+            <span className="font-medium">Consulta de {periodoTexto}</span>
+            <span className="text-sm opacity-80">
+              {session.multiplo
+                ? 'Período com vários dias: só leitura.'
+                : session.temSessao
+                  ? `Caixa ${session.isOpen ? 'aberto' : 'fechado'} neste dia — só leitura.`
+                  : 'O caixa não foi aberto neste dia — só leitura.'}
+            </span>
+          </>
+        ) : !isClosed ? (
           <>
             <CheckCircle2 className="h-5 w-5 shrink-0" />
             <span className="font-medium">Caixa aberto</span>
@@ -419,24 +462,33 @@ export function CaixaView() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <Card className="p-6 border-none shadow-none bg-app-card dark:bg-app-card-dark flex flex-col justify-center items-center text-center">
           <p className="text-sm font-normal text-app-text-primary dark:text-white mb-4">Status do caixa</p>
-          <Badge className={`${isClosed ? 'app-status-danger' : 'app-status-success'} px-4 py-1.5 rounded-lg mb-2`}>
-            {isClosed ? 'FECHADO' : 'ABERTO'}
+          <Badge className={`${consulta ? 'app-status-neutral' : isClosed ? 'app-status-danger' : 'app-status-success'} px-4 py-1.5 rounded-lg mb-2`}>
+            {consulta ? 'CONSULTA' : isClosed ? 'FECHADO' : 'ABERTO'}
           </Badge>
-          <p className="text-xs text-app-text-secondary dark:text-white/60 mt-1">Controle de caixa</p>
+          <p className="text-xs text-app-text-secondary dark:text-white/60 mt-1">{consulta ? periodoTexto : 'Controle de caixa'}</p>
         </Card>
         <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: 'Saldo Inicial', value: summary.saldoInicial, color: 'text-app-text-primary dark:text-white' },
-            { label: 'Entradas', value: summary.totalEntradas, color: 'text-[var(--app-success-text)]' },
-            { label: 'Saídas', value: summary.totalSaidas, color: 'text-[var(--app-danger-text)]' },
-            { label: 'Saldo Atual', value: summary.saldoAtual, color: 'text-app-text-primary dark:text-white' },
-          ].map((stat) => (
-            <Card key={stat.label} className="p-6 border-none shadow-sm bg-app-card dark:bg-app-card-dark flex flex-col justify-center">
-              <p className="text-sm font-normal text-app-text-secondary dark:text-white/60 mb-4">{stat.label}</p>
-              <p className={`text-2xl font-normal ${stat.color}`}>
-                R$ {stat.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </Card>
+          {([
+            { card: 'saldo_inicial', label: 'Saldo Inicial', texto: session.multiplo ? '—' : null, value: summary.saldoInicial, color: 'text-app-text-primary dark:text-white' },
+            { card: 'entradas', label: 'Entradas', texto: null, value: summary.totalEntradas, color: 'text-[var(--app-success-text)]' },
+            { card: 'saidas', label: 'Saídas', texto: null, value: summary.totalSaidas, color: 'text-[var(--app-danger-text)]' },
+            { card: 'saldo_atual', label: session.multiplo ? 'Saldo do período' : 'Saldo Atual', texto: null, value: summary.saldoAtual, color: 'text-app-text-primary dark:text-white' },
+          ] as const).map((stat) => (
+            <button
+              key={stat.card}
+              type="button"
+              onClick={() => setResumoCard(stat.card)}
+              title="Clique para ver os detalhes"
+              data-testid={`card-${stat.card}`}
+              className="cursor-pointer rounded-xl text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
+            >
+              <Card className="flex h-full flex-col justify-center border-none bg-app-card p-6 shadow-sm dark:bg-app-card-dark">
+                <p className="text-sm font-normal text-app-text-secondary dark:text-white/60 mb-4">{stat.label}</p>
+                <p className={`text-2xl font-normal ${stat.color}`}>
+                  {stat.texto ?? `R$ ${stat.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                </p>
+              </Card>
+            </button>
           ))}
         </div>
       </div>
@@ -444,16 +496,16 @@ export function CaixaView() {
       {/* Action Buttons */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:flex lg:flex-wrap lg:items-center gap-3">
         <Button
-          disabled={!isClosed}
+          disabled={consulta || !isClosed}
           onClick={() => openModal('abrircaixa')}
           variant="outline"
           className="rounded-xl h-14 lg:h-12 flex items-center justify-center gap-3 border-app-border dark:border-app-border-dark shadow-sm font-normal text-app-text-primary dark:text-white/80 px-6 w-full lg:w-auto"
         >
           <Wallet size={18} />
-          <span>{isClosed ? 'Abrir caixa' : 'Caixa aberto'}</span>
+          <span>{isClosed || consulta ? 'Abrir caixa' : 'Caixa aberto'}</span>
         </Button>
         <Button
-          disabled={isClosed}
+          disabled={consulta || isClosed}
           onClick={() => openModal('suprimento')}
           variant="outline"
           className="rounded-xl h-14 lg:h-12 flex items-center justify-center gap-3 border-app-border dark:border-app-border-dark shadow-sm font-normal text-app-text-primary dark:text-white/80 px-6 w-full lg:w-auto"
@@ -462,7 +514,7 @@ export function CaixaView() {
           <span>Recebimento</span>
         </Button>
         <Button
-          disabled={isClosed}
+          disabled={consulta || isClosed}
           onClick={() => openModal('sangria')}
           variant="outline"
           className="rounded-xl h-14 lg:h-12 flex items-center justify-center gap-3 border-app-border dark:border-app-border-dark shadow-sm font-normal text-app-text-primary dark:text-white/80 px-6 w-full lg:w-auto"
@@ -471,7 +523,7 @@ export function CaixaView() {
           <span>Pagamento</span>
         </Button>
         <Button
-          disabled={isClosed}
+          disabled={consulta || isClosed}
           onClick={() => openModal('fecharcaixa')}
           variant="outline"
           className="rounded-xl h-14 lg:h-12 flex items-center justify-center gap-3 border-app-border dark:border-app-border-dark shadow-sm font-normal text-app-text-primary dark:text-white/80 px-6 w-full lg:w-auto"
@@ -486,14 +538,17 @@ export function CaixaView() {
         {/* Movimentações Table */}
         <Card className="xl:col-span-2 p-0 border-none shadow-xl bg-app-card dark:bg-app-card-dark">
           <div className="p-6 border-b border-app-border dark:border-app-border-dark">
-            <h3 className="text-lg font-normal text-app-text-primary dark:text-white">Movimentações da sessão</h3>
+            <h3 className="text-lg font-normal text-app-text-primary dark:text-white">{consulta ? `Movimentações de ${periodoTexto}` : 'Movimentações da sessão'}</h3>
+            {session.listaCortada && (
+              <p className="mt-1 text-xs text-app-text-secondary dark:text-white/60">Lista limitada às {data.length} movimentações mais recentes; os totais somam o período inteiro.</p>
+            )}
           </div>
           <ListaCartoesMobile>
             {isLoading && <p className="py-6 text-center text-sm text-app-text-secondary">Carregando movimentações...</p>}
             {!isLoading && error && <p className="py-6 text-center text-sm text-[var(--app-danger-text)]">{error}</p>}
             {!isLoading && !error && data.length === 0 && <p className="py-6 text-center text-sm text-app-text-secondary">Sem movimentações no período.</p>}
             {!isLoading &&
-              data.map((item) => (
+              visiveis.map((item) => (
                 <CartaoMobile
                   key={item.id}
                   titulo={item.descricao}
@@ -511,6 +566,7 @@ export function CaixaView() {
                   acoes={renderAcoes(item)}
                   campos={[
                     { rotulo: 'Forma', valor: formaTexto(item) },
+                    ...(vinculoTexto(item) ? [{ rotulo: 'Vinculado a', valor: vinculoTexto(item) }] : []),
                     { rotulo: 'Operador', valor: item.operador || '—' },
                   ]}
                 />
@@ -552,7 +608,7 @@ export function CaixaView() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && data.map((item) => (
+                {!isLoading && visiveis.map((item) => (
                   <TableRow key={item.id} className="border-app-border dark:border-app-border-dark hover:bg-app-bg-secondary/50 dark:hover:bg-app-hover/20 transition-colors">
                     <TableCell className="text-app-text-secondary font-normal">{diaDoMovimento(item)}</TableCell>
                     <TableCell className="text-app-text-secondary font-normal">{item.hora || '--:--'}</TableCell>
@@ -561,7 +617,12 @@ export function CaixaView() {
                         {item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-app-text-primary dark:text-white font-normal">{item.descricao}</TableCell>
+                    <TableCell className="text-app-text-primary dark:text-white font-normal">
+                      <div className="flex flex-col">
+                        <span>{item.descricao}</span>
+                        {vinculoTexto(item) && <span className="text-xs text-app-text-secondary dark:text-white/60">{vinculoTexto(item)}</span>}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">
                       {formaTexto(item)}
                     </TableCell>
@@ -577,6 +638,13 @@ export function CaixaView() {
               </TableBody>
             </Table>
           </div>
+          {data.length > visiveis.length && (
+            <div className="flex justify-center border-t border-app-border p-4 dark:border-app-border-dark">
+              <Button variant="outline" className="h-11 rounded-xl" onClick={() => setLimiteLista((n) => n + LINHAS_POR_PAGINA)}>
+                Mostrar mais ({data.length - visiveis.length})
+              </Button>
+            </div>
+          )}
         </Card>
 
         {/* Summary Sidebar */}
@@ -587,16 +655,23 @@ export function CaixaView() {
               <p className="text-sm font-normal mb-4">Por forma de pagamento</p>
               <div className="space-y-1">
                 {summary.resumoForma.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => handleOpenDetalheForma(item.forma)}
-                    title="Clique para ver transações"
-                    className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-app-bg-secondary dark:hover:bg-app-hover"
-                  >
-                    <span className="text-app-text-secondary dark:text-white/60">{item.label}</span>
-                    <span className="font-normal">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                  </button>
+                  <div key={item.label}>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDetalheForma(item.forma)}
+                      title="Clique para ver transações"
+                      className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-app-bg-secondary dark:hover:bg-app-hover"
+                    >
+                      <span className="text-app-text-secondary dark:text-white/60">{item.label}</span>
+                      <span className="font-normal">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </button>
+                    {item.contas?.map((conta) => (
+                      <div key={conta.label} className="flex items-center justify-between px-2 py-1 pl-6 text-xs">
+                        <span className="text-app-text-secondary dark:text-white/60">└ {conta.label}</span>
+                        <span>R$ {conta.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
@@ -672,7 +747,7 @@ export function CaixaView() {
                     </div>
                     <div className="space-y-2">
                       <Label>Forma</Label>
-                      <Select value={form.forma} onValueChange={(value) => setForm((c) => ({ ...c, forma: value }))}>
+                      <Select value={form.forma} onValueChange={(value) => setForm((c) => ({ ...c, forma: value, bandeira: '', parcelas: '1', contaBancariaId: '' }))}>
                         <SelectTrigger className="h-12 rounded-[12px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="dinheiro">Dinheiro</SelectItem>
@@ -684,53 +759,12 @@ export function CaixaView() {
                     </div>
                   </div>
 
-                  {(form.forma === 'cartao_credito' || form.forma === 'cartao_debito') && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Bandeira</Label>
-                        <Select value={form.bandeira || 'nenhuma'} onValueChange={(value) => setForm((c) => ({ ...c, bandeira: value === 'nenhuma' ? '' : value }))}>
-                          <SelectTrigger className="h-12 rounded-[12px]">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="nenhuma" disabled>Selecione a bandeira</SelectItem>
-                            <SelectItem value="Visa">Visa</SelectItem>
-                            <SelectItem value="Mastercard">Mastercard</SelectItem>
-                            <SelectItem value="Elo">Elo</SelectItem>
-                            <SelectItem value="Amex">Amex</SelectItem>
-                            <SelectItem value="Hipercard">Hipercard</SelectItem>
-                            <SelectItem value="Outros">Outros</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {form.forma === 'cartao_credito' && (
-                        <div className="space-y-2">
-                          <Label>Parcelas</Label>
-                          <Select value={form.parcelas} onValueChange={(value) => setForm((c) => ({ ...c, parcelas: value }))}>
-                            <SelectTrigger className="h-12 rounded-[12px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from({ length: 12 }, (_, idx) => idx + 1).map((n) => (
-                                <SelectItem key={n} value={String(n)}>
-                                  {n}x
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {form.forma === 'cartao_credito' && Number(form.parcelas) > 1 && Number(form.valor) > 0 && (
-                    <p className="text-xs text-app-text-secondary dark:text-white/60">
-                      {Number(form.parcelas)}× de{' '}
-                      <span className="font-medium text-app-text-primary dark:text-white">
-                        R$ {(Number(form.valor) / Number(form.parcelas)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </p>
-                  )}
+                  <FormaDetalhesCampos
+                    valor={form}
+                    valorTotal={Number(form.valor) || 0}
+                    onChange={(parcial) => setForm((c) => ({ ...c, ...parcial }))}
+                  />
+                  <VinculoCampo valor={vinculo} onChange={setVinculo} />
                 </>
               )}
 
@@ -773,6 +807,8 @@ export function CaixaView() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ResumoCardModal card={resumoCard} onClose={() => setResumoCard(null)} items={data} session={session} />
 
       <DetalheFormaModal
         open={detalheFormaOpen}
