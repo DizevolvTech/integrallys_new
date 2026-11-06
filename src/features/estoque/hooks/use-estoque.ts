@@ -65,6 +65,8 @@ export interface MovimentacaoItem {
   observacoes: string | null
   vinculoTipo: string | null
   vinculoNome: string | null
+  /** Paciente da venda/conversão de prescrição ligada ao movimento. */
+  pacienteNome: string | null
   criadoEm: string
   estornada: boolean
 }

@@ -72,6 +72,7 @@ export function MovimentacoesLista({ movimentacoes, onEstornar }: MovimentacoesL
               <TableHead className={CABECALHO}>Tipo</TableHead>
               <TableHead className={CABECALHO}>Quantidade</TableHead>
               <TableHead className={CABECALHO}>Operador</TableHead>
+              <TableHead className={CABECALHO}>Paciente</TableHead>
               <TableHead className={CABECALHO}>Vínculo</TableHead>
               <TableHead className={CABECALHO}>Observação</TableHead>
               <TableHead className={`text-right ${CABECALHO}`}>Ações</TableHead>
@@ -85,6 +86,7 @@ export function MovimentacoesLista({ movimentacoes, onEstornar }: MovimentacoesL
                 <TableCell><SeloTipo mov={mov} /></TableCell>
                 <TableCell className="tabular-nums text-app-text-primary dark:text-white">{sinal(mov)}{mov.quantidade}</TableCell>
                 <TableCell className="text-app-text-secondary dark:text-white/70">{mov.operadorNome || '—'}</TableCell>
+                <TableCell className="text-app-text-secondary dark:text-white/70">{mov.pacienteNome || '—'}</TableCell>
                 <TableCell className="text-app-text-secondary dark:text-white/70"><Vinculo mov={mov} /></TableCell>
                 <TableCell className="max-w-xs truncate text-xs text-app-text-muted">{mov.observacoes ?? '—'}</TableCell>
                 <TableCell className="text-right">
@@ -117,6 +119,7 @@ export function MovimentacoesLista({ movimentacoes, onEstornar }: MovimentacoesL
             }
             campos={[
               { rotulo: 'Operador', valor: mov.operadorNome || '—' },
+              { rotulo: 'Paciente', valor: mov.pacienteNome || '—' },
               { rotulo: 'Vínculo', valor: <Vinculo mov={mov} /> },
               { rotulo: 'Observação', valor: mov.observacoes ?? '—' },
             ]}
