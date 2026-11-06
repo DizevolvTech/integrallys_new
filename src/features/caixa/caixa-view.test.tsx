@@ -95,9 +95,9 @@ describe('CaixaView — cards e resumo', () => {
     render(<CaixaView />)
     await user.click(screen.getByTestId('card-entradas'))
     const painel = within(screen.getByTestId('resumo-entradas'))
-    expect(painel.getByText('Consulta Maria')).toBeInTheDocument()
-    expect(painel.getByText('Paciente: Maria Silva')).toBeInTheDocument()
-    expect(painel.getByText('PIX · Sicredi')).toBeInTheDocument()
+    expect(painel.getAllByText('Consulta Maria').length).toBeGreaterThan(0)
+    expect(painel.getAllByText('Paciente: Maria Silva').length).toBeGreaterThan(0)
+    expect(painel.getAllByText(/PIX · Sicredi/).length).toBeGreaterThan(0)
     expect(painel.queryByText('Material')).not.toBeInTheDocument()
     expect(painel.getByText(/Total: R\$\s*300,00/)).toBeInTheDocument()
   })
@@ -107,7 +107,7 @@ describe('CaixaView — cards e resumo', () => {
     render(<CaixaView />)
     await user.click(screen.getByTestId('card-saidas'))
     const painel = within(screen.getByTestId('resumo-saidas'))
-    expect(painel.getByText('Material')).toBeInTheDocument()
+    expect(painel.getAllByText('Material').length).toBeGreaterThan(0)
     expect(painel.queryByText('Consulta Maria')).not.toBeInTheDocument()
   })
 
@@ -137,6 +137,31 @@ describe('CaixaView — cards e resumo', () => {
   it('lista de movimentações mostra o vínculo junto da descrição', () => {
     render(<CaixaView />)
     expect(screen.getAllByText('Paciente: Maria Silva').length).toBeGreaterThan(0)
+  })
+})
+
+describe('CaixaView — layout', () => {
+  it('janela do resumo no celular: cartões empilhados (data/hora, descrição, vínculo, forma, valor), tabela só de md', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<CaixaView />)
+    await user.click(screen.getByTestId('card-entradas'))
+    const cartoes = within(screen.getByTestId('resumo-cartoes'))
+    expect(screen.getByTestId('resumo-cartoes').className).toContain('md:hidden')
+    expect(cartoes.getAllByRole('listitem')).toHaveLength(2)
+    expect(cartoes.getByText('Consulta Maria')).toBeInTheDocument()
+    expect(cartoes.getByText('Paciente: Maria Silva')).toBeInTheDocument()
+    expect(cartoes.getAllByText(/^Forma:/)).toHaveLength(2)
+    expect(cartoes.getAllByText(/R\$\s*100,00/)).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Fechar' })).toBeInTheDocument()
+  })
+
+  it('tabela de movimentações em 6 colunas, Ações sempre visível e sem rolagem horizontal própria', () => {
+    render(<CaixaView />)
+    const tabela = screen.getByTestId('caixa-tabela-movimentos')
+    expect(tabela.className).not.toContain('overflow-x-auto')
+    const cabecalho = within(tabela).getAllByRole('columnheader').map((c) => c.textContent)
+    expect(cabecalho).toEqual(['Data/Hora', 'Descrição', 'Forma', 'Valor', 'Operador', 'Ações'])
+    expect(within(tabela).getByRole('columnheader', { name: 'Ações' }).className).toContain('sticky')
   })
 })
 

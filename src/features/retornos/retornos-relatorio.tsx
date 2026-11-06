@@ -265,18 +265,17 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                 />
               ))}
             </ListaCartoesMobile>
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden md:block" data-testid="retornos-tabela">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Data</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Últimos procedimentos</TableHead>
-                    <TableHead>Especialista</TableHead>
-                    <TableHead>Procedimento do retorno</TableHead>
+                    <TableHead>Especialista / Procedimento do retorno</TableHead>
                     <TableHead>Retorno previsto</TableHead>
                     <TableHead>Situação</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead className="w-px whitespace-nowrap text-right">Ação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -297,8 +296,12 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                           </ul>
                         )}
                       </TableCell>
-                      <TableCell>{item.especialista || '—'}</TableCell>
-                      <TableCell>{item.procedimento || '—'}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>{item.especialista || '—'}</span>
+                          <span className="text-xs text-app-text-muted">{item.procedimento || '—'}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {item.dataPrevista || (
                           <span className="text-app-text-muted">{item.prazo}</span>
@@ -309,8 +312,8 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                           {ROTULO_SITUACAO_RETORNO[item.situacao]}
                         </StatusBadge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                      <TableCell className="whitespace-nowrap text-right">
+                        <div className="flex flex-col items-end gap-2">
                           {botaoPrazo(item)}
                           {podeAgendar && (
                             <Button asChild size="sm" className="bg-app-primary text-white">

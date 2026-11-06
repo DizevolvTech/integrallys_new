@@ -534,9 +534,9 @@ export function CaixaView() {
       </div>
 
       {/* Two-Panel: Table + Summary Sidebar */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
         {/* Movimentações Table */}
-        <Card className="xl:col-span-2 p-0 border-none shadow-xl bg-app-card dark:bg-app-card-dark">
+        <Card className="min-w-0 p-0 border-none shadow-xl bg-app-card dark:bg-app-card-dark">
           <div className="p-6 border-b border-app-border dark:border-app-border-dark">
             <h3 className="text-lg font-normal text-app-text-primary dark:text-white">{consulta ? `Movimentações de ${periodoTexto}` : 'Movimentações da sessão'}</h3>
             {session.listaCortada && (
@@ -572,65 +572,69 @@ export function CaixaView() {
                 />
               ))}
           </ListaCartoesMobile>
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden md:block" data-testid="caixa-tabela-movimentos">
             <Table>
               <TableHeader>
                 <TableRow className="bg-app-bg-secondary/50 dark:bg-app-hover/20 border-none">
-                  <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Data</TableHead>
-                  <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Hora</TableHead>
-                  <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Tipo</TableHead>
-                  <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Descrição</TableHead>
-                  <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Forma</TableHead>
-                  <TableHead className="text-right text-xs font-normal text-app-text-secondary dark:text-white/60">Valor</TableHead>
-                  <TableHead className="text-xs font-normal text-app-text-secondary dark:text-white/60">Operador</TableHead>
-                  <TableHead className="text-center text-xs font-normal text-app-text-secondary dark:text-white/60">Ações</TableHead>
+                  <TableHead className="h-10 px-3 text-xs font-normal text-app-text-secondary dark:text-white/60">Data/Hora</TableHead>
+                  <TableHead className="h-10 px-3 text-xs font-normal text-app-text-secondary dark:text-white/60">Descrição</TableHead>
+                  <TableHead className="h-10 px-3 text-xs font-normal text-app-text-secondary dark:text-white/60">Forma</TableHead>
+                  <TableHead className="h-10 px-3 text-right text-xs font-normal text-app-text-secondary dark:text-white/60">Valor</TableHead>
+                  <TableHead className="h-10 px-3 text-xs font-normal text-app-text-secondary dark:text-white/60">Operador</TableHead>
+                  <TableHead className="sticky right-0 h-10 w-12 bg-app-card px-2 text-center text-xs font-normal text-app-text-secondary dark:bg-app-card-dark dark:text-white/60">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-app-text-secondary dark:text-white/60">
+                    <TableCell colSpan={6} className="text-center py-10 text-app-text-secondary dark:text-white/60">
                       Carregando movimentações...
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && error && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-[var(--app-danger-text)]">
+                    <TableCell colSpan={6} className="text-center py-10 text-[var(--app-danger-text)]">
                       {error}
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && !error && data.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-app-text-secondary dark:text-white/60">
+                    <TableCell colSpan={6} className="text-center py-10 text-app-text-secondary dark:text-white/60">
                       Sem movimentações no período.
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && visiveis.map((item) => (
                   <TableRow key={item.id} className="border-app-border dark:border-app-border-dark hover:bg-app-bg-secondary/50 dark:hover:bg-app-hover/20 transition-colors">
-                    <TableCell className="text-app-text-secondary font-normal">{diaDoMovimento(item)}</TableCell>
-                    <TableCell className="text-app-text-secondary font-normal">{item.hora || '--:--'}</TableCell>
-                    <TableCell>
-                      <Badge className={`${item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} font-normal border-none`}>
-                        {item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-app-text-primary dark:text-white font-normal">
+                    <TableCell className="whitespace-nowrap px-3 py-3 text-xs font-normal text-app-text-secondary">
                       <div className="flex flex-col">
-                        <span>{item.descricao}</span>
+                        <span>{diaDoMovimento(item)}</span>
+                        <span>{item.hora || '--:--'}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="min-w-[160px] px-3 py-3 text-app-text-primary dark:text-white font-normal">
+                      <div className="flex flex-col">
+                        <span className="break-words">{item.descricao}</span>
                         {vinculoTexto(item) && <span className="text-xs text-app-text-secondary dark:text-white/60">{vinculoTexto(item)}</span>}
                       </div>
                     </TableCell>
-                    <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">
+                    <TableCell className="px-3 py-3 text-xs text-app-text-secondary dark:text-white/60 font-normal">
                       {formaTexto(item)}
                     </TableCell>
-                    <TableCell className={`text-right font-normal ${item.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}`}>
-                      R$ {formatBRL(item.valor)}
+                    <TableCell className="px-3 py-3 text-right font-normal">
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`whitespace-nowrap ${item.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}`}>
+                          R$ {formatBRL(item.valor)}
+                        </span>
+                        <Badge className={`${item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} px-1.5 py-0 text-[10px] font-normal border-none`}>
+                          {item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                        </Badge>
+                      </div>
                     </TableCell>
-                    <TableCell className="text-app-text-secondary dark:text-white/60 font-normal">{item.operador || '—'}</TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="px-3 py-3 text-xs text-app-text-secondary dark:text-white/60 font-normal">{item.operador || '—'}</TableCell>
+                    <TableCell className="sticky right-0 bg-app-card px-2 py-3 text-center dark:bg-app-card-dark">
                       {renderAcoes(item)}
                     </TableCell>
                   </TableRow>
