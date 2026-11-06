@@ -5,6 +5,7 @@ import { authErrorResponse, getRequestAuth, getScopedUnitId, isScopedRole } from
 import { removerCustoRelatorio } from '@/lib/estoque-custo'
 import { montarFiltros } from '@/lib/relatorios/filtros'
 import { lerConfigTaxas, calcularTaxa, somarDias, totalizarRecebimentos, type GrupoRecebimento } from '@/lib/relatorios/recebimentos-taxas'
+import { metricaDesempenhoValida, ocultarTotaisFinanceirosDaRecepcao } from '@/lib/relatorios/totais-por-perfil'
 import { perfilPodeVerRelatorio, type RelatorioTipo } from '@/lib/relatorios/registry'
 
 const RPC_POR_TIPO: Record<RelatorioTipo, string> = {
@@ -22,6 +23,7 @@ const RPC_POR_TIPO: Record<RelatorioTipo, string> = {
   tarefas: 'rel_tarefas',
   aniversariantes: 'rel_aniversariantes',
   desempenho: 'rel_desempenho',
+  'desempenho-detalhe': 'rel_desempenho_detalhe',
 }
 
 interface ResultadoRpc {
@@ -80,6 +82,9 @@ export async function executarRelatorio(request: NextRequest, tipo: RelatorioTip
     unidadeId: scoped.unidadeId,
     perfilRestritoPorUnidade: isScopedRole(session.role),
   })
+  if (tipo === 'desempenho-detalhe' && !metricaDesempenhoValida(filtros.metrica)) {
+    return serverErrorResponse('Indicador inválido', 'INVALID_METRIC', 400)
+  }
   if (tipo === 'justificativas') filtros.situacao = 'justificativas'
   if (tipo === 'agendamentos' && !filtros.situacao) filtros.situacao = 'agendados'
 
@@ -98,6 +103,9 @@ export async function executarRelatorio(request: NextRequest, tipo: RelatorioTip
     rows = enriquecido.rows
     totais = { ...enriquecido.totais }
   }
+
+  // Recepção não recebe os totalizadores financeiros de Consultas (decisão do servidor, não da tela).
+  totais = ocultarTotaisFinanceirosDaRecepcao(tipo, session.role, totais)
 
   let custoOculto = false
   if (tipo === 'estoque-posicao' || tipo === 'estoque-movimentacao') {

@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Download, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ComissaoItensDialog } from '@/features/relatorios/components/comissao-itens-dialog'
+import { DesempenhoDetalheDialog } from '@/features/relatorios/components/desempenho-detalhe-dialog'
+import { RolagemHorizontalComBarraNoTopo } from '@/features/relatorios/components/rolagem-horizontal-com-barra-no-topo'
 import { RelatorioCartoesMobile } from '@/features/relatorios/components/relatorio-cartoes-mobile'
 import { RelatorioCartoes, RelatorioResumos } from '@/features/relatorios/components/relatorio-cartoes'
 import { RelatorioCelula } from '@/features/relatorios/components/relatorio-celula'
@@ -37,6 +39,7 @@ export function RelatorioTabela({ tipo, proprio = false }: Props) {
   const [valores, setValores] = useState<Record<string, string>>(() => valoresIniciais(configBase))
   const [pagina, setPagina] = useState(1)
   const [detalhe, setDetalhe] = useState<LinhaRelatorio | null>(null)
+  const [indicador, setIndicador] = useState<string | null>(null)
   const { linhas, meta, isLoading, error } = useRelatorioTabela(tipo, valores, pagina)
   const config = useMemo(() => (meta?.custoOculto ? configSemCusto(configBase) : configBase), [meta?.custoOculto, configBase])
 
@@ -57,7 +60,7 @@ export function RelatorioTabela({ tipo, proprio = false }: Props) {
     <div className="space-y-5">
       <p className="text-sm text-app-text-secondary dark:text-white/60">{config.descricao}</p>
       <RelatorioFiltros filtros={config.filtros} valores={valores} onChange={alterar} opcoes={opcoes} proprio={proprio} />
-      <RelatorioCartoes cartoes={cartoes} />
+      <RelatorioCartoes cartoes={cartoes} onAbrirDetalhe={tipo === 'desempenho' ? (c) => setIndicador(c.detalhe ?? null) : undefined} />
       {config.legenda && cartoes.length > 0 && <p className="text-xs text-app-text-muted">{config.legenda}</p>}
       {error && <p className="text-sm text-[var(--app-danger-text)]">{error}</p>}
 
@@ -83,7 +86,7 @@ export function RelatorioTabela({ tipo, proprio = false }: Props) {
       </div>
 
       <div className="hidden overflow-hidden rounded-xl border border-app-border dark:border-app-border-dark md:block">
-        <div className="w-full overflow-x-auto">
+        <RolagemHorizontalComBarraNoTopo>
           <Table style={{ minWidth: Math.max(720, colSpan * 130) }}>
             <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
               <TableRow className="border-b border-app-border hover:bg-transparent dark:border-app-border-dark">
@@ -135,7 +138,7 @@ export function RelatorioTabela({ tipo, proprio = false }: Props) {
               ))}
             </TableBody>
           </Table>
-        </div>
+        </RolagemHorizontalComBarraNoTopo>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -172,6 +175,7 @@ export function RelatorioTabela({ tipo, proprio = false }: Props) {
       </div>
 
       <RelatorioResumos resumos={resumos} />
+      {indicador && <DesempenhoDetalheDialog metrica={indicador} filtros={valores} onClose={() => setIndicador(null)} />}
       {config.detalheItens && <ComissaoItensDialog linha={detalhe} onClose={() => setDetalhe(null)} />}
     </div>
   )

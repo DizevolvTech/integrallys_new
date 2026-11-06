@@ -27,11 +27,15 @@ export interface CartaoTotal {
   label: string
   valor: string
   tom?: 'sucesso' | 'alerta' | 'perigo' | 'neutro'
+  /** Cartão clicável: indicador cujo detalhe (lista dos registros) abre em um resumo. */
+  detalhe?: string
 }
 
 export interface ResumoLista {
   titulo: string
   itens: Array<{ nome: string; valor: string }>
+  /** Mostra o quadro mesmo sem itens, com este texto. */
+  vazio?: string
 }
 
 export interface ConfigRelatorio {
@@ -82,6 +86,17 @@ const MIDIAS = [
   { value: 'outros', label: 'Outros' },
 ]
 
+const FAIXAS_ETARIAS = [
+  { value: 'ate_14', label: 'Até 14 anos' },
+  { value: '15_24', label: '15 a 24 anos' },
+  { value: '25_34', label: '25 a 34 anos' },
+  { value: '35_44', label: '35 a 44 anos' },
+  { value: '45_54', label: '45 a 54 anos' },
+  { value: '55_64', label: '55 a 64 anos' },
+  { value: '65_mais', label: '65 anos ou mais' },
+  { value: 'nao_informado', label: 'Não informado' },
+]
+
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
@@ -102,6 +117,35 @@ const listaResumo = (titulo: string, itens: unknown): ResumoLista => ({
   titulo,
   itens: lista(itens).map((i) => ({ nome: String(i.nome), valor: String(i.qtd) })),
 })
+
+/** Ranking por quantidade vendida (já vem do mais para o menos vendido), com a posição à frente do nome. */
+const rankingVendas = (titulo: string, itens: unknown): ResumoLista => ({
+  titulo,
+  vazio: 'Nada vendido no período.',
+  itens: lista(itens).map((i, pos) => ({
+    nome: `${pos + 1}º ${String(i.nome)}`,
+    valor: `${num(i.quantidade)} · ${formatMoeda(i.valor)}`,
+  })),
+})
+
+/** Indicadores do Desempenho geral que abrem a lista de registros ao clicar no cartão. */
+export const DETALHES_DESEMPENHO: Record<string, string> = {
+  agendamentos: 'Agendamentos',
+  realizados: 'Realizados',
+  cancelados: 'Cancelados',
+  faltas: 'Não compareceram',
+  pacientes: 'Pacientes atendidos',
+  taxa: 'Taxa de conclusão',
+}
+
+export const COLUNAS_DESEMPENHO_DETALHE: ColunaRelatorio[] = [
+  { key: 'data', label: 'Data', tipo: 'data' },
+  { key: 'hora', label: 'Hora' },
+  { key: 'paciente', label: 'Paciente' },
+  { key: 'profissional', label: 'Profissional' },
+  { key: 'procedimento', label: 'Procedimento' },
+  { key: 'status', label: 'Situação', tipo: 'badge' },
+]
 
 export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
   consultas: {
@@ -145,9 +189,10 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
         ],
       },
     ],
+    // Total recebido / em aberto só aparecem quando o servidor os envia (a recepção não recebe).
     cartoes: (t, total) => [
-      { label: 'Total recebido', valor: formatMoeda(t.recebido), tom: 'sucesso' },
-      { label: 'Total em aberto', valor: formatMoeda(t.aberto), tom: 'alerta' },
+      ...(t.recebido === undefined ? [] : [{ label: 'Total recebido', valor: formatMoeda(t.recebido), tom: 'sucesso' as const }]),
+      ...(t.aberto === undefined ? [] : [{ label: 'Total em aberto', valor: formatMoeda(t.aberto), tom: 'alerta' as const }]),
       { label: 'Registros', valor: String(total), tom: 'neutro' },
       {
         label: `Presença na clínica (${num(t.realizadas)} de ${num(t.agendadas)})`,
@@ -236,9 +281,10 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
           { value: 'todos', label: 'Todos' },
           { value: 'feminino', label: 'Feminino' },
           { value: 'masculino', label: 'Masculino' },
-          { value: 'outro', label: 'Outro' },
+          { value: 'nao_informado', label: 'Não informado' },
         ],
       },
+      { key: 'faixa_etaria', label: 'Faixa etária', tipo: 'select', opcoes: [{ value: 'todos', label: 'Todas' }, ...FAIXAS_ETARIAS], padrao: 'todos' },
       { key: 'cidade', label: 'Cidade', tipo: 'texto' },
       convenio,
       profissional(),
@@ -258,6 +304,14 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       listaResumo('Por mídia', t.porMidia),
       listaResumo('Por cidade', t.porCidade),
       listaResumo('Por convênio', t.porConvenio),
+      listaResumo('Por sexo', t.porSexo),
+      {
+        titulo: 'Por faixa etária',
+        itens: lista(t.porFaixaEtaria).map((i) => ({
+          nome: String(i.nome),
+          valor: `${num(i.qtd)} · ${num(i.pct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`,
+        })),
+      },
     ],
   },
   vendas: {
@@ -295,10 +349,9 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
           valor: `${num(i.qtd)} · ${formatMoeda(i.valor)}`,
         })),
       },
-      {
-        titulo: 'Quantidade por produto',
-        itens: lista(t.porProduto).map((i) => ({ nome: String(i.nome), valor: `${num(i.quantidade)} · ${formatMoeda(i.valor)}` })),
-      },
+      rankingVendas('Produtos', t.rankProdutos),
+      rankingVendas('Consultas', t.rankConsultas),
+      rankingVendas('Procedimentos', t.rankProcedimentos),
     ],
   },
   recebimentos: {
@@ -577,12 +630,17 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
     filtros: [...periodo('ha30dias', 'hoje'), unidade, profissional()],
     cartoes: (t) => [
-      { label: 'Agendamentos', valor: String(num(t.agendamentos)), tom: 'neutro' },
-      { label: 'Realizados', valor: String(num(t.realizados)), tom: 'sucesso' },
-      { label: 'Cancelados', valor: String(num(t.cancelados)), tom: 'alerta' },
-      { label: 'Não compareceram', valor: String(num(t.faltas)), tom: 'perigo' },
-      { label: 'Pacientes atendidos', valor: String(num(t.pacientesUnicos)), tom: 'neutro' },
-      { label: 'Taxa de conclusão', valor: `${num(t.taxaConclusaoPct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`, tom: 'sucesso' },
+      { label: 'Agendamentos', valor: String(num(t.agendamentos)), tom: 'neutro', detalhe: 'agendamentos' },
+      { label: 'Realizados', valor: String(num(t.realizados)), tom: 'sucesso', detalhe: 'realizados' },
+      { label: 'Cancelados', valor: String(num(t.cancelados)), tom: 'alerta', detalhe: 'cancelados' },
+      { label: 'Não compareceram', valor: String(num(t.faltas)), tom: 'perigo', detalhe: 'faltas' },
+      { label: 'Pacientes atendidos', valor: String(num(t.pacientesUnicos)), tom: 'neutro', detalhe: 'pacientes' },
+      {
+        label: 'Taxa de conclusão',
+        valor: `${num(t.taxaConclusaoPct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`,
+        tom: 'sucesso',
+        detalhe: 'taxa',
+      },
     ],
   },
 }
