@@ -114,13 +114,31 @@ const profissional = (key = 'profissional_id', label = 'Profissional'): FiltroRe
 const convenio: FiltroRelatorio = { key: 'convenio', label: 'Plano/convênio', tipo: 'texto' }
 
 /** Quantidade e % do total (soma das quantidades do próprio resumo, que cobre todo o filtro). */
+/** Percentuais por maior resto: cada um com 1 casa e a soma fecha exatamente em 100%. */
+export const percentuaisQueSomam100 = (qtds: number[]): number[] => {
+  const total = qtds.reduce((a, b) => a + b, 0)
+  if (total <= 0) return qtds.map(() => 0)
+  const brutos = qtds.map((q) => (q / total) * 1000)
+  const base = brutos.map(Math.floor)
+  let falta = 1000 - base.reduce((a, b) => a + b, 0)
+  const ordem = brutos.map((b, i) => [b - Math.floor(b), i] as const).sort((x, y) => y[0] - x[0])
+  for (const [, i] of ordem) {
+    if (falta <= 0) break
+    base[i] += 1
+    falta -= 1
+  }
+  return base.map((b) => b / 10)
+}
+
 const itensComPct = (itens: unknown) => {
   const l = lista(itens)
-  const total = l.reduce((acc, i) => acc + num(i.qtd), 0)
-  return l.map((i) => {
-    const pct = i.pct != null ? num(i.pct) : total > 0 ? (num(i.qtd) / total) * 100 : 0
-    return { nome: String(i.nome), valor: `${num(i.qtd)} · ${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` }
-  })
+  const qtds = l.map((i) => num(i.qtd))
+  const soma = qtds.reduce((x, y) => x + y, 0)
+  const ref = l.find((i) => i.pct != null && num(i.pct) > 0)
+  const totalServidor = ref ? Math.round((num(ref.qtd) * 100) / num(ref.pct)) : soma
+  // Lista completa: arredonda pelo maior resto para fechar em 100%. Lista parcial: usa o % do servidor.
+  const pcts = totalServidor === soma ? percentuaisQueSomam100(qtds) : l.map((i) => num(i.pct))
+  return l.map((i, k) => ({ nome: String(i.nome), valor: `${num(i.qtd)} · ${pcts[k].toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` }))
 }
 
 const listaResumo = (titulo: string, itens: unknown): ResumoLista => ({
@@ -320,10 +338,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       },
       {
         titulo: 'Por faixa etária',
-        itens: lista(t.porFaixaEtaria).map((i) => ({
-          nome: String(i.nome),
-          valor: `${num(i.qtd)} · ${num(i.pct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`,
-        })),
+        itens: itensComPct(t.porFaixaEtaria),
       },
     ],
   },

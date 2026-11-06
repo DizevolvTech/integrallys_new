@@ -65,3 +65,14 @@ describe('Vendas: três rankings separados', () => {
     expect(r[3].vazio).toBeTruthy()
   })
 })
+
+import { percentuaisQueSomam100 } from './relatorio-config'
+import { describe as d2, expect as e2, it as i2 } from 'vitest'
+d2('percentuaisQueSomam100', () => {
+  i2('fecha em 100 com 4/1/7', () => {
+    const p = percentuaisQueSomam100([4, 1, 7])
+    e2(Math.round(p.reduce((a, b) => a + b, 0) * 10)).toBe(1000)
+    e2(p.every((x) => [33.3, 33.4, 8.3, 8.4, 58.3, 58.4].includes(x))).toBe(true)
+  })
+  i2('total zero', () => e2(percentuaisQueSomam100([0, 0])).toEqual([0, 0]))
+})
