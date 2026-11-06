@@ -25,7 +25,6 @@ vi.mock('@/lib/app-api', async () => {
       estado.escritas.push(`update:${tabela}`)
       return api
     }
-    api.then = (resolve: (v: unknown) => void) => resolve({ data: [], error: null })
     return api
   }
   return {

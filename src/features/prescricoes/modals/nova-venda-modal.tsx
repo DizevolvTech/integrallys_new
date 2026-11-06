@@ -10,7 +10,6 @@ import {
   Package,
   User,
   ShoppingBag,
-  Lock,
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -41,6 +40,7 @@ import { formatarMoeda } from '@/lib/moeda'
 import { validarPagamentoVenda } from '@/lib/venda-pagamento'
 import { hojeIso } from '@/features/relatorios/format'
 import { PAGAMENTO_VENDA_VAZIO, PagamentoVendaFields, type PagamentoVendaEstado } from '../components/pagamento-venda-fields'
+import { DescontoFormaTravado } from '../components/desconto-forma-travado'
 import { ValidadeOrcamentoDialog } from '../components/validade-orcamento-dialog'
 
 export interface NovaVendaModalProduct {
@@ -516,18 +516,7 @@ export function NovaVendaModal({
                       <Label className="text-sm font-semibold text-app-text-primary dark:text-white/70">
                         Desconto da forma de pagamento
                       </Label>
-                      <div
-                        data-testid="desconto-forma-travado"
-                        className="flex items-center justify-between rounded-xl border border-app-border bg-app-bg-secondary px-4 py-3 dark:border-app-border-dark dark:bg-app-hover"
-                      >
-                        <span className="flex items-center gap-2 text-sm text-app-text-secondary dark:text-white/70">
-                          <Lock size={14} />
-                          {isConsumo ? 'Consumo: sem desconto' : `${configuredDiscountPercent.toFixed(2).replace('.', ',')}% (cadastro do gestor)`}
-                        </span>
-                        <span className="text-base font-semibold tabular-nums text-app-text-primary dark:text-white">
-                          {discountAmount > 0 ? `- ${formatarMoeda(discountAmount)}` : formatarMoeda(0)}
-                        </span>
-                      </div>
+                      <DescontoFormaTravado isConsumo={isConsumo} percentual={configuredDiscountPercent} desconto={discountAmount} />
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-wider text-app-text-secondary dark:text-white/60">
                           Justificativa / Convênio

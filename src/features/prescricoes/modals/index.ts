@@ -1,4 +1,4 @@
-export { GerarVendaModal } from './gerar-venda-modal'
+export { ConverterVendaModal } from './converter-venda-modal'
 export { LabelEditorModal } from './label-editor-modal'
 export { EditarPrescricaoModal } from './editar-prescricao-modal'
 export { ExcluirPrescricaoModal } from './excluir-prescricao-modal'

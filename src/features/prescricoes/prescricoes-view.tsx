@@ -3,10 +3,9 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Clock, Edit, Eye, FileText, MoreVertical, Plus, Receipt, Search, ShoppingCart, Trash2 } from 'lucide-react'
+import { Clock, Edit, Eye, FileText, MoreVertical, Plus, Printer, Receipt, Search, ShoppingCart, Trash2 } from 'lucide-react'
 import { usePrescricoes, type PrescricaoInput, type PrescricaoItem } from '@/hooks/use-prescricoes'
 import { useApi } from '@/hooks/use-api'
-import { RetornoPendenteBadge } from '@/features/retornos/retorno-pendente-badge'
 import { registrarRetornoMaisTarde, useRetornoPendentePacientes } from '@/features/retornos/hooks/use-retornos'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useUsuarios } from '@/hooks/use-usuarios'
@@ -39,7 +38,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { PageHeader } from '@/components/shared/page-header'
 import { ReciboModal } from '@/features/recibos'
-import { classificarPrescricao, normalizarStatusPrescricao, type StatusPrescricao } from '@/lib/prescricao-status'
+import { CLASSE_TOM_STATUS, classificarPrescricao, normalizarStatusPrescricao, statusExibicaoPrescricao, type StatusPrescricao, type TomStatusPrescricao } from '@/lib/prescricao-status'
 import { formatarMoeda } from '@/lib/moeda'
 import { hojeIso } from '@/features/relatorios/format'
 import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
@@ -50,9 +49,14 @@ import {
   EditarPrescricaoModal,
   ExcluirPrescricaoModal,
   CardDetalheModal,
-  GerarVendaModal,
+  ConverterVendaModal,
+  LabelEditorModal,
   NovaVendaModal,
 } from './modals'
+import type { ConverterVendaDados } from './modals/converter-venda-modal'
+import type { LabelData } from './modals/label-editor-modal'
+import { RetornoPendenteLink } from './components/retorno-pendente-link'
+import { useRetornosAgendados } from './hooks/use-retornos-agendados'
 
 interface PrescriptionRow extends PrescricaoItem {
   createdAt: string
@@ -74,12 +78,28 @@ interface PrescriptionRow extends PrescricaoItem {
   }>
 }
 
-function statusClass(status: string) {
-  const normalized = status.toLowerCase()
-  if (normalized.includes('pendent')) return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300'
-  if (normalized.includes('ativ')) return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300'
-  if (normalized.includes('venc')) return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300'
-  return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300'
+const PONTO_TOM: Record<TomStatusPrescricao, string> = {
+  ativa: 'bg-emerald-500',
+  vencida: 'bg-amber-500',
+  concluida: 'bg-sky-500',
+  cancelada: 'bg-red-500',
+  neutro: 'bg-slate-400',
+}
+
+function SeloStatus({ item, className }: { item: PrescriptionRow; className: string }) {
+  const { rotulo, tom } = statusExibicaoPrescricao(item.status, item.validity, hojeIso())
+  return <span className={`inline-flex items-center rounded-full border font-medium ${CLASSE_TOM_STATUS[tom]} ${className}`}>{rotulo}</span>
+}
+
+function OpcaoStatus({ valor, rotulo, tom }: { valor: string; rotulo: string; tom: TomStatusPrescricao }) {
+  return (
+    <SelectItem value={valor}>
+      <span className="flex items-center gap-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${PONTO_TOM[tom]}`} aria-hidden="true" />
+        {rotulo}
+      </span>
+    </SelectItem>
+  )
 }
 
 function normalizePrescription(item: PrescricaoItem): PrescriptionRow {
@@ -129,6 +149,8 @@ export function PrescricoesView() {
   const [isAgendarRetornoModalOpen, setIsAgendarRetornoModalOpen] = useState(false)
   const api = useApi()
   const { pacientesComRetornoPendente, reload: reloadRetornosPendentes } = useRetornoPendentePacientes()
+  const { retornosAgendados, reload: reloadRetornosAgendados } = useRetornosAgendados()
+  const [rotulosParaImprimir, setRotulosParaImprimir] = useState<LabelData[]>([])
   const [cardDetalhe, setCardDetalhe] = useState<'Ativa' | 'Vencida' | 'Convertida' | null>(null)
   const [reciboVendaId, setReciboVendaId] = useState<string | null>(null)
 
@@ -192,6 +214,8 @@ export function PrescricoesView() {
 
       if (statusFilter === 'Ativa' || statusFilter === 'Vencida') {
         if (classeDe(item) !== (statusFilter === 'Ativa' ? 'ativa' : 'vencida')) return false
+      } else if (statusFilter === 'Pendente') {
+        if (statusExibicaoPrescricao(item.status, item.validity, hojeIso()).rotulo !== 'Pendente') return false
       } else if (statusFilter !== 'todos' && statusDe(item) !== statusFilter) return false
       if (tipoFilter !== 'todos' && item.type !== tipoFilter) return false
       if (validadeFilter !== 'todos') {
@@ -266,23 +290,50 @@ export function PrescricoesView() {
     }
   }
 
-  const handleConvertSale = async (item: PrescriptionRow) => {
+  /** Converte a prescrição ativa em venda no servidor (forma de pagamento, estoque, caixa). Falha sobe ao modal. */
+  const handleConvertSale = async (item: PrescriptionRow, dados: ConverterVendaDados) => {
     await updatePrescricao({
       id: item.id,
       pacienteId: item.pacienteId || '',
       numero: item.numero,
-      valorTotal: item.valorTotal,
+      valorTotal: dados.valorTotal,
       status: 'Convertida',
       tipo: item.type,
       data: item.data ? item.data.split('/').reverse().join('-') : undefined,
       validade: item.validity !== '-' ? item.validity.split('/').reverse().join('-') : undefined,
       observacoes: item.observacoes,
+      formaPagamento: dados.formaPagamento,
+      bandeira: dados.bandeira,
+      contaBancariaId: dados.contaBancariaId,
+      numeroParcelas: dados.numeroParcelas,
+      valorParcela: dados.valorParcela,
     })
     setSelectedPrescription({ ...item, status: 'Convertida' })
     toast.success('Prescrição/Vendas convertida com sucesso.')
-    setIsVendaModalOpen(false)
+    void reloadRetornosAgendados()
     setTimeout(() => setIsAgendarRetornoModalOpen(true), 200)
   }
+
+  const handleImprimirRotulos = (item: PrescriptionRow) => {
+    setRotulosParaImprimir(
+      item.items.map((line) => ({
+        patientName: item.paciente,
+        productName: line.productName,
+        composition: line.posology,
+        usage: undefined,
+        validity: '',
+      })),
+    )
+  }
+
+  const seloRetorno = (item: PrescriptionRow) =>
+    item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) ? (
+      <RetornoPendenteLink
+        pacienteId={item.pacienteId}
+        dataRetornoMarcado={retornosAgendados[item.pacienteId]}
+        onAbrir={(rota) => router.push(rota)}
+      />
+    ) : null
 
   const renderAcoes = (item: PrescriptionRow) => {
     const status = statusDe(item)
@@ -294,7 +345,7 @@ export function PrescricoesView() {
           <Eye size={18} />
         </Button>
         {aberta && (
-          <Button onClick={() => handleOpenVenda(item)} variant="ghost" size="icon" className={botao} aria-label="Gerar venda">
+          <Button onClick={() => handleOpenVenda(item)} variant="ghost" size="icon" className={botao} title="Converter em venda" aria-label="Converter em venda">
             <ShoppingCart size={18} />
           </Button>
         )}
@@ -310,6 +361,10 @@ export function PrescricoesView() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 rounded-xl">
+            <DropdownMenuItem onClick={() => handleImprimirRotulos(item)} className="flex items-center gap-2 cursor-pointer">
+              <Printer size={16} />
+              Imprimir rótulos
+            </DropdownMenuItem>
             {aberta && (
               <DropdownMenuItem onClick={() => handleOpenEdit(item)} className="flex items-center gap-2 cursor-pointer">
                 <Edit size={16} />
@@ -359,27 +414,24 @@ export function PrescricoesView() {
         }
       />
 
-      <GerarVendaModal
+      <ConverterVendaModal
         isOpen={isVendaModalOpen}
-        onClose={() => {
-          setIsVendaModalOpen(false)
-        }}
-        prescription={selectedPrescription ? {
-          id: selectedPrescription.id,
-          number: selectedPrescription.numero,
-          patientName: selectedPrescription.paciente,
-          specialistName: selectedPrescription.specialistName,
-          createdAt: selectedPrescription.createdAt,
-          type: selectedPrescription.type,
-          status: selectedPrescription.status,
-        } : null}
-        items={selectedPrescription?.items.map((item) => ({
-          product: item.productName,
-          dosage: item.posology,
-          stockStatus: 'available' as const,
-        }))}
-        onConfirm={() => (selectedPrescription ? handleConvertSale(selectedPrescription) : undefined)}
+        onClose={() => setIsVendaModalOpen(false)}
+        prescription={
+          selectedPrescription
+            ? {
+                id: selectedPrescription.id,
+                numero: selectedPrescription.numero,
+                paciente: selectedPrescription.paciente,
+                valorTotal: selectedPrescription.valorTotal,
+                items: selectedPrescription.items,
+              }
+            : null
+        }
+        onConfirm={(dados) => (selectedPrescription ? handleConvertSale(selectedPrescription, dados) : Promise.resolve())}
       />
+
+      <LabelEditorModal isOpen={rotulosParaImprimir.length > 0} onClose={() => setRotulosParaImprimir([])} dataList={rotulosParaImprimir} />
 
       <EditarPrescricaoModal
         isOpen={isEditModalOpen}
@@ -576,11 +628,11 @@ export function PrescricoesView() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos status</SelectItem>
-                    <SelectItem value="Pendente">Pendente</SelectItem>
-                    <SelectItem value="Ativa">Ativa</SelectItem>
-                    <SelectItem value="Vencida">Vencida</SelectItem>
-                    <SelectItem value="Convertida">Convertida</SelectItem>
-                    <SelectItem value="Cancelada">Cancelada</SelectItem>
+                    <OpcaoStatus valor="Pendente" rotulo="Pendente" tom="ativa" />
+                    <OpcaoStatus valor="Ativa" rotulo="Ativa" tom="ativa" />
+                    <OpcaoStatus valor="Vencida" rotulo="Vencida" tom="vencida" />
+                    <OpcaoStatus valor="Convertida" rotulo="Convertida" tom="concluida" />
+                    <OpcaoStatus valor="Cancelada" rotulo="Cancelada" tom="cancelada" />
                   </SelectContent>
                 </Select>
                 <Select value={tipoFilter} onValueChange={(value) => setTipoFilter(value as typeof tipoFilter)}>
@@ -634,8 +686,8 @@ export function PrescricoesView() {
                           valor={formatarMoeda(item.valorTotal)}
                           selo={
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className={`inline-flex min-h-7 items-center rounded-full border px-3 py-0.5 text-xs font-medium ${statusClass(item.status)}`}>{item.status}</span>
-                              {item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) && <RetornoPendenteBadge />}
+                              <SeloStatus item={item} className="min-h-7 px-3 py-0.5 text-xs" />
+                              {seloRetorno(item)}
                             </div>
                           }
                           acoes={renderAcoes(item)}
@@ -704,10 +756,8 @@ export function PrescricoesView() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex flex-col gap-2 items-start">
-                                  <span className={`inline-flex min-h-8 items-center rounded-full border px-3.5 py-1 text-xs font-medium shadow-sm ${statusClass(item.status)}`}>
-                                    {item.status}
-                                  </span>
-                                  {item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) && <RetornoPendenteBadge />}
+                                  <SeloStatus item={item} className="min-h-8 px-3.5 py-1 text-xs shadow-sm" />
+                                  {seloRetorno(item)}
                                 </div>
                               </TableCell>
                               <TableCell className="whitespace-nowrap text-app-text-secondary dark:text-white/60 font-normal">{item.validity}</TableCell>
