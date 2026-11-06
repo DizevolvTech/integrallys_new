@@ -8,7 +8,11 @@ export interface RetornoItem {
   data: string
   ultimosProcedimentos: Array<{ data: string; nome: string }>
   especialistaId: string | null
+  /** Especialista do RETORNO (cai no do atendimento quando não foi trocado). */
   especialista: string
+  procedimentoId: string | null
+  /** Procedimento do RETORNO. */
+  procedimento: string
   /** DD/MM/AAAA ou vazio quando não há prazo definido. */
   dataPrevista: string
   prazo: string

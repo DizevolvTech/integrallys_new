@@ -18,6 +18,9 @@ export interface RegistrarRetornoParams {
   dataBase: string
   prazoTipo?: string
   prazoDiasCustom?: number | null
+  /** Especialista/procedimento DO RETORNO (nulos = os da origem). */
+  especialistaRetornoId?: string | null
+  procedimentoRetornoId?: string | null
 }
 
 export type RegistrarRetornoResult =
@@ -71,6 +74,8 @@ export async function registrarRetorno(
       unidade_id: p.unidadeId ?? null,
       agendamento_id: p.agendamentoId ?? null,
       procedimento_id: p.procedimentoId ?? null,
+      especialista_retorno_id: isPrescricao ? null : (p.especialistaRetornoId ?? null),
+      procedimento_retorno_id: isPrescricao ? null : (p.procedimentoRetornoId ?? null),
       prescricao_id: p.prescricaoId ?? null,
       origem: p.origem,
       prazo_tipo: prazoTipo,
@@ -122,4 +127,34 @@ export async function limparTagRetornoPendente(supabase: SupabaseClient, pacient
     .eq('paciente_id', pacienteId)
     .eq('estagio', 'retorno_pendente')
   if (error) console.error('[retornos] falha ao limpar tag retorno pendente', error)
+}
+
+/**
+ * Confere que o especialista (ativo, perfil especialista) e o procedimento (ativo) do retorno existem.
+ * Devolve mensagem de erro ou null quando está tudo certo.
+ */
+export async function validarAlvoRetorno(
+  supabase: SupabaseClient,
+  alvo: { especialistaId?: string | null; procedimentoId?: string | null },
+): Promise<string | null> {
+  if (alvo.especialistaId) {
+    const { data } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('id', alvo.especialistaId)
+      .eq('perfil', 'especialista')
+      .eq('status', 'Ativo')
+      .maybeSingle()
+    if (!data) return 'Especialista do retorno inválido ou inativo'
+  }
+  if (alvo.procedimentoId) {
+    const { data } = await supabase
+      .from('procedimentos')
+      .select('id')
+      .eq('id', alvo.procedimentoId)
+      .eq('ativo', true)
+      .maybeSingle()
+    if (!data) return 'Procedimento do retorno inválido ou inativo'
+  }
+  return null
 }

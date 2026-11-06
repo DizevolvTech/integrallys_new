@@ -126,10 +126,10 @@ function ProntuarioViewList() {
     }
   }
 
-  const salvarPrazo = async (prazo: PrazoRetornoEscolhido) => {
+  const salvarPrazo = async (prazo: PrazoRetornoEscolhido, alvo: Record<string, string>) => {
     if (!selectedItem?.pacienteId) return
     // Prazo gravado antes de finalizar: se falhar, o atendimento continua aberto.
-    await api.post('/api/retornos', { origem: 'atendimento', pacienteId: selectedItem.pacienteId, prazo })
+    await api.post('/api/retornos', { origem: 'atendimento', pacienteId: selectedItem.pacienteId, prazo, ...alvo })
     await concluirFinalizacao()
   }
 
@@ -551,6 +551,7 @@ function ProntuarioViewList() {
         onOpenChange={setIsReturnOpen}
         onConfirm={salvarPrazo}
         onSkip={() => void concluirFinalizacao()}
+        pacienteId={selectedItem?.pacienteId}
       />
     </div>
   )

@@ -8,12 +8,15 @@ import {
   type UnidadePrazoRetorno,
 } from '@/lib/retorno-prazo'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
-import { hojeIsoSaoPaulo } from '@/lib/retornos-server'
+import { hojeIsoSaoPaulo, validarAlvoRetorno } from '@/lib/retornos-server'
 
 interface PutBody {
   dataPrevista?: unknown
   quantidade?: unknown
   unidade?: unknown
+  /** Ausente = não muda; string vazia/null = volta a usar o da origem. */
+  especialistaRetornoId?: unknown
+  procedimentoRetornoId?: unknown
 }
 
 function lerDefinicao(body: PutBody): DefinicaoPrazo | null {
@@ -56,9 +59,25 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const prazo = resolverPrazoDefinido(definicao, hojeIsoSaoPaulo(), String(atual.data_base))
   if (!prazo.ok) return serverErrorResponse(prazo.message, 'INVALID_PRAZO', 400)
 
+  const alvo: Record<string, string | null> = {}
+  for (const [campo, coluna] of [
+    ['especialistaRetornoId', 'especialista_retorno_id'],
+    ['procedimentoRetornoId', 'procedimento_retorno_id'],
+  ] as const) {
+    const valor = body?.[campo]
+    if (valor === undefined) continue
+    alvo[coluna] = typeof valor === 'string' && valor.trim() ? valor.trim() : null
+  }
+  const invalido = await validarAlvoRetorno(supabase, {
+    especialistaId: alvo.especialista_retorno_id,
+    procedimentoId: alvo.procedimento_retorno_id,
+  })
+  if (invalido) return serverErrorResponse(invalido, 'INVALID_RETORNO_ALVO', 400)
+
   const { error: updateError } = await supabase
     .from('retornos_pendentes')
     .update({
+      ...alvo,
       prazo_tipo: prazo.prazoTipo,
       prazo_dias: prazo.prazoDias,
       data_prevista: prazo.dataPrevista,
