@@ -26,8 +26,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAuth } from '@/hooks/use-auth'
-import { useUsuarios } from '@/hooks/use-usuarios'
-import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
 import {
   ROTULO_SITUACAO_RETORNO,
   SITUACOES_RETORNO,
@@ -38,6 +36,7 @@ import {
 import { useApi } from '@/hooks/use-api'
 import { DefinirPrazoModal } from './definir-prazo-modal'
 import type { RetornoItem } from '@/types/retorno'
+import { useRetornoAlvo } from './hooks/use-retorno-alvo'
 import { useRetornos, type RetornosFiltros } from './hooks/use-retornos'
 
 const TODOS = 'todos'
@@ -50,9 +49,10 @@ const TOM_SITUACAO: Record<SituacaoRetorno, 'success' | 'warning' | 'danger' | '
   sem_prazo: 'neutral',
 }
 
-export function hrefAgendarRetorno(item: Pick<RetornoItem, 'pacienteId' | 'especialistaId'>) {
+export function hrefAgendarRetorno(item: Pick<RetornoItem, 'pacienteId' | 'especialistaId'> & { procedimentoId?: string | null }) {
   const params = new URLSearchParams({ modal: 'novo', patientId: item.pacienteId, tipo: 'retorno' })
   if (item.especialistaId) params.set('profissionalId', item.especialistaId)
+  if (item.procedimentoId) params.set('procedimentoId', item.procedimentoId)
   return `/agenda?${params.toString()}`
 }
 
@@ -69,8 +69,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
   const podeAgendar = useAuth((s) =>
     s.permissions.some((p) => p.resource === 'agenda' && p.actions.includes('create')),
   )
-  const { data: usuarios } = useUsuarios()
-  const { data: procedimentos } = useProcedimentos()
+  const { opcoes } = useRetornoAlvo({ enabled: true })
   const [filtros, setFiltros] = useState<RetornosFiltros>({
     situacao: SITUACOES_RETORNO_FILTRO.includes(situacaoInicial as SituacaoRetorno) ? situacaoInicial : '',
     q: '',
@@ -89,11 +88,11 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
   )
   const [editando, setEditando] = useState<RetornoItem | null>(null)
 
-  const salvarPrazo = async (item: RetornoItem, definicao: DefinicaoPrazo) => {
+  const salvarPrazo = async (item: RetornoItem, definicao: DefinicaoPrazo, alvo: Record<string, string>) => {
     const corpo =
       definicao.modo === 'data'
-        ? { dataPrevista: definicao.data }
-        : { quantidade: definicao.quantidade, unidade: definicao.unidade }
+        ? { dataPrevista: definicao.data, ...alvo }
+        : { quantidade: definicao.quantidade, unidade: definicao.unidade, ...alvo }
     await api.put(`/api/retornos/${item.id}`, corpo)
     setEditando(null)
     await reload()
@@ -110,7 +109,8 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
   const atualizar = (patch: Partial<RetornosFiltros>) =>
     setFiltros((atual) => ({ ...atual, ...patch, page: patch.page ?? 1 }))
 
-  const especialistas = usuarios.filter((u) => u.perfil === 'especialista')
+  const especialistas = opcoes?.profissionais ?? []
+  const procedimentos = opcoes?.procedimentos ?? []
   const totalPaginas = meta ? Math.max(1, Math.ceil(meta.total / meta.pageSize)) : 1
 
   return (
@@ -252,6 +252,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                     </>
                   }
                   campos={[
+                    { rotulo: 'Procedimento do retorno', valor: item.procedimento || '—' },
                     { rotulo: 'Retorno previsto', valor: item.dataPrevista || item.prazo },
                     { rotulo: 'Atendimento', valor: item.data },
                     {
@@ -272,6 +273,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                     <TableHead>Cliente</TableHead>
                     <TableHead>Últimos procedimentos</TableHead>
                     <TableHead>Especialista</TableHead>
+                    <TableHead>Procedimento do retorno</TableHead>
                     <TableHead>Retorno previsto</TableHead>
                     <TableHead>Situação</TableHead>
                     <TableHead className="text-right">Ação</TableHead>
@@ -296,6 +298,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                         )}
                       </TableCell>
                       <TableCell>{item.especialista || '—'}</TableCell>
+                      <TableCell>{item.procedimento || '—'}</TableCell>
                       <TableCell className="whitespace-nowrap">
                         {item.dataPrevista || (
                           <span className="text-app-text-muted">{item.prazo}</span>

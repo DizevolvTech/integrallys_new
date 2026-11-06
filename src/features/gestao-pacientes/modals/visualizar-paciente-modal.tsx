@@ -142,14 +142,14 @@ export function VisualizarPacienteModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="rounded-[24px] overflow-hidden">
+      <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden rounded-[24px] p-0">
         <ModalHeader
-          className="border-b border-app-border dark:border-app-border-dark"
+          className="shrink-0 border-b border-app-border px-6 pb-4 pt-6 dark:border-app-border-dark"
           title="Visualizar paciente"
           description="Dados cadastrais, documentos e funil CRM."
         />
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5" data-testid="visualizar-paciente-corpo">
           <div className="flex items-center gap-3">
             <div className="h-16 w-16 rounded-full overflow-hidden border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-hover shrink-0">
               {paciente?.photoUrl ? (
@@ -180,7 +180,7 @@ export function VisualizarPacienteModal({
             </TabsList>
 
             <TabsContent value="dados" className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 gap-3 break-words text-sm sm:grid-cols-2">
                 <p><strong>Telefone:</strong> {paciente?.phone || '-'}</p>
                 <p><strong>E-mail:</strong> {paciente?.email || '-'}</p>
                 <p><strong>RG:</strong> {paciente?.rg || '-'}</p>
@@ -289,7 +289,7 @@ export function VisualizarPacienteModal({
           </Tabs>
         </div>
 
-        <DialogFooter className="border-t border-app-border dark:border-app-border-dark pt-4">
+        <DialogFooter className="shrink-0 border-t border-app-border px-6 py-4 dark:border-app-border-dark">
           <Button variant="outline" onClick={onClose}>Fechar</Button>
         </DialogFooter>
       </DialogContent>

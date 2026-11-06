@@ -11,6 +11,7 @@ import {
 } from '@/lib/estoque-movimentacao'
 import { perfilVeCustoEstoque, removerCustoProduto } from '@/lib/estoque-custo'
 import { normalizarVinculo, vinculoValido } from '@/lib/estoque-vinculo'
+import { fimDoDia, idsMovimentosPorPaciente, inicioDoDia, pacientesDosMovimentos } from './movimentos-paciente'
 import { stripEstoquePrices } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import { montarEntrada } from './entrada-input'
@@ -102,24 +103,23 @@ function pickJoinedName(value: unknown): string {
   return obj?.nome ? String(obj.nome) : ''
 }
 
-/** Filtro por data é o dia de Brasília (UTC-3), não o dia UTC. */
-const inicioDoDia = (dia: string) => (/^\d{4}-\d{2}-\d{2}$/.test(dia) ? `${dia}T00:00:00-03:00` : dia)
-const fimDoDia = (dia: string) => `${dia.slice(0, 10)}T23:59:59.999-03:00`
 
 /**
- * Busca por produto, operador, vínculo ou observação. Produto e operador viram listas de ids
+ * Busca por produto, operador, paciente da venda, vínculo ou observação. Produto e operador viram listas de ids
  * (limitadas) para o filtro `or` do PostgREST; vínculo e observação são colunas da própria linha.
  */
 async function montarFiltroBuscaMovimentacao(busca: string): Promise<string> {
   const supabase = getAppSupabase()
-  const [produtos, operadores] = await Promise.all([
+  const [produtos, operadores, porPaciente] = await Promise.all([
     supabase.from('produtos_estoque').select('id').ilike('nome', `%${busca}%`).limit(150),
     supabase.from('usuarios').select('id').ilike('nome', `%${busca}%`).limit(150),
+    idsMovimentosPorPaciente(supabase, busca),
   ])
   const ids = (linhas: Array<{ id: unknown }> | null) => (linhas ?? []).map((l) => String(l.id)).join(',')
   const partes = [`vinculo_nome.ilike.%${busca}%`, `observacoes.ilike.%${busca}%`]
   if (produtos.data?.length) partes.push(`produto_id.in.(${ids(produtos.data)})`)
   if (operadores.data?.length) partes.push(`usuario_id.in.(${ids(operadores.data)})`)
+  if (porPaciente.length) partes.push(`id.in.(${porPaciente.join(',')})`)
   return partes.join(',')
 }
 
@@ -177,7 +177,15 @@ async function listMovimentacoes(
     return supabaseErrorResponse(error, 'Falha ao carregar movimentações')
   }
 
-  const items = ((data ?? []) as MovimentacaoRow[]).map((row) => ({
+  const linhas = (data ?? []) as MovimentacaoRow[]
+  let pacientes: Map<string, string>
+  try {
+    pacientes = await pacientesDosMovimentos(supabase, linhas.map((row) => String(row.id)))
+  } catch (err) {
+    return serverErrorResponse(err instanceof Error ? err.message : 'Falha ao carregar movimentações', 'DB_ERROR', 500)
+  }
+
+  const items = linhas.map((row) => ({
     id: String(row.id),
     produtoId: String(row.produto_id ?? ''),
     produtoNome: pickJoinedName(row.produtos_estoque),
@@ -188,6 +196,7 @@ async function listMovimentacoes(
     observacoes: row.observacoes ? String(row.observacoes) : null,
     vinculoTipo: row.vinculo_tipo ? String(row.vinculo_tipo) : null,
     vinculoNome: row.vinculo_nome ? String(row.vinculo_nome) : null,
+    pacienteNome: pacientes.get(String(row.id)) || null,
     criadoEm: row.created_at ? String(row.created_at) : '',
     estornada: Boolean(row.estornada),
   }))

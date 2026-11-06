@@ -25,3 +25,8 @@ export function formatarHoraClinica(valor: string | number | Date | null | undef
   if (Number.isNaN(data.getTime())) return vazio
   return data.toLocaleTimeString('pt-BR', { timeZone: FUSO_CLINICA, hour: '2-digit', minute: '2-digit' })
 }
+
+/** Data de hoje (AAAA-MM-DD) no horário de Brasília, independente do fuso do navegador/servidor. */
+export function hojeIsoClinica(agora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: FUSO_CLINICA }).format(agora)
+}

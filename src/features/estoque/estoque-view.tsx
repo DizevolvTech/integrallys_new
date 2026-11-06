@@ -41,6 +41,7 @@ import { CategoriasEstoqueModal } from './modals/categorias-estoque-modal'
 import { ImprimirEtiquetaModal } from './modals/imprimir-etiqueta-modal'
 import { useEstoqueCategorias } from './hooks/use-estoque-categorias'
 import { EstoqueIndicadores } from './components/estoque-indicadores'
+import { hojeIsoClinica } from '@/lib/fuso-clinica'
 import { getValidadeStatus } from './estoque-validade'
 import { EstoqueTotais } from './components/estoque-totais'
 import { MovimentacoesLista } from './components/movimentacoes-lista'
@@ -167,6 +168,12 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
   }, [movFiltroTipo, movFiltroProduto, movFiltroDe, movFiltroAte, movBuscaAtraso])
 
   const totalMovPages = Math.max(1, Math.ceil(movimentacoesTotal / PAGE_SIZE_MOVIMENTACOES))
+  // Atalho "Hoje": De e Até com a data de hoje no horário de Brasília.
+  const filtrarHoje = () => {
+    const hoje = hojeIsoClinica()
+    setMovFiltroDe(hoje)
+    setMovFiltroAte(hoje)
+  }
   const limparFiltrosMovimentacoes = () => {
     setMovFiltroTipo('todos')
     setMovFiltroProduto('todos')
@@ -322,7 +329,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
               <div className="relative w-full lg:w-[400px]">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-app-text-muted" />
                 <Input
-                  placeholder="Produto, operador ou vínculo..."
+                  placeholder="Produto, paciente, operador ou vínculo..."
                   value={movBusca}
                   onChange={(event) => setMovBusca(event.target.value)}
                   className="pl-12 h-12 rounded-integrallys-lg border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-bg-dark focus-visible:ring-[var(--app-primary)] transition-all w-full"
@@ -365,6 +372,15 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
                 <span className="text-[11px] uppercase tracking-wider text-app-text-muted">Até</span>
                 <DateInput value={movFiltroAte} onChange={setMovFiltroAte} />
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={filtrarHoje}
+                className="h-11 rounded-xl px-5 font-normal"
+              >
+                Hoje
+              </Button>
 
               <FilterBar.Spacer />
 

@@ -3,14 +3,14 @@ import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/li
 import { requirePermission } from '@/lib/authz'
 import { rotuloPrazoRetorno, SITUACOES_RETORNO_FILTRO, type SituacaoRetorno } from '@/lib/retorno-prazo'
 import { authErrorResponse, getRequestAuth, getScopedUnitId, type RequestAuth } from '@/lib/request-auth'
-import { hojeIsoSaoPaulo, registrarRetorno } from '@/lib/retornos-server'
+import { hojeIsoSaoPaulo, registrarRetorno, validarAlvoRetorno } from '@/lib/retornos-server'
 import type { RetornoItem } from '@/types/retorno'
 
 const MAX_PAGE_SIZE = 50
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const SELECT_VIEW =
-  'id,paciente_id,profissional_id,unidade_id,procedimento_id,origem,prazo_tipo,prazo_dias,data_base,data_prevista,situacao'
+  'id,paciente_id,profissional_id,unidade_id,procedimento_id,origem,prazo_tipo,prazo_dias,data_base,data_prevista,situacao,retorno_profissional_id,retorno_procedimento_id'
 
 type Supabase = ReturnType<typeof getAppSupabase>
 interface Filtravel {
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
   const aplicarEscopo = <T,>(query: T): T => {
     let out = query as unknown as Filtravel
     if (escopo.unidadeId) out = out.eq('unidade_id', escopo.unidadeId)
-    if (escopo.profissionalId) out = out.eq('profissional_id', escopo.profissionalId)
+    if (escopo.profissionalId) out = out.eq('retorno_profissional_id', escopo.profissionalId)
     return out as unknown as T
   }
 
@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
     let q = aplicarEscopo(
       supabase.from('retornos_em_aberto').select(SELECT_VIEW, { count: 'exact' }),
     )
-    if (profissionalFiltro && !escopo.profissionalId) q = q.eq('profissional_id', profissionalFiltro)
-    if (procedimentoFiltro) q = q.eq('procedimento_id', procedimentoFiltro)
+    if (profissionalFiltro && !escopo.profissionalId) q = q.eq('retorno_profissional_id', profissionalFiltro)
+    if (procedimentoFiltro) q = q.eq('retorno_procedimento_id', procedimentoFiltro)
     if (de) q = q.gte('data_base', de)
     if (ate) q = q.lte('data_base', ate)
     if (pacienteIds) q = q.in('paciente_id', pacienteIds)
@@ -112,9 +112,10 @@ export async function GET(request: NextRequest) {
 
   const rows = lista.data ?? []
   const idsPacientes = rows.map((r) => String(r.paciente_id))
-  const [pacientes, usuarios, ultimos] = await Promise.all([
+  const [pacientes, usuarios, procs, ultimos] = await Promise.all([
     nomes(supabase, 'pacientes', idsPacientes),
-    nomes(supabase, 'usuarios', rows.map((r) => String(r.profissional_id ?? ''))),
+    nomes(supabase, 'usuarios', rows.map((r) => String(r.retorno_profissional_id ?? ''))),
+    nomes(supabase, 'procedimentos', rows.map((r) => String(r.retorno_procedimento_id ?? ''))),
     idsPacientes.length > 0
       ? supabase.rpc('retornos_ultimos_procedimentos', { p_paciente_ids: idsPacientes })
       : Promise.resolve({ data: [], error: null }),
@@ -135,8 +136,10 @@ export async function GET(request: NextRequest) {
     paciente: pacientes[String(row.paciente_id)] ?? '',
     data: formatBR(row.data_base),
     ultimosProcedimentos: procsPorPaciente.get(String(row.paciente_id)) ?? [],
-    especialistaId: row.profissional_id ? String(row.profissional_id) : null,
-    especialista: usuarios[String(row.profissional_id ?? '')] ?? '',
+    especialistaId: row.retorno_profissional_id ? String(row.retorno_profissional_id) : null,
+    especialista: usuarios[String(row.retorno_profissional_id ?? '')] ?? '',
+    procedimentoId: row.retorno_procedimento_id ? String(row.retorno_procedimento_id) : null,
+    procedimento: procs[String(row.retorno_procedimento_id ?? '')] ?? '',
     dataPrevista: formatBR(row.data_prevista),
     prazo: rotuloPrazoRetorno(String(row.prazo_tipo), row.prazo_dias != null ? Number(row.prazo_dias) : null),
     situacao: row.situacao as SituacaoRetorno,
@@ -165,7 +168,7 @@ function respostaVazia(page: number, pageSize: number) {
   })
 }
 
-async function nomes(supabase: Supabase, table: 'pacientes' | 'usuarios', ids: string[]) {
+async function nomes(supabase: Supabase, table: 'pacientes' | 'usuarios' | 'procedimentos', ids: string[]) {
   const unicos = Array.from(new Set(ids.filter(Boolean)))
   if (unicos.length === 0) return {} as Record<string, string>
   const { data } = await supabase.from(table).select('id,nome').in('id', unicos)
@@ -178,6 +181,8 @@ interface PostBody {
   agendamentoId?: unknown
   prescricaoId?: unknown
   prazo?: { tipo?: unknown; dias?: unknown } | null
+  especialistaRetornoId?: unknown
+  procedimentoRetornoId?: unknown
 }
 
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : '')
@@ -234,6 +239,17 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Retorno de quem/de quê: o que veio no corpo vale; sem isso, repete o especialista/procedimento do atendimento.
+  const especialistaRetornoId = str(body.especialistaRetornoId) || profissionalId
+  const procedimentoRetornoId = str(body.procedimentoRetornoId) || procedimentoId
+  if (origem === 'atendimento') {
+    const invalido = await validarAlvoRetorno(supabase, {
+      especialistaId: str(body.especialistaRetornoId) || null,
+      procedimentoId: str(body.procedimentoRetornoId) || null,
+    })
+    if (invalido) return serverErrorResponse(invalido, 'INVALID_RETORNO_ALVO', 400)
+  }
+
   const result = await registrarRetorno(supabase, {
     pacienteId,
     origem,
@@ -246,6 +262,8 @@ export async function POST(request: NextRequest) {
     dataBase,
     prazoTipo: str(body.prazo?.tipo),
     prazoDiasCustom: body.prazo?.dias != null ? Number(body.prazo.dias) : null,
+    especialistaRetornoId,
+    procedimentoRetornoId,
   })
   if (!result.ok) return serverErrorResponse(result.message, result.code, result.status)
   return NextResponse.json({ data: { id: result.id, criado: result.criado } }, { status: result.criado ? 201 : 200 })

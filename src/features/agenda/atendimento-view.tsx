@@ -26,6 +26,8 @@ import type { GeneratedDoc, HistoricoItem, PatientDetails } from '@/contexts/ate
 import { useAtendimentoHistorico } from '@/hooks/use-atendimento-historico'
 import { useProntuarioLivePublish } from '@/hooks/use-prontuario-live-sync'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
+import { alvoParaCorpo, useRetornoAlvo, type RetornoAlvo, type RetornoOpcoes } from '@/features/retornos/hooks/use-retorno-alvo'
+import { RetornoAlvoCampos } from '@/features/retornos/retorno-alvo-campos'
 import {
   PRAZO_RETORNO_INICIAL,
   PrazoRetornoSelector,
@@ -1356,6 +1358,9 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
 // ─── Conclusão Section ───────────────────────────────────────────────────────
 
 interface PrazoRetornoState {
+  alvo: RetornoAlvo
+  opcoes: RetornoOpcoes | null
+  onAlvoChange: (alvo: RetornoAlvo) => void
   valor: PrazoRetornoValor
   semPrazo: boolean
   onChange: (valor: PrazoRetornoValor) => void
@@ -1467,6 +1472,7 @@ function ConclusaoSection({
           </p>
         </div>
         {!prazo.semPrazo && <PrazoRetornoSelector value={prazo.valor} onChange={prazo.onChange} idPrefix="conclusao-prazo" />}
+        {!prazo.semPrazo && <RetornoAlvoCampos opcoes={prazo.opcoes} value={prazo.alvo} onChange={prazo.onAlvoChange} idPrefix="conclusao-retorno" />}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-app-text-secondary dark:text-white/70" data-testid="resumo-prazo-retorno">
             {prazo.semPrazo ? 'Nenhum prazo de retorno será registrado.' : resumoPrazoRetorno(prazo.valor, hojeIsoSaoPaulo())}
@@ -1526,6 +1532,11 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
   const [showFinalizeModal, setShowFinalizeModal] = useState(false)
   const [prazoValor, setPrazoValor] = useState<PrazoRetornoValor>(PRAZO_RETORNO_INICIAL)
   const [semPrazo, setSemPrazo] = useState(false)
+  const { opcoes: opcoesRetorno, alvo: alvoRetorno, setAlvo: setAlvoRetorno } = useRetornoAlvo({
+    enabled: true,
+    agendamentoId: appointmentId,
+    pacienteId,
+  })
   const [isFinalizing, setIsFinalizing] = useState(false)
 
   const handleNext = () => {
@@ -1556,7 +1567,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     setIsFinalizing(true)
     try {
       if (escolhido && pacienteId) {
-        await api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo: escolhido })
+        await api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo: escolhido, ...alvoParaCorpo(alvoRetorno) })
       }
       setShowFinalizeModal(false)
       await doFinalize()
@@ -1617,7 +1628,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
         {currentStep === 5 && <ConclusaoSection
             onBack={handleBack}
             onFinalize={() => setShowFinalizeModal(true)}
-            prazo={{ valor: prazoValor, semPrazo, onChange: setPrazoValor, onSemPrazoChange: setSemPrazo }}
+            prazo={{ alvo: alvoRetorno, opcoes: opcoesRetorno, onAlvoChange: setAlvoRetorno, valor: prazoValor, semPrazo, onChange: setPrazoValor, onSemPrazoChange: setSemPrazo }}
           />}
       </div>
 

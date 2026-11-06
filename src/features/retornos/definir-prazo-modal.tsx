@@ -7,12 +7,14 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { UNIDADES_PRAZO_RETORNO, type DefinicaoPrazo, type UnidadePrazoRetorno } from '@/lib/retorno-prazo'
 import type { RetornoItem } from '@/types/retorno'
+import { alvoParaCorpo, useRetornoAlvo, type RetornoAlvo } from './hooks/use-retorno-alvo'
+import { RetornoAlvoCampos } from './retorno-alvo-campos'
 
 interface DefinirPrazoModalProps {
   item: RetornoItem
   onClose: () => void
   /** Grava no servidor; lança erro com mensagem amigável se falhar (o modal permanece aberto). */
-  onSalvar: (item: RetornoItem, definicao: DefinicaoPrazo) => Promise<void>
+  onSalvar: (item: RetornoItem, definicao: DefinicaoPrazo, alvo: Record<string, string>) => Promise<void>
 }
 
 const ROTULO_UNIDADE: Record<UnidadePrazoRetorno, string> = {
@@ -32,6 +34,8 @@ export function DefinirPrazoModal({ item, onClose, onSalvar }: DefinirPrazoModal
   const [quantidade, setQuantidade] = useState('30')
   const [unidade, setUnidade] = useState<UnidadePrazoRetorno>('dias')
   const [erro, setErro] = useState('')
+  const inicial: RetornoAlvo = { especialistaId: item.especialistaId ?? '', procedimentoId: item.procedimentoId ?? '' }
+  const { opcoes, alvo, setAlvo, erro: erroOpcoes } = useRetornoAlvo({ enabled: true, pacienteId: item.pacienteId, inicial })
   const [salvando, setSalvando] = useState(false)
 
   const salvar = async () => {
@@ -42,7 +46,8 @@ export function DefinirPrazoModal({ item, onClose, onSalvar }: DefinirPrazoModal
     setSalvando(true)
     setErro('')
     try {
-      await onSalvar(item, definicao)
+      // Ao trocar para "Não informado" o servidor volta a usar o da origem (string vazia limpa).
+      await onSalvar(item, definicao, { ...alvoParaCorpo(alvo), ...(alvo.especialistaId ? {} : { especialistaRetornoId: '' }), ...(alvo.procedimentoId ? {} : { procedimentoRetornoId: '' }) })
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível salvar o prazo.')
     } finally {
@@ -52,7 +57,7 @@ export function DefinirPrazoModal({ item, onClose, onSalvar }: DefinirPrazoModal
 
   return (
     <Dialog open onOpenChange={(aberto) => !aberto && onClose()}>
-      <DialogContent size="sm" className="p-6">
+      <DialogContent size="sm" className="max-h-[90dvh] overflow-y-auto p-6">
         <div className="space-y-4">
           <div>
             <h2 className="text-xl font-normal text-app-text-primary dark:text-white">
@@ -92,6 +97,7 @@ export function DefinirPrazoModal({ item, onClose, onSalvar }: DefinirPrazoModal
               <p className="text-xs text-app-text-muted">A contagem começa hoje.</p>
             </div>
           )}
+          <RetornoAlvoCampos opcoes={opcoes} value={alvo} onChange={setAlvo} idPrefix="editar-retorno" erro={erroOpcoes} />
           {erro && <p role="alert" className="text-xs text-[var(--app-danger-text)]">{erro}</p>}
           <div className="flex gap-3 pt-1">
             <Button variant="outline" className="flex-1 font-normal" onClick={onClose}>Cancelar</Button>
