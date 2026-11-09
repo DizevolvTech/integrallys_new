@@ -6,8 +6,9 @@ import { NovoAgendamentoModal } from './novo-agendamento-modal'
 
 const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toasts }))
+const catalogo = vi.hoisted(() => ({ data: [] as Array<Record<string, unknown>> }))
 vi.mock('@/features/procedimentos/hooks/use-procedimentos', () => ({
-  useProcedimentos: () => ({ data: [], isLoading: false, error: null }),
+  useProcedimentos: () => ({ data: catalogo.data, isLoading: false, error: null }),
 }))
 vi.mock('@/features/gestao-bancaria/hooks/use-contas-pix', () => ({
   useContasPix: () => ({ data: [] }),
@@ -105,5 +106,36 @@ describe('NovoAgendamentoModal — paciente autocomplete + cadastro completo', (
     )
 
     expect(await screen.findByText(/Selecionado: João Completo/i)).toBeInTheDocument()
+  })
+})
+
+const textosDosSeletores = () => screen.getAllByRole('combobox').map((c) => c.textContent)
+
+describe('NovoAgendamentoModal — pré-preenchimento do retorno (perfil recepção)', () => {
+  const detalhes = [{ id: 'u1', nome: 'Dra. Maria', procedimentoIds: ['pr1'] }]
+  const props = {
+    professionals: ['Dra. Maria'],
+    professionalDetails: detalhes,
+    initialProfissional: 'Dra. Maria',
+    initialProcedimentoId: 'pr1',
+    initialTipo: 'retorno',
+  }
+
+  it('mostra especialista e procedimento do retorno já escolhidos', async () => {
+    catalogo.data = [{ id: 'pr1', nome: 'Retorno Soroterapia', ativo: true }]
+    renderModal(props)
+    await waitFor(() => expect(textosDosSeletores()).toContain('Dra. Maria'))
+    await waitFor(() => expect(textosDosSeletores()).toContain('Retorno Soroterapia'))
+  })
+
+  it('profissional que chega depois da abertura (lista carregando) também preenche o procedimento', async () => {
+    catalogo.data = [{ id: 'pr1', nome: 'Retorno Soroterapia', ativo: true }]
+    const view = render(
+      <NovoAgendamentoModal isOpen onClose={vi.fn()} patients={[]} onRequestFullCadastro={vi.fn()} {...props} professionals={[]} initialProfissional={undefined} />,
+    )
+    view.rerender(
+      <NovoAgendamentoModal isOpen onClose={vi.fn()} patients={[]} onRequestFullCadastro={vi.fn()} {...props} />,
+    )
+    await waitFor(() => expect(textosDosSeletores()).toContain('Retorno Soroterapia'))
   })
 })

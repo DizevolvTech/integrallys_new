@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Clock, Edit, Eye, FileText, MoreVertical, Plus, Printer, Receipt, Search, ShoppingCart, Trash2 } from 'lucide-react'
 import { usePrescricoes, type PrescricaoInput, type PrescricaoItem } from '@/hooks/use-prescricoes'
 import { useApi } from '@/hooks/use-api'
-import { registrarRetornoMaisTarde, useRetornoPendentePacientes } from '@/features/retornos/hooks/use-retornos'
+import { registrarRetornoMaisTarde, useRetornosPendentesDetalhe } from '@/features/retornos/hooks/use-retornos'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useUsuarios } from '@/hooks/use-usuarios'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
@@ -48,15 +48,15 @@ import {
   DetalhesVendaModal,
   EditarPrescricaoModal,
   ExcluirPrescricaoModal,
-  CardDetalheModal,
   ConverterVendaModal,
   LabelEditorModal,
   NovaVendaModal,
 } from './modals'
 import type { ConverterVendaDados } from './modals/converter-venda-modal'
 import type { LabelData } from './modals/label-editor-modal'
-import { RetornoPendenteLink } from './components/retorno-pendente-link'
-import { useRetornosAgendados } from './hooks/use-retornos-agendados'
+import { FiltroDataSetas } from './components/filtro-data-setas'
+import { dataBrParaIso } from './components/filtro-data-setas.utils'
+import { escolherRetornoPendente, RetornoPendenteLink, rotaDoRetorno } from './components/retorno-pendente-link'
 
 interface PrescriptionRow extends PrescricaoItem {
   createdAt: string
@@ -148,10 +148,10 @@ export function PrescricoesView() {
   const [isDetalhesModalOpen, setIsDetalhesModalOpen] = useState(false)
   const [isAgendarRetornoModalOpen, setIsAgendarRetornoModalOpen] = useState(false)
   const api = useApi()
-  const { pacientesComRetornoPendente, reload: reloadRetornosPendentes } = useRetornoPendentePacientes()
-  const { retornosAgendados, reload: reloadRetornosAgendados } = useRetornosAgendados()
+  const { retornosPendentes, reload: reloadRetornosPendentes } = useRetornosPendentesDetalhe()
+  // Filtro de data (data da prescrição/venda): padrão hoje; null = todas as datas.
+  const [dataFiltro, setDataFiltro] = useState<string | null>(() => hojeIso())
   const [rotulosParaImprimir, setRotulosParaImprimir] = useState<LabelData[]>([])
-  const [cardDetalhe, setCardDetalhe] = useState<'Ativa' | 'Vencida' | 'Convertida' | null>(null)
   const [reciboVendaId, setReciboVendaId] = useState<string | null>(null)
 
   const prescriptions = useMemo(() => data.map(normalizePrescription), [data])
@@ -211,6 +211,7 @@ export function PrescricoesView() {
         .toLowerCase()
         .includes(searchTerm.toLowerCase())
       if (!matchesSearch) return false
+      if (dataFiltro && dataBrParaIso(item.data) !== dataFiltro) return false
 
       if (statusFilter === 'Ativa' || statusFilter === 'Vencida') {
         if (classeDe(item) !== (statusFilter === 'Ativa' ? 'ativa' : 'vencida')) return false
@@ -224,7 +225,7 @@ export function PrescricoesView() {
       }
       return true
     })
-  }, [prescriptions, searchTerm, statusFilter, tipoFilter, validadeFilter])
+  }, [prescriptions, searchTerm, dataFiltro, statusFilter, tipoFilter, validadeFilter])
 
   // CR-074 · 3 cards: Ativas / Vencidas / Concluídas com count + valor total.
   // Regra única (mesma dos Relatórios > Prescrição): ver classificarPrescricao.
@@ -239,10 +240,11 @@ export function PrescricoesView() {
   const concluidasCount = concluidasList.length
   const concluidasTotal = concluidasList.reduce((sum, item) => sum + item.valorTotal, 0)
 
-  const cardLista = cardDetalhe === 'Ativa' ? ativasList : cardDetalhe === 'Vencida' ? vencidasList : cardDetalhe === 'Convertida' ? concluidasList : []
-  const cardTitulo = cardDetalhe === 'Ativa' ? 'Prescrições ativas' : cardDetalhe === 'Vencida' ? 'Prescrições vencidas' : 'Vendas concluídas'
-
-  const handleCardClick = (status: 'Ativa' | 'Vencida' | 'Convertida') => setCardDetalhe(status)
+  // Cartão de status: lista todas as datas com esse status filtrado.
+  const handleCardClick = (status: 'Ativa' | 'Vencida' | 'Convertida') => {
+    setDataFiltro(null)
+    setStatusFilter(status)
+  }
 
   const handleOpenVenda = (item: PrescriptionRow) => {
     setSelectedPrescription(item)
@@ -310,7 +312,6 @@ export function PrescricoesView() {
     })
     setSelectedPrescription({ ...item, status: 'Convertida' })
     toast.success('Prescrição/Vendas convertida com sucesso.')
-    void reloadRetornosAgendados()
     setTimeout(() => setIsAgendarRetornoModalOpen(true), 200)
   }
 
@@ -326,14 +327,12 @@ export function PrescricoesView() {
     )
   }
 
-  const seloRetorno = (item: PrescriptionRow) =>
-    item.pacienteId && pacientesComRetornoPendente.has(item.pacienteId) ? (
-      <RetornoPendenteLink
-        pacienteId={item.pacienteId}
-        dataRetornoMarcado={retornosAgendados[item.pacienteId]}
-        onAbrir={(rota) => router.push(rota)}
-      />
+  const seloRetorno = (item: PrescriptionRow) => {
+    const retorno = item.pacienteId ? escolherRetornoPendente(retornosPendentes, item.pacienteId, item.id) : null
+    return item.pacienteId && retorno ? (
+      <RetornoPendenteLink pacienteId={item.pacienteId} retorno={retorno} onAbrir={(rota) => router.push(rota)} />
     ) : null
+  }
 
   const renderAcoes = (item: PrescriptionRow) => {
     const status = statusDe(item)
@@ -398,7 +397,10 @@ export function PrescricoesView() {
           <>
             <Button
               variant="outline"
-              onClick={() => setSearchTerm('')}
+              onClick={() => {
+                setSearchTerm('')
+                setDataFiltro(hojeIso())
+              }}
               className="h-11 px-4 rounded-integrallys font-normal"
             >
               Limpar busca
@@ -469,23 +471,6 @@ export function PrescricoesView() {
         onEmitirRecibo={selectedPrescription && statusDe(selectedPrescription) === 'Convertida' ? () => setReciboVendaId(selectedPrescription.id) : undefined}
       />
 
-      <CardDetalheModal
-        isOpen={cardDetalhe !== null}
-        onClose={() => setCardDetalhe(null)}
-        titulo={cardTitulo}
-        linhas={cardLista.map((item) => ({ id: item.id, numero: item.numero, paciente: item.paciente, data: item.createdAt, valorTotal: item.valorTotal, margemTotal: item.margemTotal }))}
-        onAbrir={(id) => {
-          const alvo = prescriptions.find((p) => p.id === id)
-          if (!alvo) return
-          setCardDetalhe(null)
-          handleOpenDetalhes(alvo)
-        }}
-        onFiltrar={() => {
-          setStatusFilter(cardDetalhe ?? 'todos')
-          setCardDetalhe(null)
-        }}
-      />
-
       <ReciboModal isOpen={reciboVendaId !== null} onClose={() => setReciboVendaId(null)} tipo="prescricao" origemId={reciboVendaId} />
 
       <ExcluirPrescricaoModal
@@ -502,7 +487,8 @@ export function PrescricoesView() {
         onConfirm={() => {
           setIsAgendarRetornoModalOpen(false)
           const pacienteId = selectedPrescription?.pacienteId
-          router.push(pacienteId ? `/agenda?modal=novo&tipo=retorno&patientId=${encodeURIComponent(pacienteId)}` : '/agenda')
+          const retorno = pacienteId ? escolherRetornoPendente(retornosPendentes, pacienteId, selectedPrescription?.id) : null
+          router.push(pacienteId ? rotaDoRetorno(pacienteId, retorno) : '/agenda')
         }}
         onLater={() => {
           const alvo = selectedPrescription
@@ -621,6 +607,7 @@ export function PrescricoesView() {
                   className="pl-12 h-12 rounded-integrallys-lg border-app-border dark:border-app-border-dark bg-app-bg-secondary/50 dark:bg-app-bg-dark focus-visible:ring-[var(--app-primary)] transition-all w-full"
                 />
               </div>
+              <FiltroDataSetas valor={dataFiltro} onChange={setDataFiltro} />
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:flex lg:items-center lg:gap-2">
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
                   <SelectTrigger className="h-12 rounded-integrallys-lg border-app-border bg-app-bg-secondary/50 dark:border-app-border-dark dark:bg-app-bg-dark text-sm w-full lg:w-[140px]">
