@@ -9,6 +9,8 @@ vi.mock('sonner', () => ({ toast: toasts }))
 
 const caixa = vi.hoisted(() => ({
   addMovimentacao: vi.fn().mockResolvedValue(undefined),
+  carregarPrevia: vi.fn(),
+  estornar: vi.fn(),
   state: { data: [] as unknown[], session: {} as unknown },
 }))
 vi.mock('@/hooks/use-caixa', () => ({
@@ -20,7 +22,8 @@ vi.mock('@/hooks/use-caixa', () => ({
     openCaixa: vi.fn(),
     closeCaixa: vi.fn(),
     updateMovimentacao: vi.fn(),
-    deleteMovimentacao: vi.fn(),
+    carregarPreviaEstorno: caixa.carregarPrevia,
+    estornarMovimentacao: caixa.estornar,
     addMovimentacao: caixa.addMovimentacao,
   }),
 }))
@@ -59,6 +62,7 @@ const sessao = (parcial: Partial<CaixaSessionState> = {}): CaixaSessionState => 
   saldoAtual: 330,
   entradas: 300,
   saidas: 20,
+  estornos: 0,
   movimentos: 3,
   openedAt: '2026-11-06T11:00:00.000Z',
   openedByName: 'Ana Recepção',
@@ -186,5 +190,90 @@ describe('CaixaView — Recebimento', () => {
     await user.click(screen.getByRole('button', { name: 'Registrar' }))
     expect(toasts.error).toHaveBeenCalledWith('Escolha a quem o lançamento está vinculado.')
     expect(caixa.addMovimentacao).not.toHaveBeenCalled()
+  })
+})
+
+describe('CaixaView — Estornar', () => {
+  const previaVenda = {
+    id: 'v1', descricao: 'Venda PRESC-1 - Maria', tipo: 'entrada' as const, valor: 150, origem: 'prescricao', estornavel: true, motivoRecusa: null,
+    prescricao: { id: 'p1', numero: 'PRESC-1', status: 'Convertida', tipo: 'Prescrição' },
+    produtosEstoque: [{ nome: 'Luvas', quantidade: 2 }], temProdutoEstoque: true,
+  }
+
+  beforeEach(() => {
+    caixa.carregarPrevia.mockReset()
+    caixa.estornar.mockReset()
+    toasts.success.mockClear()
+    caixa.state.data = [
+      item({ id: 'v1', descricao: 'Venda PRESC-1 - Maria', valor: 150, origem: 'prescricao' }),
+      item({ id: 'e1', descricao: 'Estorno: Venda antiga', tipo: 'saida', valor: 40, origem: 'estorno', estornoDeId: 'v0' }),
+      item({ id: 'v0', descricao: 'Venda antiga', valor: 40, origem: 'prescricao', estornado: true }),
+    ]
+  })
+
+  async function abrirJanela(user: ReturnType<typeof userEvent.setup>) {
+    const tabela = within(screen.getByTestId('caixa-tabela-movimentos'))
+    const linha = tabela.getByText('Venda PRESC-1 - Maria').closest('tr') as HTMLElement
+    await user.click(within(linha).getByRole('button'))
+    await user.click(await screen.findByRole('menuitem', { name: /Estornar/ }))
+  }
+
+  it('estorno e movimentação já estornada não oferecem Estornar; a original aparece como Estornado', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<CaixaView />)
+    const tabela = within(screen.getByTestId('caixa-tabela-movimentos'))
+    expect(tabela.getByText('Estornado')).toBeInTheDocument()
+    for (const texto of ['Estorno: Venda antiga', 'Venda antiga']) {
+      const linha = tabela.getByText(texto).closest('tr') as HTMLElement
+      await user.click(within(linha).getByRole('button'))
+      expect(screen.queryByRole('menuitem', { name: /Estornar/ })).not.toBeInTheDocument()
+      await user.keyboard('{Escape}')
+    }
+  })
+
+  it('venda com produto: janela com valor, motivo, Devolver (Sim) e Cancelar/Reabrir; confirma com os padrões', async () => {
+    const user = userEvent.setup({ delay: null })
+    caixa.carregarPrevia.mockResolvedValue(previaVenda)
+    caixa.estornar.mockResolvedValue({ caixaMovimentoId: 's1', produtosDevolvidos: 1, prescricaoStatus: 'Cancelado', mensagem: 'Movimentação estornada. Produtos devolvidos ao estoque. Prescrição cancelada.' })
+    render(<CaixaView />)
+    await abrirJanela(user)
+    expect(await screen.findByText('Estornar movimentação')).toBeInTheDocument()
+    expect(screen.getByTestId('estorno-valor')).toHaveTextContent(/150,00/)
+    expect(await screen.findByRole('button', { name: 'Sim', pressed: true })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancelar', pressed: true })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reabrir (volta para Ativa)' })).toBeInTheDocument()
+
+    const confirmar = screen.getByRole('button', { name: 'Confirmar estorno' })
+    expect(confirmar).toBeDisabled()
+    await user.type(screen.getByLabelText('Motivo do estorno *'), 'curto')
+    expect(confirmar).toBeDisabled()
+    await user.type(screen.getByLabelText('Motivo do estorno *'), ' e agora longo')
+    await user.click(confirmar)
+    expect(caixa.estornar).toHaveBeenCalledWith({ id: 'v1', motivo: 'curto e agora longo', devolverEstoque: true, prescricaoAcao: 'cancelar' })
+    expect(toasts.success).toHaveBeenCalled()
+  })
+
+  it('Não devolver + Reabrir seguem para o servidor; erro do servidor aparece em aviso', async () => {
+    const user = userEvent.setup({ delay: null })
+    caixa.carregarPrevia.mockResolvedValue(previaVenda)
+    caixa.estornar.mockRejectedValue(new Error('O caixa de hoje não está aberto. Abra o caixa para registrar o estorno.'))
+    render(<CaixaView />)
+    await abrirJanela(user)
+    await user.click(await screen.findByRole('button', { name: 'Não' }))
+    await user.click(screen.getByRole('button', { name: 'Reabrir (volta para Ativa)' }))
+    await user.type(screen.getByLabelText('Motivo do estorno *'), 'trocou a forma de pagamento')
+    await user.click(screen.getByRole('button', { name: 'Confirmar estorno' }))
+    expect(caixa.estornar).toHaveBeenCalledWith({ id: 'v1', motivo: 'trocou a forma de pagamento', devolverEstoque: false, prescricaoAcao: 'reabrir' })
+    expect(toasts.error).toHaveBeenCalledWith('O caixa de hoje não está aberto. Abra o caixa para registrar o estorno.')
+  })
+
+  it('lançamento manual: só valor e motivo, sem opções de estoque ou prescrição', async () => {
+    const user = userEvent.setup({ delay: null })
+    caixa.carregarPrevia.mockResolvedValue({ ...previaVenda, origem: 'manual', prescricao: null, produtosEstoque: [], temProdutoEstoque: false })
+    render(<CaixaView />)
+    await abrirJanela(user)
+    await screen.findByLabelText('Motivo do estorno *')
+    expect(screen.queryByRole('button', { name: 'Reabrir (volta para Ativa)' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Devolver os produtos ao estoque')).not.toBeInTheDocument()
   })
 })

@@ -21,14 +21,15 @@ export function idDeMovimentoValido(id: unknown): id is string {
 
 /** Lê o corpo do pedido: padrão = devolver ao estoque e cancelar a prescrição (as opções da janela). */
 export function lerEstornoCaixa(body: Record<string, unknown> | null): { ok: true; value: EstornoCaixaInput } | { ok: false; message: string; code: string } {
-  if (!idDeMovimentoValido(body?.id)) return { ok: false, message: 'Movimentação inválida.', code: 'INVALID_CAIXA_MOVIMENTO' }
+  const id = body?.id
+  if (!idDeMovimentoValido(id)) return { ok: false, message: 'Movimentação inválida.', code: 'INVALID_CAIXA_MOVIMENTO' }
   const motivo = validarMotivoEstorno(body?.motivo)
   if (!motivo.ok) return { ok: false, message: motivo.message, code: 'INVALID_ESTORNO_MOTIVO' }
   const acao = body?.prescricaoAcao === 'reabrir' ? 'reabrir' : body?.prescricaoAcao === undefined || body?.prescricaoAcao === 'cancelar' ? 'cancelar' : null
   if (!acao) return { ok: false, message: 'Escolha cancelar ou reabrir a prescrição.', code: 'INVALID_PRESCRICAO_ACAO' }
   return {
     ok: true,
-    value: { movimentoId: body!.id as string, motivo: motivo.motivo, devolverEstoque: body?.devolverEstoque !== false, prescricaoAcao: acao },
+    value: { movimentoId: id, motivo: motivo.motivo, devolverEstoque: body?.devolverEstoque !== false, prescricaoAcao: acao },
   }
 }
 

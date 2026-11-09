@@ -36,7 +36,7 @@ function movimentoDeDiaPassado(dataMovimento: unknown): Response | null {
 type SupabaseClient = ReturnType<typeof getAppSupabase>;
 
 const COLUNAS_MOVIMENTO =
-  "id,descricao,tipo,valor,data_movimento,forma,operador_nome,sessao_id,bandeira,parcelas,valor_parcela,forma_pagamento_id,conta_bancaria_id,vinculo_tipo,vinculo_id,vinculo_nome";
+  "id,descricao,tipo,valor,data_movimento,forma,operador_nome,sessao_id,bandeira,parcelas,valor_parcela,forma_pagamento_id,conta_bancaria_id,vinculo_tipo,vinculo_id,vinculo_nome,origem,estorno_de_id,estornado_em,estorno_motivo";
 const BLOCO_LEITURA = 1000;
 const MAX_LINHAS_PERIODO = 10_000;
 const MAX_LINHAS_LISTA = 1000;
@@ -233,6 +233,10 @@ async function getCaixaPayload(
       vinculoTipo: row.vinculo_tipo ? String(row.vinculo_tipo) : null,
       vinculoId: row.vinculo_id ? String(row.vinculo_id) : null,
       vinculoNome: row.vinculo_nome ? String(row.vinculo_nome) : null,
+      origem: row.origem ? String(row.origem) : "manual",
+      estornoDeId: row.estorno_de_id ? String(row.estorno_de_id) : null,
+      estornado: Boolean(row.estornado_em),
+      estornoMotivo: row.estorno_motivo ? String(row.estorno_motivo) : null,
     };
   });
 
@@ -240,6 +244,10 @@ async function getCaixaPayload(
   const entradas = resumo.totalEntradas;
   const saidas = todos
     .filter((item) => item.tipo === "saida")
+    .reduce((acc, item) => acc + item.valor, 0);
+  // Saídas de estorno já estão em "saídas"; aqui só o quanto foi devolvido (o resumo mostra à parte).
+  const estornos = todos
+    .filter((item) => item.origem === "estorno" && item.tipo === "saida")
     .reduce((acc, item) => acc + item.valor, 0);
   const saldoInicial = Number(caixaSession?.saldo_inicial ?? 0);
   const isOpen = !periodo.consulta && caixaSession?.status === "aberto";
@@ -264,6 +272,7 @@ async function getCaixaPayload(
           saldoAtual,
           entradas,
           saidas,
+          estornos,
           movimentos: todos.length,
           valorTransferido: Number(caixaSession?.valor_transferido ?? 0),
           saldoRestante: Number(caixaSession?.saldo_restante ?? 0),

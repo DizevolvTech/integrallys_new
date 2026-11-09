@@ -25,6 +25,41 @@ export interface CaixaItem {
   vinculoTipo?: string | null
   vinculoId?: string | null
   vinculoNome?: string | null
+  /** 'prescricao' | 'agendamento' | 'manual' | 'pagamento_online' | 'estorno' */
+  origem?: string
+  /** Preenchido na saída/entrada de estorno: id da movimentação original. */
+  estornoDeId?: string | null
+  /** Movimentação original que já foi estornada (não pode ser estornada de novo). */
+  estornado?: boolean
+  estornoMotivo?: string | null
+}
+
+/** Dados da janela "Estornar movimentação" (vêm do servidor). */
+export interface EstornoPrevia {
+  id: string
+  descricao: string
+  tipo: 'entrada' | 'saida'
+  valor: number
+  origem: string
+  estornavel: boolean
+  motivoRecusa: string | null
+  prescricao: { id: string; numero: string; status: string; tipo: string | null } | null
+  produtosEstoque: { nome: string; quantidade: number }[]
+  temProdutoEstoque: boolean
+}
+
+export interface EstornoPayload {
+  id: string
+  motivo: string
+  devolverEstoque?: boolean
+  prescricaoAcao?: 'cancelar' | 'reabrir'
+}
+
+export interface EstornoResultado {
+  caixaMovimentoId: string | null
+  produtosDevolvidos: number
+  prescricaoStatus: string | null
+  mensagem: string
 }
 
 export interface CaixaFormaResumo {
@@ -47,6 +82,8 @@ export interface CaixaSessionState {
   saldoAtual: number
   entradas: number
   saidas: number
+  /** Parte das saídas que são estornos (já somada em `saidas`). */
+  estornos: number
   movimentos: number
   openedAt: string | null
   openedByName: string | null
@@ -69,6 +106,7 @@ interface CaixaMetaResponse extends Record<string, unknown> {
     saldoAtual?: number
     entradas?: number
     saidas?: number
+    estornos?: number
     movimentos?: number
     openedAt?: string | null
     openedByName?: string | null
@@ -122,6 +160,7 @@ function sessaoDaResposta(response: CaixaResponse): CaixaSessionState {
     saldoAtual: caixa?.saldoAtual ?? 0,
     entradas: caixa?.entradas ?? 0,
     saidas: caixa?.saidas ?? 0,
+    estornos: caixa?.estornos ?? 0,
     movimentos: caixa?.movimentos ?? 0,
     openedAt: caixa?.openedAt ?? null,
     openedByName: caixa?.openedByName ?? null,
@@ -209,5 +248,18 @@ export function useCaixa(periodo?: CaixaPeriodo) {
     updateFromResponse(response)
   }
 
-  return { data, isLoading, error, session, openCaixa, addMovimentacao, closeCaixa, updateMovimentacao, deleteMovimentacao }
+  const carregarPreviaEstorno = async (id: string) => {
+    const response = await api.get<{ data: EstornoPrevia }>(`/api/caixa/estorno?id=${encodeURIComponent(id)}`)
+    return response.data
+  }
+
+  /** Estorna (não apaga): o servidor grava a contrapartida no caixa, e a lista é recarregada. */
+  const estornarMovimentacao = async (payload: EstornoPayload) => {
+    const resultado = await api.post<{ data: EstornoResultado }>('/api/caixa/estorno', payload)
+    const response = await api.get<CaixaResponse>(urlDoPeriodo({ de, ate }))
+    updateFromResponse(response)
+    return resultado.data
+  }
+
+  return { data, isLoading, error, session, openCaixa, addMovimentacao, closeCaixa, updateMovimentacao, deleteMovimentacao, carregarPreviaEstorno, estornarMovimentacao }
 }

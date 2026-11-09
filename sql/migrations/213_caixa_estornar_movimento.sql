@@ -188,3 +188,5 @@ $$;
 
 revoke all on function public.caixa_estornar_movimento(uuid, uuid, text, boolean, text, text) from public;
 grant execute on function public.caixa_estornar_movimento(uuid, uuid, text, boolean, text, text) to service_role;
+
+notify pgrst, 'reload schema';

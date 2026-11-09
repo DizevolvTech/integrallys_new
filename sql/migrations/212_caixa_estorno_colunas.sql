@@ -64,3 +64,5 @@ begin
       on public.caixa_movimentos (estorno_de_id) where estorno_de_id is not null;
   end if;
 end $$;
+
+notify pgrst, 'reload schema';

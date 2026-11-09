@@ -487,9 +487,12 @@ async function lancarCaixa(
     descricao: string
     pagamento: PagamentoVenda
     paciente: { id: string; nome: string }
+    /** Liga a venda à prescrição (o estorno do Caixa precisa dela para estoque e status). */
+    prescricaoId: string
   },
 ) {
   const { error } = await supabase.from('caixa_movimentos').insert({
+    prescricao_id: params.prescricaoId,
     unidade_id: params.unitId,
     usuario_id: params.session!.userId,
     sessao_id: params.sessaoId,
@@ -652,6 +655,7 @@ export async function POST(request: NextRequest) {
       descricao,
       pagamento,
       paciente: { id: pacienteId, nome: pacienteNome },
+      prescricaoId,
     })
     if (caixaResult.error) {
       await restoreStockFromItems(supabase, items, session, numero)
@@ -911,6 +915,7 @@ export async function PUT(request: NextRequest) {
       descricao: `Venda ${numero} - ${pacienteNome} (${paymentMethodLabel(pagamento.forma)})`,
       pagamento,
       paciente: { id: pacienteId, nome: pacienteNome },
+      prescricaoId: String(body.id),
     })
     if (caixaResult.error) {
       await reverter()
