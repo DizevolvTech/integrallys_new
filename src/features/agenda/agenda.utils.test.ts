@@ -130,3 +130,11 @@ describe('umPorCompromisso', () => {
     expect(lista.map((s) => s.id)).toEqual(['g1', 'c', 'd'])
   })
 })
+
+describe('STATUS_ELEGIVEIS_ATRASO', () => {
+  it('nao marca em atraso quem ja fez check-in (paciente chegou)', async () => {
+    const { STATUS_ELEGIVEIS_ATRASO } = await import('./agenda.utils')
+    expect(STATUS_ELEGIVEIS_ATRASO as readonly string[]).not.toContain('Check-in')
+    expect(STATUS_ELEGIVEIS_ATRASO as readonly string[]).toContain('Confirmado')
+  })
+})

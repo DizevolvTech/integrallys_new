@@ -94,8 +94,11 @@ export const AGENDA_STATUS_DROPDOWN = [
   'Cancelado',
 ] as const
 
-/** Status elegíveis a virarem "Em Atraso" automaticamente. */
-export const STATUS_ELEGIVEIS_ATRASO = ['Agendado', 'Confirmado', 'Check-in'] as const
+/**
+ * Status elegíveis a virarem "Em Atraso" automaticamente. Check-in fica de fora: o paciente já chegou
+ * (mesmo atrasado) e precisa aparecer como aguardando para o especialista atender.
+ */
+export const STATUS_ELEGIVEIS_ATRASO = ['Agendado', 'Confirmado'] as const
 
 /**
  * true quando data (YYYY-MM-DD) + horário (HH:MM) já passaram no relógio local.
