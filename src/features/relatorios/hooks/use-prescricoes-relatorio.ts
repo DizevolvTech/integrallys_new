@@ -39,6 +39,8 @@ const DEFAULT_META: PrescricoesMeta = {
   valorAtivasLimitePrazo: 0,
   vencidas: 0,
   valorVencidas: 0,
+  resumoValidade: [],
+  valorOculto: false,
 }
 
 const DEFAULT_FILTROS: PrescricoesRelatorioFiltros = {
@@ -110,6 +112,8 @@ export function usePrescricoesRelatorio() {
         valorAtivasLimitePrazo: response.meta.valorAtivasLimitePrazo ?? 0,
         vencidas: response.meta.vencidas ?? 0,
         valorVencidas: response.meta.valorVencidas ?? 0,
+        resumoValidade: response.meta.resumoValidade ?? [],
+        valorOculto: response.meta.valorOculto ?? false,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar prescrições')

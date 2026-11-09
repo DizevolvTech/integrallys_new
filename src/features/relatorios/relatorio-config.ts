@@ -36,6 +36,8 @@ export interface ResumoLista {
   itens: Array<{ nome: string; valor: string }>
   /** Mostra o quadro mesmo sem itens, com este texto. */
   vazio?: string
+  /** Ocupa a linha inteira (itens com texto comprido, como "Profissional · Mês"). */
+  larga?: boolean
 }
 
 export interface ConfigRelatorio {
@@ -156,6 +158,44 @@ const rankingVendas = (titulo: string, itens: unknown): ResumoLista => ({
   })),
 })
 
+/** "2026-11" -> "Novembro/2026". */
+export const rotuloMes = (aaaaMm: unknown): string => {
+  const [ano, mes] = String(aaaaMm ?? '').split('-')
+  const nome = MESES[Number(mes) - 1]?.label
+  return nome ? `${nome}/${ano}` : String(aaaaMm ?? '—')
+}
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
+
+/** Consultas: um quadro por indicador, cada um com a contagem por profissional (já filtrada no banco). */
+const resumosConsultasPorProfissional = (itens: unknown): ResumoLista[] => {
+  const l = lista(itens)
+  const por = (titulo: string, campo: string): ResumoLista => ({
+    titulo,
+    vazio: 'Nada no período.',
+    itens: l.filter((i) => num(i[campo]) > 0).map((i) => ({ nome: String(i.nome), valor: String(num(i[campo])) })),
+  })
+  return [
+    por('Atendimentos por profissional', 'atendimentos'),
+    por('Efetivados por profissional', 'efetivados'),
+    por('Retornos por profissional', 'retornos'),
+    por('Consultas novas por profissional', 'novas'),
+  ]
+}
+
+/** Justificativas: cancelamentos e faltas por profissional e mês. */
+const resumoJustificativasPorMes = (itens: unknown): ResumoLista => ({
+  titulo: 'Por profissional e mês',
+  larga: true,
+  vazio: 'Nenhum cancelamento ou falta no período.',
+  itens: lista(itens).map((i) => {
+    const c = num(i.cancelamentos)
+    const f = num(i.faltas)
+    const partes = [c > 0 ? plural(c, 'cancelamento', 'cancelamentos') : '', f > 0 ? plural(f, 'falta', 'faltas') : ''].filter(Boolean)
+    return { nome: `${String(i.nome)} · ${rotuloMes(i.mes)}`, valor: partes.join(', ') }
+  }),
+})
+
 /** Indicadores do Desempenho geral que abrem a lista de registros ao clicar no cartão. */
 export const DETALHES_DESEMPENHO: Record<string, string> = {
   agendamentos: 'Agendamentos',
@@ -234,6 +274,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       '(agendadas = marcadas até hoje, incluindo faltas e cancelamentos; adiadas não contam). ' +
       'Retornos = consultas realizadas além da primeira consulta realizada do paciente. ' +
       '"Presença (histórico)" considera todo o histórico do paciente.',
+    resumos: (t) => resumosConsultasPorProfissional(t.porProfissional),
     mobile: { titulo: 'paciente', valor: 'valor', selo: 'status' },
   },
   agendamentos: {
@@ -280,6 +321,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       unidade,
     ],
     cartoes: (_t, total) => [{ label: 'Cancelamentos e faltas', valor: String(total), tom: 'alerta' }],
+    resumos: (t) => [resumoJustificativasPorMes(t.porProfissionalMes)],
   },
   pacientes: {
     descricao: 'Mapeamento dos clientes: mídia de captação, cidade, convênio e quem deixou de comparecer.',

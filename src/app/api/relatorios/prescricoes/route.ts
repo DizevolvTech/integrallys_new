@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { stripRelatorioPrescricaoValor } from '@/lib/financial-sanitize'
+import { isFinanciallyRestrictedRole, stripRelatorioPrescricaoValor } from '@/lib/financial-sanitize'
+import { resumirValidade, type ResumoValidadeItem } from '@/lib/relatorios/prescricoes-validade'
 import { classificarPrescricao, type ClassePrescricao } from '@/lib/prescricao-status'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
@@ -40,6 +41,10 @@ export interface PrescricoesMeta {
   valorAtivasLimitePrazo: number
   vencidas: number
   valorVencidas: number
+  /** Resumo de validade (vencidos, vencem em breve, no prazo, sem validade) dos orçamentos em aberto do filtro. */
+  resumoValidade: ResumoValidadeItem[]
+  /** Perfil sem acesso a valores: o resumo mostra só a quantidade. */
+  valorOculto: boolean
 }
 
 interface PrescricaoRow {
@@ -89,6 +94,8 @@ function emptyMeta(): PrescricoesMeta {
     valorAtivasLimitePrazo: 0,
     vencidas: 0,
     valorVencidas: 0,
+    resumoValidade: [],
+    valorOculto: false,
   }
 }
 
@@ -255,6 +262,8 @@ export async function GET(request: NextRequest) {
     valorAtivasLimitePrazo: soma(ativasLimite),
     vencidas: vencidas.length,
     valorVencidas: soma(vencidas),
+    resumoValidade: resumirValidade(itens),
+    valorOculto: isFinanciallyRestrictedRole(session.role),
   }
 
   return NextResponse.json({
