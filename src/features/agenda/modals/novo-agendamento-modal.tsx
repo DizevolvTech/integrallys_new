@@ -181,10 +181,9 @@ export function NovoAgendamentoModal({
   }, [valorCobrado])
 
   useEffect(() => {
-    if (skipProcedimentoResetRef.current) {
-      skipProcedimentoResetRef.current = false
-      return
-    }
+    const preset = presetProcedimentoRef.current
+    presetProcedimentoRef.current = null
+    if (preset && preset.profissional.trim().toLowerCase() === profissional.trim().toLowerCase()) return
     setProcedimentoId('')
     setGerarPacote(false)
     setSerieQuantidade('')
@@ -256,7 +255,8 @@ export function NovoAgendamentoModal({
   // `patients`: após createPaciente a lista troca de identidade e apagaria o
   // paciente recém-selecionado.
   const wasOpenRef = useRef(false)
-  const skipProcedimentoResetRef = useRef(false)
+  // Procedimento do preset: preservado quando o profissional do preset é (re)selecionado; consumido na 1ª troca.
+  const presetProcedimentoRef = useRef<{ profissional: string; procedimentoId: string } | null>(null)
   useEffect(() => {
     if (!isOpen) {
       wasOpenRef.current = false
@@ -282,9 +282,12 @@ export function NovoAgendamentoModal({
     if (initialDate) setData(initialDate)
     if (initialTime) setHorario(initialTime)
     if (initialProfissional) {
-      skipProcedimentoResetRef.current = Boolean(initialProcedimentoId)
+      presetProcedimentoRef.current = initialProcedimentoId
+        ? { profissional: initialProfissional, procedimentoId: initialProcedimentoId }
+        : null
       setProfissional(initialProfissional)
     } else {
+      presetProcedimentoRef.current = null
       setProfissional('')
     }
     setProcedimentoId(initialProcedimentoId || '')
@@ -300,7 +303,9 @@ export function NovoAgendamentoModal({
   useEffect(() => {
     if (!isOpen || !initialProfissional || profissional) return
     // O efeito de troca de profissional limpa o procedimento; preserva o do preset (ex.: lista de espera).
-    skipProcedimentoResetRef.current = Boolean(initialProcedimentoId)
+    presetProcedimentoRef.current = initialProcedimentoId
+      ? { profissional: initialProfissional, procedimentoId: initialProcedimentoId }
+      : null
     setProfissional(initialProfissional)
     if (initialProcedimentoId) setProcedimentoId(initialProcedimentoId)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o profissional do preset chega

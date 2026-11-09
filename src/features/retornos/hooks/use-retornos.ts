@@ -83,6 +83,34 @@ export function useRetornoPendentePacientes() {
   return { pacientesComRetornoPendente: ids, reload }
 }
 
+export interface RetornoPendenteDetalhe {
+  pacienteId: string
+  prescricaoId: string | null
+  profissionalId: string | null
+  procedimentoId: string | null
+}
+
+/** Retornos em aberto com especialista/procedimento do retorno (mais recente primeiro) — selo da lista de Prescrição/Vendas. */
+export function useRetornosPendentesDetalhe() {
+  const api = useApi()
+  const [itens, setItens] = useState<RetornoPendenteDetalhe[]>([])
+
+  const reload = useCallback(async () => {
+    try {
+      const response = await api.get<{ data: RetornoPendenteDetalhe[] }>('/api/retornos/pendentes?detalhe=1')
+      setItens(response.data ?? [])
+    } catch {
+      // sem permissão ou offline: a tag simplesmente não aparece
+    }
+  }, [api])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  return { retornosPendentes: itens, reload }
+}
+
 export async function registrarRetornoMaisTarde(
   post: <T>(url: string, body?: unknown) => Promise<T>,
   params: { pacienteId: string; prescricaoId?: string },
