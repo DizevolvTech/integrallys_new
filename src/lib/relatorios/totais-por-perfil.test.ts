@@ -22,6 +22,22 @@ describe('totais financeiros de Consultas por perfil', () => {
   })
 })
 
+describe('total de venda do Estoque (posição)', () => {
+  const t = { produtos: 3, custo: 10, venda: 99, margem: 5 }
+  it('recepção não recebe a venda total, mas mantém os demais totais', () => {
+    const r = ocultarTotaisFinanceirosDaRecepcao('estoque-posicao', 'recepcao', t)
+    expect(r).not.toHaveProperty('venda')
+    expect(r).toMatchObject({ produtos: 3, custo: 10, margem: 5 })
+    expect(t.venda).toBe(99)
+  })
+  it.each(['gestor', 'admin', 'master'])('%s recebe a venda total', (perfil) => {
+    expect(ocultarTotaisFinanceirosDaRecepcao('estoque-posicao', perfil, t)).toEqual(t)
+  })
+  it('movimentação do estoque não é afetada', () => {
+    expect(ocultarTotaisFinanceirosDaRecepcao('estoque-movimentacao', 'recepcao', t)).toEqual(t)
+  })
+})
+
 describe('indicador do detalhe do Desempenho geral', () => {
   it('aceita só os seis cartões', () => {
     for (const m of ['agendamentos', 'realizados', 'cancelados', 'faltas', 'pacientes', 'taxa']) {

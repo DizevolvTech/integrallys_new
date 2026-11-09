@@ -89,3 +89,34 @@ export async function registrarRetornoMaisTarde(
 ) {
   return post('/api/retornos', { origem: 'prescricao', ...params })
 }
+
+export interface RetornosResumo {
+  pendentes: number
+  agendados: number
+  concluidos: number
+}
+
+/** Resumo do demonstrativo (Relatórios > Retornos): pendentes, agendados e concluídos com os filtros da tela. */
+export function useRetornosResumo(filtros: RetornosFiltros, ativo: boolean) {
+  const api = useApi()
+  const [resumo, setResumo] = useState<RetornosResumo | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const params = new URLSearchParams(buildRetornosQuery(filtros))
+  for (const chave of ['page', 'pageSize', 'situacao']) params.delete(chave)
+  const query = params.toString()
+
+  useEffect(() => {
+    if (!ativo) return
+    let atual = true
+    setError(null)
+    api
+      .get<RetornosResumo>(`/api/retornos/resumo?${query}`)
+      .then((r) => atual && setResumo(r))
+      .catch((err) => atual && setError(err instanceof Error ? err.message : 'Erro ao carregar o resumo'))
+    return () => {
+      atual = false
+    }
+  }, [api, query, ativo])
+
+  return { resumo, error }
+}

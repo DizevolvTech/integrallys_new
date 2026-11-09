@@ -21,6 +21,8 @@ vi.mock('./hooks/use-retornos', () => ({
     error: null,
     reload: vi.fn(),
   }),
+  useRetornosResumo: () => ({ resumo: { pendentes: 4, agendados: 2, concluidos: 7 }, error: null }),
+  buildRetornosQuery: () => 'page=1',
 }))
 
 describe('Retornos — tabela', () => {
@@ -34,5 +36,21 @@ describe('Retornos — tabela', () => {
     expect(within(linha).getByText('Dra. Ana')).toBeInTheDocument()
     expect(within(linha).getByText('Consulta de retorno')).toBeInTheDocument()
     expect(within(linha).getByRole('link', { name: /Agendar retorno/ })).toBeInTheDocument()
+  })
+
+  it('na aba de Relatórios é só demonstrativo: sem Editar prazo, Agendar nem cartões clicáveis; com resumo e exportação', () => {
+    render(<RetornosRelatorio somenteLeitura titulo="Retornos" />)
+    expect(screen.queryByRole('link', { name: /Agendar/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Editar prazo|Definir prazo/ })).toBeNull()
+    const tabela = screen.getByTestId('retornos-tabela')
+    expect(within(tabela).getAllByRole('columnheader').map((c) => c.textContent)).not.toContain('Ação')
+    // os cartões do topo viram só números (não são botões)
+    expect(screen.queryByRole('button', { name: /No prazo/ })).toBeNull()
+    const resumo = screen.getByRole('region', { name: 'Resumo dos retornos' })
+    expect(within(resumo).getByText('Pendentes').nextSibling?.textContent).toBe('4')
+    expect(within(resumo).getByText('Agendados').nextSibling?.textContent).toBe('2')
+    expect(within(resumo).getByText('Concluídos').nextSibling?.textContent).toBe('7')
+    expect(screen.getByRole('button', { name: 'Exportar em Excel' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Exportar em PDF' })).toBeEnabled()
   })
 })

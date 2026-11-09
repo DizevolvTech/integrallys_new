@@ -28,7 +28,7 @@ function montarQuery(filtros: Record<string, string>, pagina: number, porPagina:
 }
 
 /** Busca uma página do relatório já filtrada, paginada e totalizada pelo servidor. */
-export function useRelatorioTabela(tipo: string, filtros: Record<string, string>, pagina: number, porPagina = 20) {
+export function useRelatorioTabela(tipo: string, filtros: Record<string, string>, pagina: number, porPagina = 20, ativo = true) {
   const api = useApi()
   const [linhas, setLinhas] = useState<LinhaRelatorio[]>([])
   const [meta, setMeta] = useState<RelatorioMeta | null>(null)
@@ -38,6 +38,7 @@ export function useRelatorioTabela(tipo: string, filtros: Record<string, string>
   const chaveFiltros = JSON.stringify(filtros)
 
   useEffect(() => {
+    if (!ativo) return
     const minha = ++sequencia.current
     setIsLoading(true)
     const timer = setTimeout(async () => {
@@ -56,7 +57,7 @@ export function useRelatorioTabela(tipo: string, filtros: Record<string, string>
       }
     }, ATRASO_BUSCA_MS)
     return () => clearTimeout(timer)
-  }, [api, tipo, chaveFiltros, pagina, porPagina])
+  }, [api, tipo, chaveFiltros, pagina, porPagina, ativo])
 
   return { linhas, meta, isLoading, error }
 }

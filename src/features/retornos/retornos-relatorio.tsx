@@ -37,7 +37,8 @@ import { useApi } from '@/hooks/use-api'
 import { DefinirPrazoModal } from './definir-prazo-modal'
 import type { RetornoItem } from '@/types/retorno'
 import { useRetornoAlvo } from './hooks/use-retorno-alvo'
-import { useRetornos, type RetornosFiltros } from './hooks/use-retornos'
+import { useRetornos, useRetornosResumo, type RetornosFiltros } from './hooks/use-retornos'
+import { RetornosDemonstrativo } from './retornos-demonstrativo'
 
 const TODOS = 'todos'
 const PAGE_SIZE = 20
@@ -59,16 +60,21 @@ export function hrefAgendarRetorno(item: Pick<RetornoItem, 'pacienteId' | 'espec
 interface RetornosRelatorioProps {
   /** Situação inicial do filtro (ex.: vinda de ?situacao= na URL). */
   situacaoInicial?: string
+  /** Só demonstrativo (aba de Relatórios): sem Editar prazo, Agendar retorno nem cartões clicáveis; com resumo e exportação. */
+  somenteLeitura?: boolean
+  /** Título do relatório nos arquivos exportados. */
+  titulo?: string
 }
 
 /** Relatório de retornos a agendar (reutilizável em /retornos e em abas de relatórios). */
-export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioProps) {
+export function RetornosRelatorio({ situacaoInicial = '', somenteLeitura = false, titulo = 'Retornos' }: RetornosRelatorioProps) {
   const role = useAuth((s) => s.user?.role)
   const isEspecialista = role === 'especialista'
   // Agendar o retorno exige agenda:create (decidido pelo servidor); sem ela o botão some.
-  const podeAgendar = useAuth((s) =>
+  const permissaoAgendar = useAuth((s) =>
     s.permissions.some((p) => p.resource === 'agenda' && p.actions.includes('create')),
   )
+  const podeAgendar = permissaoAgendar && !somenteLeitura
   const { opcoes } = useRetornoAlvo({ enabled: true })
   const [filtros, setFiltros] = useState<RetornosFiltros>({
     situacao: SITUACOES_RETORNO_FILTRO.includes(situacaoInicial as SituacaoRetorno) ? situacaoInicial : '',
@@ -81,11 +87,13 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
     pageSize: PAGE_SIZE,
   })
   const { data, meta, isLoading, error, reload } = useRetornos(filtros)
+  const { resumo } = useRetornosResumo(filtros, somenteLeitura)
   const api = useApi()
   // Definir o prazo exige retornos:update (decidido pelo servidor); sem ela o botão some.
-  const podeEditarPrazo = useAuth((s) =>
+  const permissaoPrazo = useAuth((s) =>
     s.permissions.some((p) => p.resource === 'retornos' && p.actions.includes('update')),
   )
+  const podeEditarPrazo = permissaoPrazo && !somenteLeitura
   const [editando, setEditando] = useState<RetornoItem | null>(null)
 
   const salvarPrazo = async (item: RetornoItem, definicao: DefinicaoPrazo, alvo: Record<string, string>) => {
@@ -118,6 +126,14 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {SITUACOES_RETORNO.map((situacao) => {
           const ativo = filtros.situacao === situacao
+          if (somenteLeitura) {
+            return (
+              <div key={situacao} className="rounded-integrallys-lg border border-app-border bg-app-card p-4 dark:border-app-border-dark dark:bg-app-card-dark">
+                <p className="text-xs uppercase tracking-wider text-app-text-muted">{ROTULO_SITUACAO_RETORNO[situacao]}</p>
+                <p className="mt-1 text-2xl font-normal text-app-text-primary dark:text-white">{meta?.contagem[situacao] ?? '—'}</p>
+              </div>
+            )
+          }
           return (
             <button
               key={situacao}
@@ -275,7 +291,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                     <TableHead>Especialista / Procedimento do retorno</TableHead>
                     <TableHead>Retorno previsto</TableHead>
                     <TableHead>Situação</TableHead>
-                    <TableHead className="w-px whitespace-nowrap text-right">Ação</TableHead>
+                    {!somenteLeitura && <TableHead className="w-px whitespace-nowrap text-right">Ação</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -312,6 +328,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                           {ROTULO_SITUACAO_RETORNO[item.situacao]}
                         </StatusBadge>
                       </TableCell>
+                      {!somenteLeitura && (
                       <TableCell className="whitespace-nowrap text-right">
                         <div className="flex flex-col items-end gap-2">
                           {botaoPrazo(item)}
@@ -325,6 +342,7 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
                           )}
                         </div>
                       </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -333,6 +351,19 @@ export function RetornosRelatorio({ situacaoInicial = '' }: RetornosRelatorioPro
           </>
         )}
       </Card>
+
+      {somenteLeitura && (
+        <RetornosDemonstrativo
+          titulo={titulo}
+          filtros={filtros}
+          nomes={{
+            profissional: especialistas.find((u) => u.id === filtros.profissionalId)?.nome,
+            procedimento: procedimentos.find((p) => p.id === filtros.procedimentoId)?.nome,
+          }}
+          resumo={resumo}
+          total={meta?.total ?? 0}
+        />
+      )}
 
       {editando && (
         <DefinirPrazoModal item={editando} onClose={() => setEditando(null)} onSalvar={salvarPrazo} />

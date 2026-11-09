@@ -420,12 +420,12 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       const a = obj(t.aReceber)
       const z = obj(t.atrasado)
       return [
-        { label: 'Liquidado · bruto', valor: formatMoeda(l.bruto), tom: 'neutro' },
-        { label: 'Liquidado · descontos', valor: formatMoeda(l.desconto), tom: 'alerta' },
-        { label: 'Liquidado · líquido', valor: formatMoeda(l.liquido), tom: 'sucesso' },
-        { label: 'A receber · bruto', valor: formatMoeda(a.bruto), tom: 'neutro' },
-        { label: 'A receber · líquido', valor: formatMoeda(a.liquido), tom: 'alerta' },
-        { label: 'Atrasado · bruto', valor: formatMoeda(z.bruto), tom: 'perigo' },
+        { label: 'Liquidado · bruto', valor: formatMoeda(l.bruto), tom: 'neutro', detalhe: 'liquidado' },
+        { label: 'Liquidado · descontos', valor: formatMoeda(l.desconto), tom: 'alerta', detalhe: 'liquidado' },
+        { label: 'Liquidado · líquido', valor: formatMoeda(l.liquido), tom: 'sucesso', detalhe: 'liquidado' },
+        { label: 'A receber · bruto', valor: formatMoeda(a.bruto), tom: 'neutro', detalhe: 'a_receber' },
+        { label: 'A receber · líquido', valor: formatMoeda(a.liquido), tom: 'alerta', detalhe: 'a_receber' },
+        { label: 'Atrasado · bruto', valor: formatMoeda(z.bruto), tom: 'perigo', detalhe: 'atrasado' },
       ]
     },
   },
@@ -464,7 +464,8 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { label: 'Produtos', valor: String(num(t.produtos)), tom: 'neutro' },
       { label: 'Quantidade total', valor: num(t.quantidade).toLocaleString('pt-BR'), tom: 'neutro' },
       { label: 'Custo total', valor: formatMoeda(t.custo), tom: 'neutro' },
-      { label: 'Venda total', valor: formatMoeda(t.venda), tom: 'neutro' },
+      // A recepção não recebe o total de venda: o servidor omite `venda` dos totais para esse perfil.
+      ...(t.venda === undefined ? [] : [{ label: 'Venda total', valor: formatMoeda(t.venda), tom: 'neutro' as const }]),
       { label: 'Margem total (% sobre o custo)', valor: `${formatMoeda(t.margem)} (${pctMargem(t.margemPct)})`, tom: 'sucesso' },
     ],
   },
@@ -644,10 +645,10 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       },
     ],
     cartoes: (t, total) => [
-      { label: 'Tarefas', valor: String(total), tom: 'neutro' },
-      { label: 'Pendentes', valor: String(num(t.pendentes)), tom: 'alerta' },
-      { label: 'Concluídas', valor: String(num(t.concluidas)), tom: 'sucesso' },
-      { label: 'Atrasadas', valor: String(num(t.atrasadas)), tom: 'perigo' },
+      { label: 'Tarefas', valor: String(total), tom: 'neutro', detalhe: 'todas' },
+      { label: 'Pendentes', valor: String(num(t.pendentes)), tom: 'alerta', detalhe: 'pendentes' },
+      { label: 'Concluídas', valor: String(num(t.concluidas)), tom: 'sucesso', detalhe: 'concluidas' },
+      { label: 'Atrasadas', valor: String(num(t.atrasadas)), tom: 'perigo', detalhe: 'atrasadas' },
     ],
   },
   desempenho: {
