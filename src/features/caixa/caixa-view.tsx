@@ -20,6 +20,7 @@ import { useCaixa, type CaixaItem } from '@/hooks/use-caixa'
 import { cn } from '@/lib/utils'
 import { calcularDinheiroNaGaveta, sugerirTransferenciaCofre, validarTransferenciaCofre } from '@/features/caixa/fechamento'
 import { DetalheFormaModal } from '@/features/caixa/modals/detalhe-forma-modal'
+import { EstornarMovimentoModal } from '@/features/caixa/modals/estornar-movimento-modal'
 import { ResumoCardModal, type ResumoCard } from '@/features/caixa/modals/resumo-card-modal'
 import { FiltroDataCaixa, type PeriodoEscolhido } from '@/features/caixa/components/filtro-data-caixa'
 import { FormaDetalhesCampos, erroFormaDetalhes } from '@/features/caixa/components/forma-detalhes-campos'
@@ -198,10 +199,11 @@ function CartaoBandeiraBreakdown({
 
 export function CaixaView() {
   const [periodo, setPeriodo] = useState<PeriodoEscolhido>(() => ({ de: hojeClinicaChave(), ate: hojeClinicaChave() }))
-  const { data, error, isLoading, session, openCaixa, addMovimentacao, closeCaixa, updateMovimentacao, deleteMovimentacao } = useCaixa(periodo)
+  const { data, error, isLoading, session, openCaixa, addMovimentacao, closeCaixa, updateMovimentacao, carregarPreviaEstorno, estornarMovimentacao } = useCaixa(periodo)
   const { getCardFee, hasMaquininhaConfig, isLoading: isPaymentConfigLoading } = usePaymentConfig()
   const [activeModal, setActiveModal] = useState<CaixaModal>(null)
   const [selectedMovimentacaoId, setSelectedMovimentacaoId] = useState<string | null>(null)
+  const [estornoItem, setEstornoItem] = useState<CaixaItem | null>(null)
   const [form, setForm] = useState({
     saldoInicial: '',
     descricao: '',
@@ -378,6 +380,9 @@ export function CaixaView() {
   type Movimento = (typeof data)[number]
   const formaTexto = (item: Movimento) => formaDetalheTexto(item)
 
+  /** Estorno e a movimentação já estornada ficam como estão (a saída de estorno não se estorna de novo). */
+  const podeEstornar = (item: Movimento) => !item.estornado && item.origem !== 'estorno' && !item.estornoDeId
+
   const renderAcoes = (item: Movimento) => consulta ? null : (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -390,21 +395,25 @@ export function CaixaView() {
                             <Eye className="h-4 w-4 mr-2 text-app-text-secondary" />
                             <span>Visualizar</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openModal('edit_caixa', item.id)}>
-                            <Edit className="h-4 w-4 mr-2 text-app-text-secondary" />
-                            <span>Editar</span>
-                          </DropdownMenuItem>
+                          {podeEstornar(item) && (
+                            <DropdownMenuItem onClick={() => openModal('edit_caixa', item.id)}>
+                              <Edit className="h-4 w-4 mr-2 text-app-text-secondary" />
+                              <span>Editar</span>
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => toast.info('Comprovante disponível em breve.')}>
                             <FileText className="h-4 w-4 mr-2 text-app-text-secondary" />
                             <span>Comprovante</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => { void deleteMovimentacao(item.id).then(() => toast.success('Movimentação estornada.')) }}
-                            className="text-[var(--app-danger-text)]"
-                          >
-                            <RotateCcw className="h-4 w-4 mr-2" />
-                            <span>Estornar</span>
-                          </DropdownMenuItem>
+                          {podeEstornar(item) && (
+                            <DropdownMenuItem
+                              onClick={() => setEstornoItem(item)}
+                              className="text-[var(--app-danger-text)]"
+                            >
+                              <RotateCcw className="h-4 w-4 mr-2" />
+                              <span>Estornar</span>
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
   )
@@ -559,8 +568,8 @@ export function CaixaView() {
                     </span>
                   }
                   selo={
-                    <Badge className={`${item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} font-normal border-none`}>
-                      {item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                    <Badge className={`${item.estornado ? 'app-status-warning' : item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} font-normal border-none`}>
+                      {item.estornado ? 'Estornado' : item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
                     </Badge>
                   }
                   acoes={renderAcoes(item)}
@@ -628,9 +637,10 @@ export function CaixaView() {
                         <span className={`whitespace-nowrap ${item.tipo === 'entrada' ? 'text-[var(--app-success-text)]' : 'text-[var(--app-danger-text)]'}`}>
                           R$ {formatBRL(item.valor)}
                         </span>
-                        <Badge className={`${item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} px-1.5 py-0 text-[10px] font-normal border-none`}>
-                          {item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                        <Badge className={`${item.estornado ? 'app-status-warning' : item.tipo === 'entrada' ? 'app-status-success' : 'app-status-danger'} px-1.5 py-0 text-[10px] font-normal border-none`}>
+                          {item.estornado ? 'Estornado' : item.tipo === 'entrada' ? 'Entrada' : 'Saída'}
                         </Badge>
+                        {item.estornado && item.estornoMotivo && <span className="max-w-[160px] break-words text-[10px] text-app-text-secondary dark:text-white/60">{item.estornoMotivo}</span>}
                       </div>
                     </TableCell>
                     <TableCell className="px-3 py-3 text-xs text-app-text-secondary dark:text-white/60 font-normal">{item.operador || '—'}</TableCell>
@@ -691,6 +701,12 @@ export function CaixaView() {
                   <span className="text-app-text-secondary dark:text-white/60">Total de saídas</span>
                   <span className="font-normal text-[var(--app-danger-text)]">R$ {summary.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
+                {session.estornos > 0 && (
+                  <div className="flex justify-between items-center text-sm" data-testid="resumo-estornos">
+                    <span className="text-app-text-secondary dark:text-white/60">Saídas de estorno (incluídas nas saídas)</span>
+                    <span className="font-normal text-[var(--app-danger-text)]">R$ {session.estornos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="h-px bg-app-bg-secondary dark:bg-app-hover" />
@@ -701,6 +717,13 @@ export function CaixaView() {
           </div>
         </Card>
       </div>
+
+      <EstornarMovimentoModal
+        item={estornoItem}
+        onClose={() => setEstornoItem(null)}
+        carregarPrevia={carregarPreviaEstorno}
+        onConfirm={estornarMovimentacao}
+      />
 
       {/* Operation Modals */}
       <Dialog open={activeModal !== null} onOpenChange={(open) => !open && handleModalClose()}>
