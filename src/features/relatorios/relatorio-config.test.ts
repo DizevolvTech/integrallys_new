@@ -76,3 +76,57 @@ d2('percentuaisQueSomam100', () => {
   })
   i2('total zero', () => e2(percentuaisQueSomam100([0, 0])).toEqual([0, 0]))
 })
+
+import { describe as d4, expect as e4, it as i4 } from 'vitest'
+import { resumirValidade } from '@/lib/relatorios/prescricoes-validade'
+
+d4('Consultas e Justificativas: resumos por profissional', () => {
+  i4('Consultas: um quadro por indicador, sem profissional zerado', () => {
+    const r = CONFIG_RELATORIOS.consultas.resumos!({
+      porProfissional: [
+        { nome: 'Dra. Maria Santos', atendimentos: 22, efetivados: 8, retornos: 3, novas: 5 },
+        { nome: 'Dr. João Silva', atendimentos: 7, efetivados: 0, retornos: 0, novas: 0 },
+      ],
+    })
+    e4(r.map((x) => x.titulo)).toEqual([
+      'Atendimentos por profissional', 'Efetivados por profissional', 'Retornos por profissional', 'Consultas novas por profissional',
+    ])
+    e4(r[0].itens).toEqual([{ nome: 'Dra. Maria Santos', valor: '22' }, { nome: 'Dr. João Silva', valor: '7' }])
+    e4(r[2].itens).toEqual([{ nome: 'Dra. Maria Santos', valor: '3' }])
+  })
+
+  i4('Justificativas: profissional · mês com cancelamentos e faltas', () => {
+    const r = CONFIG_RELATORIOS.justificativas.resumos!({
+      porProfissionalMes: [
+        { nome: 'Dra. Maria Santos', mes: '2026-11', cancelamentos: 3, faltas: 1 },
+        { nome: 'Dr. João Silva', mes: '2026-10', cancelamentos: 0, faltas: 2 },
+        { nome: 'Dr. João Silva', mes: '2026-09', cancelamentos: 1, faltas: 0 },
+      ],
+    })
+    e4(r[0].itens).toEqual([
+      { nome: 'Dra. Maria Santos · Novembro/2026', valor: '3 cancelamentos, 1 falta' },
+      { nome: 'Dr. João Silva · Outubro/2026', valor: '2 faltas' },
+      { nome: 'Dr. João Silva · Setembro/2026', valor: '1 cancelamento' },
+    ])
+  })
+})
+
+d4('Orçamentos/Prescrição: resumo de validade', () => {
+  i4('só em aberto; vencidos, em breve, no prazo, sem validade com quantidade e valor', () => {
+    const r = resumirValidade([
+      { classe: 'vencida', situacao: 'vencido', valorTotal: 100 },
+      { classe: 'ativa', situacao: 'limite_prazo', valorTotal: 50 },
+      { classe: 'ativa', situacao: 'no_prazo', valorTotal: 10 },
+      { classe: 'ativa', situacao: 'no_prazo', valorTotal: 15 },
+      { classe: 'ativa', situacao: 'sem_validade', valorTotal: 7 },
+      { classe: 'concluida', situacao: 'vencido', valorTotal: 999 },
+      { classe: 'outra', situacao: 'no_prazo', valorTotal: 999 },
+    ])
+    e4(r).toEqual([
+      { faixa: 'vencidos', qtd: 1, valor: 100 },
+      { faixa: 'vencem_em_breve', qtd: 1, valor: 50 },
+      { faixa: 'no_prazo', qtd: 2, valor: 25 },
+      { faixa: 'sem_validade', qtd: 1, valor: 7 },
+    ])
+  })
+})

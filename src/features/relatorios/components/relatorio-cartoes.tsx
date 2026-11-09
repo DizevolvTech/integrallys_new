@@ -56,7 +56,7 @@ export function RelatorioResumos({ resumos }: { resumos: ResumoLista[] }) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       {comDados.map((r) => (
-        <div key={r.titulo} className="rounded-xl border border-app-border p-4 dark:border-app-border-dark">
+        <div key={r.titulo} className={`rounded-xl border border-app-border p-4 dark:border-app-border-dark${r.larga ? ' md:col-span-3' : ''}`}>
           <p className="mb-2 text-sm text-app-text-primary dark:text-white">{r.titulo}</p>
           {r.itens.length === 0 && <p className="text-sm text-app-text-muted">{r.vazio}</p>}
           <ul className="space-y-1 text-sm text-app-text-secondary dark:text-white/70">

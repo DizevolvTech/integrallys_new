@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CartaoMobile, ListaCartoesMobile } from '@/components/shared/mobile-card'
+import { RelatorioResumos } from '@/features/relatorios/components/relatorio-cartoes'
+import type { ResumoLista } from '@/features/relatorios/relatorio-config'
 import { formatData, formatMoeda as formatMoney } from '@/features/relatorios/format'
 
 const BADGE_SEM_VALIDADE =
@@ -34,6 +36,27 @@ function badgeSituacao(situacao: string) {
     }
   }
   return { tone: BADGE_SEM_VALIDADE, label: 'Sem validade' }
+}
+
+const ROTULO_FAIXA: Record<string, string> = {
+  vencidos: 'Vencidos',
+  vencem_em_breve: 'Vencem em breve (até 10 dias)',
+  no_prazo: 'No prazo',
+  sem_validade: 'Sem validade',
+}
+
+function resumoValidade(meta: { resumoValidade: Array<{ faixa: string; qtd: number; valor: number }>; valorOculto: boolean }): ResumoLista[] {
+  if (meta.resumoValidade.every((f) => f.qtd === 0)) return []
+  return [
+    {
+      titulo: 'Validade dos orçamentos em aberto',
+      larga: true,
+      itens: meta.resumoValidade.map((f) => ({
+        nome: ROTULO_FAIXA[f.faixa] ?? f.faixa,
+        valor: meta.valorOculto ? String(f.qtd) : `${f.qtd} · ${formatMoney(f.valor)}`,
+      })),
+    },
+  ]
 }
 
 export function PrescricoesTab() {
@@ -333,6 +356,8 @@ export function PrescricoesTab() {
             </Table>
           </div>
         </div>
+
+        <RelatorioResumos resumos={resumoValidade(prescricoesRelatorio.meta)} />
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-end gap-3 px-2">
           <p className="text-sm text-app-text-secondary dark:text-white/70">
