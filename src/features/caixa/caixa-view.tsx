@@ -386,7 +386,7 @@ export function CaixaView() {
   const renderAcoes = (item: Movimento) => consulta ? null : (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()} className="h-8 w-8 text-app-text-muted hover:text-app-text-primary mx-auto transition-colors">
+                          <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()} aria-label="Ações da movimentação" className="h-11 w-11 md:h-8 md:w-8 text-app-text-muted hover:text-app-text-primary mx-auto transition-colors">
                             <MoreVertical size={16} />
                           </Button>
                         </DropdownMenuTrigger>

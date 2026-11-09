@@ -535,7 +535,10 @@ export function NovoAgendamentoModal({
                   setPacienteId('')
                   setPatientListOpen(true)
                 }}
-                onFocus={() => setPatientListOpen(true)}
+                onFocus={() => {
+                  // Paciente já escolhido (ex.: vindo do selo Retorno pendente): não abre a lista por cima dos campos.
+                  if (!pacienteId) setPatientListOpen(true)
+                }}
                 placeholder="Buscar ou digitar nome do paciente"
                 className="h-11 rounded-integrallys bg-app-bg-secondary/50 pr-10 dark:bg-app-bg-dark"
                 autoComplete="off"

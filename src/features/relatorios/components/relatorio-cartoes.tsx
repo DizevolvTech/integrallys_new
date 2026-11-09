@@ -62,8 +62,8 @@ export function RelatorioResumos({ resumos }: { resumos: ResumoLista[] }) {
           <ul className="max-h-72 space-y-1 overflow-y-auto text-sm text-app-text-secondary dark:text-white/70">
             {r.itens.map((i, indice) => (
               <li key={`${i.nome}-${indice}`} className="flex justify-between gap-3">
-                <span className="truncate">{i.nome}</span>
-                <span className="shrink-0">{i.valor}</span>
+                <span className="min-w-0 break-words">{i.nome}</span>
+                <span className="shrink-0 text-right">{i.valor}</span>
               </li>
             ))}
           </ul>

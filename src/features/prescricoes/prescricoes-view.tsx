@@ -399,6 +399,7 @@ export function PrescricoesView() {
               variant="outline"
               onClick={() => {
                 setSearchTerm('')
+                setStatusFilter('todos')
                 setDataFiltro(hojeIso())
               }}
               className="h-11 px-4 rounded-integrallys font-normal"
