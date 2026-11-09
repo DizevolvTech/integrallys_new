@@ -44,7 +44,9 @@ const CHAVES: Record<RelatorioTipo, Record<string, Regra>> = {
   },
   financeiro: { q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', usuario_id: 'uuid', tipo: 'texto' },
   comissoes: { q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid' },
-  tarefas: { q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', responsavel_id: 'uuid', status: 'texto' },
+  tarefas: {
+    q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', responsavel_id: 'uuid', status: 'texto', indicador: 'texto',
+  },
   aniversariantes: { q: 'texto', data: 'data', modo: 'texto', unidade_id: 'uuid', enviado: 'texto' },
   desempenho: { inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid' },
   'desempenho-detalhe': { inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid', metrica: 'texto' },

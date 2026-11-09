@@ -3,7 +3,8 @@ import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/li
 import { perfilPodeVerRelatorio } from '@/lib/relatorios/registry'
 import { perfilVeCustoEstoque } from '@/lib/estoque-custo'
 import { requirePermission } from '@/lib/authz'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { montarFiltros } from '@/lib/relatorios/filtros'
+import { authErrorResponse, getRequestAuth, getScopedUnitId, isScopedRole, type RequestAuth } from '@/lib/request-auth'
 
 export interface CurvaAbcItem {
   produtoId: string
@@ -140,6 +141,21 @@ async function listCurvaAbc(request: NextRequest) {
   })
 }
 
+/** Resumo de validade do estoque (vencidos, até 60 dias, acima de 60, sem validade) — vale para a recepção também. */
+async function resumoValidade(request: NextRequest, session: RequestAuth) {
+  const scoped = await getScopedUnitId(session)
+  if (scoped.error) return supabaseErrorResponse(scoped.error, 'Falha ao carregar validade do estoque')
+  const filtros = montarFiltros('estoque-posicao', new URL(request.url).searchParams, {
+    perfil: session.role,
+    userId: session.userId,
+    unidadeId: scoped.unidadeId,
+    perfilRestritoPorUnidade: isScopedRole(session.role),
+  })
+  const { data, error } = await getAppSupabase().rpc('rel_estoque_validade', { p: filtros })
+  if (error) return supabaseErrorResponse(error, 'Falha ao carregar validade do estoque')
+  return NextResponse.json(data ?? { grupos: {} })
+}
+
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
@@ -149,6 +165,7 @@ export async function GET(request: NextRequest) {
   if (!perfilPodeVerRelatorio(session.role, 'estoque-posicao')) {
     return serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)
   }
+  if (new URL(request.url).searchParams.get('view') === 'validade') return resumoValidade(request, session)
   // Curva ABC é toda em valor de custo: só gestão.
   if (!perfilVeCustoEstoque(session.role)) {
     return serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)

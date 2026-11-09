@@ -24,7 +24,7 @@ function situacaoDaUrl() {
   return s === 'no_prazo' || s === 'limite' || s === 'vencido' ? s : ''
 }
 
-function ConteudoDaAba({ id, proprio }: { id: string; proprio: boolean }) {
+function ConteudoDaAba({ id, titulo, proprio }: { id: string; titulo: string; proprio: boolean }) {
   switch (id) {
     case 'aniversariantes':
       return <AniversariantesRelatorio />
@@ -39,9 +39,9 @@ function ConteudoDaAba({ id, proprio }: { id: string; proprio: boolean }) {
     case 'comparativo':
       return <ComparativoTab />
     case 'retornos':
-      return <RetornosRelatorio situacaoInicial={situacaoDaUrl()} />
+      return <RetornosRelatorio situacaoInicial={situacaoDaUrl()} somenteLeitura titulo={titulo} />
     default:
-      return id in CONFIG_RELATORIOS ? <RelatorioTabela key={id} tipo={id} proprio={proprio} /> : null
+      return id in CONFIG_RELATORIOS ? <RelatorioTabela key={id} tipo={id} proprio={proprio} titulo={titulo} /> : null
   }
 }
 
@@ -97,7 +97,7 @@ export function RelatoriosView() {
         <div className="overflow-hidden rounded-[24px] border border-app-border bg-app-card shadow-sm dark:border-app-border-dark dark:bg-app-card-dark">
           <div className="space-y-6 p-4 md:p-8">
             <h2 className="text-xl font-normal text-app-text-primary dark:text-white">{abaAtual.label}</h2>
-            <ConteudoDaAba id={abaAtual.id} proprio={Boolean(abaAtual.proprio)} />
+            <ConteudoDaAba id={abaAtual.id} titulo={abaAtual.label} proprio={Boolean(abaAtual.proprio)} />
           </div>
         </div>
       )}

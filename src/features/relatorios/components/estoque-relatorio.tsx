@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { perfilVeCustoEstoque } from '@/lib/estoque-custo'
 import { SegmentedControl } from '@/components/shared/segmented-control'
 import { CurvaAbcSection } from '@/features/relatorios/components/curva-abc-section'
 import { RelatorioTabela } from '@/features/relatorios/components/relatorio-tabela'
-import { useCurvaAbc } from '@/features/relatorios/hooks/use-relatorio-estoque'
+import { resumosDeValidade } from '@/features/relatorios/estoque-validade-resumo'
+import { useCurvaAbc, useValidadeEstoque } from '@/features/relatorios/hooks/use-relatorio-estoque'
 
 type SubAba = 'estoque-posicao' | 'estoque-movimentacao' | 'curva-abc'
 
@@ -16,6 +17,13 @@ export function EstoqueRelatorio() {
   const [dias, setDias] = useState(90)
   const veCusto = useAuth((state) => perfilVeCustoEstoque(state.user?.role))
   const curvaAbc = useCurvaAbc(dias, veCusto)
+  const [filtrosPosicao, setFiltrosPosicao] = useState<Record<string, string>>({})
+  const validade = useValidadeEstoque({
+    unidade_id: filtrosPosicao.unidade_id,
+    q: filtrosPosicao.q,
+    categoria: filtrosPosicao.categoria,
+  })
+  const resumosValidade = useMemo(() => resumosDeValidade(validade.data), [validade.data])
 
   return (
     <div className="space-y-6">
@@ -30,7 +38,19 @@ export function EstoqueRelatorio() {
         fullWidth={false}
         size="sm"
       />
-      {subAba !== 'curva-abc' && <RelatorioTabela key={subAba} tipo={subAba} />}
+      {subAba === 'estoque-posicao' && (
+        <>
+          <RelatorioTabela
+            key={subAba}
+            tipo={subAba}
+            titulo="Estoque — posição"
+            resumosExtras={resumosValidade}
+            onFiltrosChange={setFiltrosPosicao}
+          />
+          {validade.error && <p className="text-sm text-[var(--app-danger-text)]">{validade.error}</p>}
+        </>
+      )}
+      {subAba === 'estoque-movimentacao' && <RelatorioTabela key={subAba} tipo={subAba} titulo="Estoque — movimentação diária" />}
       {subAba === 'curva-abc' && (
         <CurvaAbcSection
           dias={dias}

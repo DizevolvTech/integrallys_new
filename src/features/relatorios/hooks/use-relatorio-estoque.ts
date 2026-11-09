@@ -60,3 +60,49 @@ export function useCurvaAbc(dias: number, ativo = true) {
 
   return { data, isLoading, error, reload: load }
 }
+
+export type GrupoValidade = 'vencidos' | 'ate_60' | 'acima_60' | 'sem_validade'
+
+export interface ItemValidade {
+  id: string
+  produto: string
+  lote: string
+  validade: string | null
+  quantidade: number
+}
+
+export interface ValidadeResponse {
+  grupos: Partial<Record<GrupoValidade, { total: number; itens: ItemValidade[] }>>
+}
+
+/** Resumo de validade do estoque com os mesmos filtros (unidade, busca e categoria) da tabela. */
+export function useValidadeEstoque(filtros: { unidade_id?: string; q?: string; categoria?: string }) {
+  const api = useApi()
+  const [data, setData] = useState<ValidadeResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const chave = JSON.stringify(filtros)
+
+  useEffect(() => {
+    let atual = true
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ view: 'validade' })
+        for (const [k, v] of Object.entries(JSON.parse(chave) as Record<string, string>)) {
+          if (v && v !== 'todos') params.set(k, v)
+        }
+        const res = await api.get<ValidadeResponse>(`/api/relatorios/estoque?${params.toString()}`)
+        if (!atual) return
+        setData(res)
+        setError(null)
+      } catch (err) {
+        if (atual) setError(err instanceof Error ? err.message : 'Erro ao carregar a validade do estoque')
+      }
+    }, 350)
+    return () => {
+      atual = false
+      clearTimeout(timer)
+    }
+  }, [api, chave])
+
+  return { data, error }
+}
