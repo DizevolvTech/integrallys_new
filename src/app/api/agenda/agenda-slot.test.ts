@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildInsertPayload,
   buildOccupyUpdate,
+  buscarAgendamentoJaSalvo,
   decidirFluxoAgendamento,
   ocuparSlotDisponivel,
   validateModalidadeOnlineUrl,
@@ -212,5 +213,51 @@ describe('ocuparSlotDisponivel', () => {
       update: {},
     })
     expect(res).toEqual({ kind: 'error', error })
+  })
+})
+
+function fakeBusca(result: { data: unknown; error: unknown }) {
+  const capture: { eqs: Array<[string, unknown]>; nots: Array<[string, string, unknown]> } = { eqs: [], nots: [] }
+  const builder = {
+    select() {
+      return builder
+    },
+    eq(column: string, value: unknown) {
+      capture.eqs.push([column, value])
+      return builder
+    },
+    not(column: string, op: string, value: unknown) {
+      capture.nots.push([column, op, value])
+      return builder
+    },
+    limit() {
+      return Promise.resolve(result)
+    },
+  }
+  const client = { from: () => builder }
+  return { client: client as unknown as SupabaseClient, capture }
+}
+
+describe('buscarAgendamentoJaSalvo (reenvio do mesmo agendamento)', () => {
+  const params = { profissionalId: 'prof-1', data: '2026-11-17', horario: '16:00', pacienteId: 'pac-1' }
+
+  it('slot já ocupado pelo mesmo paciente → devolve o id (o primeiro clique salvou)', async () => {
+    const { client, capture } = fakeBusca({ data: [{ id: 'ag-1' }], error: null })
+    expect(await buscarAgendamentoJaSalvo(client, params)).toBe('ag-1')
+    expect(capture.eqs).toContainEqual(['paciente_id', 'pac-1'])
+    expect(capture.eqs).toContainEqual(['profissional_id', 'prof-1'])
+    expect(capture.eqs).toContainEqual(['data_agendamento', '2026-11-17'])
+    expect(capture.eqs).toContainEqual(['horario_inicio', '16:00'])
+    expect(capture.nots).toContainEqual(['status', 'in', '("Cancelado","Disponível")'])
+  })
+
+  it('ocupado por outro paciente (nenhuma linha do mesmo) → null, segue o erro de indisponível', async () => {
+    const { client } = fakeBusca({ data: [], error: null })
+    expect(await buscarAgendamentoJaSalvo(client, params)).toBeNull()
+  })
+
+  it('erro na busca → null (não confirma o que não conseguiu ver)', async () => {
+    const { client } = fakeBusca({ data: null, error: { message: 'boom' } })
+    expect(await buscarAgendamentoJaSalvo(client, params)).toBeNull()
   })
 })

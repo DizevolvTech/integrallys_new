@@ -158,3 +158,26 @@ export async function ocuparSlotDisponivel(
   if (!rows || rows.length === 0) return { kind: 'indisponivel' }
   return { kind: 'occupied', id: String((rows[0] as { id: unknown }).id) }
 }
+
+/**
+ * Reenvio do mesmo agendamento: se o slot já está ocupado pelo MESMO paciente
+ * (profissional, data e hora iguais, não cancelado), o primeiro envio foi salvo
+ * e só a resposta se perdeu (rede/servidor lento). Devolve o id para o POST
+ * responder sucesso sem duplicar nada, em vez de "horário indisponível".
+ */
+export async function buscarAgendamentoJaSalvo(
+  supabase: SupabaseClient,
+  params: { profissionalId: string; data: string; horario: string; pacienteId: string },
+): Promise<string | null> {
+  const { data: rows, error } = await supabase
+    .from('agendamentos')
+    .select('id')
+    .eq('profissional_id', params.profissionalId)
+    .eq('data_agendamento', params.data)
+    .eq('horario_inicio', params.horario)
+    .eq('paciente_id', params.pacienteId)
+    .not('status', 'in', '("Cancelado","Disponível")')
+    .limit(1)
+  if (error || !rows || rows.length === 0) return null
+  return String((rows[0] as { id: unknown }).id)
+}

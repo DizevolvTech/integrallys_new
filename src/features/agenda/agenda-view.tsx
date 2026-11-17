@@ -105,6 +105,7 @@ export function AgendaView() {
     updateAgendamento,
     deleteAgendamento,
     load: reloadAgenda,
+    refresh: refreshAgenda,
     podeEmitirRecibo,
   } = useAgenda()
   const api = useApi()
@@ -430,7 +431,7 @@ export function AgendaView() {
       const profissionalId = agendaProfessionals.find(
         (p) => p.nome === payload.profissional,
       )?.id
-      await createAgendamento({
+      const { jaSalvo } = await createAgendamento({
         pacienteId: payload.pacienteId,
         profissional: payload.profissional,
         profissionalId,
@@ -451,7 +452,9 @@ export function AgendaView() {
         pagamentoInicial: payload.pagamentoInicial,
       })
       toast.success(
-        payload.serieQuantidade && payload.serieQuantidade > 1
+        jaSalvo
+          ? 'Este agendamento já estava salvo na agenda.'
+          : payload.serieQuantidade && payload.serieQuantidade > 1
           ? `Pacote criado: ${payload.serieQuantidade} sessões.`
           : payload.foraJanela
             ? 'Encaixe registrado com sucesso.'
@@ -468,6 +471,9 @@ export function AgendaView() {
       }
       if (shouldOpenNewFromQuery) router.replace('/agenda')
     } catch (err) {
+      // Horário recusado (ocupado por outra pessoa) ou resposta perdida no caminho: a lista ao fundo
+      // pode estar desatualizada; atualiza para mostrar a situação real do horário.
+      void refreshAgenda()
       // Repassa o erro ao modal: ele mostra a mensagem e continua aberto com os dados preenchidos.
       throw err instanceof Error ? err : new Error('Não foi possível criar o agendamento.')
     }

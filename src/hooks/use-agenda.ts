@@ -149,11 +149,23 @@ export function useAgenda() {
     }
   }, [api])
 
+  // Atualiza a lista sem tela de carregamento (ex.: depois de um horário recusado por estar ocupado).
+  const refresh = async () => {
+    try {
+      const response = await api.get<AgendaListResponse>('/api/agenda')
+      setData(response.data)
+      applyMeta(response.meta)
+    } catch {
+      // Sem troca de tela: a lista atual continua e a próxima carga normal mostra o erro.
+    }
+  }
+
   const createAgendamento = async (payload: AgendaInput) => {
-    const response = await api.post<AgendaListResponse>('/api/agenda', payload)
+    const response = await api.post<AgendaListResponse & { jaSalvo?: boolean }>('/api/agenda', payload)
     setData(response.data)
     applyMeta(response.meta)
-    return response.data
+    // jaSalvo: era um reenvio de um agendamento que o primeiro clique já tinha salvo.
+    return { itens: response.data, jaSalvo: response.jaSalvo === true }
   }
 
   const updateAgendamento = async (payload: AgendaInput) => {
@@ -170,5 +182,5 @@ export function useAgenda() {
     return response.data
   }
 
-  return { data, patients, professionals, podeEmitirRecibo, isLoading, error, load, createAgendamento, updateAgendamento, deleteAgendamento }
+  return { data, patients, professionals, podeEmitirRecibo, isLoading, error, load, refresh, createAgendamento, updateAgendamento, deleteAgendamento }
 }

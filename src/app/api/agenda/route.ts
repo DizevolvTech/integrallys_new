@@ -32,6 +32,7 @@ import { atualizarCompromisso, criarCompromisso, ehCompromisso, excluirCompromis
 import {
   buildInsertPayload,
   buildOccupyUpdate,
+  buscarAgendamentoJaSalvo,
   decidirFluxoAgendamento,
   ocuparSlotDisponivel,
   validateModalidadeOnlineUrl,
@@ -842,6 +843,19 @@ export async function POST(request: NextRequest) {
       return supabaseErrorResponse(result.error, 'Falha ao agendar consulta')
     }
     if (result.kind === 'indisponivel') {
+      // Reenvio: o primeiro clique já salvou (a resposta se perdeu no caminho). Confirma sem duplicar.
+      const jaSalvoId = await buscarAgendamentoJaSalvo(supabase, {
+        profissionalId,
+        data: dataSlot,
+        horario: horarioSlot,
+        pacienteId,
+      })
+      if (jaSalvoId) {
+        const lista = await listAgenda(session)
+        if (!lista.ok) return lista
+        const corpo = (await lista.json()) as Record<string, unknown>
+        return NextResponse.json({ ...corpo, jaSalvo: true, agendamentoId: jaSalvoId })
+      }
       return serverErrorResponse(
         'Esse horário não está disponível para o profissional. Atualize a agenda e escolha um horário livre, ou use o encaixe fora do horário padrão.',
         'SLOT_INDISPONIVEL',
