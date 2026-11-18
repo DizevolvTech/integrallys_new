@@ -202,6 +202,7 @@ export function AtendimentoProvider({
   pacienteId,
   appointmentId,
   appointmentTime,
+  initialAnamneseType = 'consulta',
   historicoAtendimentos = [],
   children,
 }: {
@@ -210,13 +211,14 @@ export function AtendimentoProvider({
   pacienteId?: string
   appointmentId?: string
   appointmentTime?: string
+  initialAnamneseType?: 'consulta' | 'reconsulta'
   historicoAtendimentos?: HistoricoItem[]
   children: React.ReactNode
 }) {
   const [currentStep, setCurrentStep] = useState(1)
   const [status, setStatus] = useState<AtendimentoStatus>('draft')
 
-  const [anamneseType, setAnamneseType] = useState<'consulta' | 'reconsulta'>('consulta')
+  const [anamneseType, setAnamneseType] = useState<'consulta' | 'reconsulta'>(initialAnamneseType)
   const [anamneseData, setAnamneseData] = useState<AnamneseData>(DEFAULT_ANAMNESE_DATA)
 
   const [camposAnamnese, setCamposAnamnese] = useState<CampoPersonalizadoDef[]>([])

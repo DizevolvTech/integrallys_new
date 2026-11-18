@@ -1,5 +1,6 @@
 'use client'
 
+import { anamneseInicialDoAgendamento } from '@/features/retornos/retorno-procedimento'
 import { ReciboModal } from '@/features/recibos'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -54,6 +55,8 @@ import {
   duracaoEmMinutos,
   observacoesSemDuracao,
   umPorCompromisso,
+  checkInFeito,
+  DICA_AGUARDANDO_CHECKIN,
 } from './agenda.utils'
 import { useAgendaCalendar } from './hooks/use-agenda-calendar'
 import { useAgendaActions } from './hooks/use-agenda-actions'
@@ -619,6 +622,7 @@ export function AgendaView() {
         pacienteId={activeAtendimento.slot.pacienteId}
         appointmentId={activeAtendimento.id}
         appointmentTime={activeAtendimento.appointmentTime}
+        initialAnamneseType={anamneseInicialDoAgendamento(activeAtendimento.slot)}
         onBack={() => setActiveAtendimento(null)}
         onFinalize={async () => {
           await actions.handleStatusChange(activeAtendimento.slot, 'Check-out')
@@ -1068,9 +1072,7 @@ export function AgendaView() {
                 onStartAtendimento={
                   podeIniciarAtendimento
                     ? async (slot) => {
-                        await actions.handleStatusChange(slot, 'Em Atendimento', {
-                          openClinicalFlow: true,
-                        })
+                        await actions.handleStatusChange(slot, 'Em Atendimento')
                         setActiveAtendimento({
                           patientName: slot.paciente || 'Paciente',
                           id: slot.id,
@@ -1187,10 +1189,10 @@ export function AgendaView() {
                           ) && (
                             <Button
                               className="rounded-xl bg-app-primary text-white hover:bg-app-primary-hover"
+                              disabled={!checkInFeito(item.status)}
+                              title={checkInFeito(item.status) ? undefined : DICA_AGUARDANDO_CHECKIN}
                               onClick={async () => {
-                                await actions.handleStatusChange(item, 'Em Atendimento', {
-                                  openClinicalFlow: true,
-                                })
+                                await actions.handleStatusChange(item, 'Em Atendimento')
                                 setActiveAtendimento({
                                   patientName: item.paciente || 'Paciente',
                                   id: item.id,

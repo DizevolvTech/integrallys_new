@@ -22,6 +22,8 @@ import {
   isHorarioPassado,
   normalizeAgendaStatus,
   resolvePagamentoSituacao,
+  checkInFeito,
+  DICA_AGUARDANDO_CHECKIN,
 } from '../agenda.utils'
 import { bloqueiosDoDia, corDoTipoBloqueio, isoDateLocal, rotuloDoBloqueio, textoDoBloqueio } from '../bloqueios.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
@@ -225,7 +227,9 @@ export function AgendaDayView({
                           !['Em Atendimento', 'Check-out', 'Cancelado'].includes(currentStatus) && (
                             <Button
                               onClick={() => onStartAtendimento(item)}
-                              className="bg-app-primary hover:bg-app-primary-hover text-white h-9 px-3 sm:px-4 rounded-integrallys font-normal flex items-center gap-2 shadow-sm transition-all active:scale-95 flex-1 sm:flex-initial justify-center"
+                              disabled={!checkInFeito(item.status)}
+                              title={checkInFeito(item.status) ? undefined : DICA_AGUARDANDO_CHECKIN}
+                              className="bg-app-primary hover:bg-app-primary-hover text-white h-9 px-3 sm:px-4 rounded-integrallys font-normal flex items-center gap-2 shadow-sm transition-all active:scale-95 flex-1 sm:flex-initial justify-center disabled:opacity-50 disabled:active:scale-100"
                             >
                               <Play className="h-3.5 w-3.5 fill-current shrink-0" />
                               <span className="text-sm">Iniciar Atendimento</span>
