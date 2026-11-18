@@ -64,12 +64,25 @@ export function ResumoModal({ card, onClose }: { card: ResumoCard | null; onClos
         ) : dados.linhas.length === 0 ? (
           <p className="py-8 text-center text-sm text-app-text-muted">{dados.vazio}</p>
         ) : (
-          <div className="max-h-[55vh] overflow-auto rounded-md border border-app-border dark:border-app-border-dark">
-            <Table>
+          <div className="max-h-[60vh] overflow-auto rounded-md border border-app-border dark:border-app-border-dark">
+            <ul className="divide-y divide-app-border dark:divide-app-border-dark sm:hidden" aria-label={dados.titulo}>
+              {dados.linhas.map((linha) => (
+                <li key={linha.id} className="space-y-1 px-3 py-2.5 text-sm">
+                  <p className="font-medium text-app-text-primary dark:text-white">{linha.cliente}</p>
+                  {dados.colunas.filter((coluna) => coluna.key !== 'cliente').map((coluna) => (
+                    <p key={coluna.key} className="flex justify-between gap-3">
+                      <span className="text-app-text-muted">{coluna.label}</span>
+                      <span className="text-right">{linha[coluna.key]}</span>
+                    </p>
+                  ))}
+                </li>
+              ))}
+            </ul>
+            <Table className="hidden sm:table">
               <TableHeader>
                 <TableRow>
                   {dados.colunas.map((coluna) => (
-                    <TableHead key={coluna.key} className={`whitespace-nowrap ${coluna.align === 'right' ? 'text-right' : ''}`}>{coluna.label}</TableHead>
+                    <TableHead key={coluna.key} className={`h-10 px-2 py-2 leading-tight ${coluna.align === 'right' ? 'text-right' : ''}`}>{coluna.label}</TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
@@ -77,7 +90,7 @@ export function ResumoModal({ card, onClose }: { card: ResumoCard | null; onClos
                 {dados.linhas.map((linha) => (
                   <TableRow key={linha.id}>
                     {dados.colunas.map((coluna) => (
-                      <TableCell key={coluna.key} className={`px-3 py-2 ${coluna.key === 'justificativa' ? 'min-w-[160px]' : 'whitespace-nowrap'} ${coluna.align === 'right' ? 'text-right tabular-nums' : ''}`}>
+                      <TableCell key={coluna.key} className={`px-2 py-2 ${coluna.key === 'justificativa' ? 'min-w-[160px]' : 'whitespace-nowrap'} ${coluna.align === 'right' ? 'text-right tabular-nums' : ''}`}>
                         {linha[coluna.key]}
                       </TableCell>
                     ))}
