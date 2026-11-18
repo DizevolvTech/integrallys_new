@@ -35,7 +35,7 @@ export interface PerformanceLinks {
 function KpiCard({ kpi, onResumo }: { kpi: Kpi; onResumo?: ((card: ResumoCard) => void) | undefined }) {
   const Icon = kpi.icon
   return (
-    <AtalhoCard href={kpi.href} onClick={onResumo && kpi.resumo ? () => onResumo(kpi.resumo!) : undefined}>
+    <AtalhoCard href={kpi.href} onClick={onResumo && kpi.resumo ? () => kpi.resumo && onResumo(kpi.resumo) : undefined}>
       <div className="flex h-full flex-col gap-2 rounded-integrallys-lg border border-app-border bg-app-card p-4 dark:border-app-border-dark dark:bg-app-card-dark" style={{ borderTop: `4px solid ${kpi.cor}` }}>
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-app-text-muted">{kpi.label}</p>

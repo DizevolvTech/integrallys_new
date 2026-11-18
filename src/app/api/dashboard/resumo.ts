@@ -50,7 +50,7 @@ export const RESUMO_CARDS: Record<ResumoCard, ResumoDefinicao> = {
 }
 
 export function ehResumoCard(valor: string | null): valor is ResumoCard {
-  return valor !== null && Object.prototype.hasOwnProperty.call(RESUMO_CARDS, valor)
+  return valor !== null && Object.hasOwn(RESUMO_CARDS, valor)
 }
 
 /** Status que cada card lê em `agendamentos` (null = qualquer atendimento marcado). */

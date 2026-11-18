@@ -296,7 +296,7 @@ function EspecialistaDashboard({
         {cards.map((card) => {
           const Icon = iconByCardId[card.id as keyof typeof iconByCardId] ?? Calendar
           return (
-            <AtalhoCard key={card.id} href={card.href} onClick={card.resumo ? () => setResumoAberto(card.resumo!) : undefined}>
+            <AtalhoCard key={card.id} href={card.href} onClick={card.resumo ? () => setResumoAberto(card.resumo ?? null) : undefined}>
               <StatCard
                 label={card.label.charAt(0).toUpperCase() + card.label.slice(1).toLowerCase()}
                 value={card.value}
