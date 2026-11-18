@@ -10,6 +10,8 @@ export interface DashboardCardItem {
   description?: string
   /** Atalho: o card abre esta tela ao clicar (definido no servidor). */
   href?: string
+  /** Especialista: o card abre a janela de resumo deste tipo. */
+  resumo?: 'consultas' | 'pendentes' | 'concluidas'
 }
 
 export interface DashboardAppointment {

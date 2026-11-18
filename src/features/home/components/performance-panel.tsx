@@ -4,6 +4,7 @@ import { Activity, CalendarCheck, CalendarX, FileCheck2, Repeat2, UserX, Wallet 
 import type { LucideIcon } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { ResumoCard } from '@/app/api/dashboard/resumo'
 import type { DashboardPerformance } from '@/features/home/hooks/use-dashboard'
 import { AtalhoCard } from './atalho-card'
 
@@ -20,6 +21,7 @@ interface Kpi {
   icon: LucideIcon
   cor: string
   href?: string
+  resumo?: ResumoCard
 }
 
 /** Links dos atalhos por perfil (o especialista não tem financeiro). */
@@ -30,10 +32,10 @@ export interface PerformanceLinks {
   prescricoes?: string
 }
 
-function KpiCard({ kpi }: { kpi: Kpi }) {
+function KpiCard({ kpi, onResumo }: { kpi: Kpi; onResumo?: ((card: ResumoCard) => void) | undefined }) {
   const Icon = kpi.icon
   return (
-    <AtalhoCard href={kpi.href}>
+    <AtalhoCard href={kpi.href} onClick={onResumo && kpi.resumo ? () => kpi.resumo && onResumo(kpi.resumo) : undefined}>
       <div className="flex h-full flex-col gap-2 rounded-integrallys-lg border border-app-border bg-app-card p-4 dark:border-app-border-dark dark:bg-app-card-dark" style={{ borderTop: `4px solid ${kpi.cor}` }}>
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-app-text-muted">{kpi.label}</p>
@@ -80,18 +82,19 @@ function ChartCard({ titulo, sub, children }: { titulo: string; sub: string; chi
   )
 }
 
-export function PerformancePanel({ performance, titulo, links }: { performance: DashboardPerformance; titulo: string; links: PerformanceLinks }) {
+/** `onResumo`: no início do especialista o card abre a janela de resumo em vez de levar a outra tela. */
+export function PerformancePanel({ performance, titulo, links, onResumo }: { performance: DashboardPerformance; titulo: string; links: PerformanceLinks; onResumo?: (card: ResumoCard) => void }) {
   const p = performance
   const periodo = `${dataBr(p.periodo.de)} a ${dataBr(p.periodo.ate)}`
   const retornosPendentes = p.retornos.limitePrazo + p.retornos.vencidos
   const kpis: Kpi[] = [
-    { id: 'realizados', label: 'Atendimentos realizados', value: String(p.realizados), sub: 'concluídos no período', icon: CalendarCheck, cor: COR.verde, href: links.agenda },
-    { id: 'faltas', label: 'Faltas', value: String(p.faltas), sub: 'não comparecimentos', icon: UserX, cor: COR.vermelho, href: links.agenda },
-    { id: 'cancelamentos', label: 'Cancelamentos', value: String(p.cancelamentos), sub: 'consultas canceladas', icon: CalendarX, cor: COR.ambar, href: links.agenda },
-    { id: 'retornos', label: 'Retornos', value: String(p.retornosAgendados), sub: `agendados · ${p.retornos.limitePrazo} no limite, ${p.retornos.vencidos} vencidos`, icon: Repeat2, cor: COR.roxo, href: retornosPendentes > 0 ? links.retornos : undefined },
-    { id: 'receita', label: 'Receita gerada', value: brl(p.receita.total), sub: `atendimentos ${brl(p.receita.atendimentos)} · prescrições ${brl(p.receita.prescricoes)}`, icon: Wallet, cor: COR.azul, href: links.receita },
+    { id: 'realizados', label: 'Atendimentos realizados', value: String(p.realizados), sub: 'concluídos no período', icon: CalendarCheck, cor: COR.verde, href: links.agenda, resumo: 'realizados' },
+    { id: 'faltas', label: 'Faltas', value: String(p.faltas), sub: 'não comparecimentos', icon: UserX, cor: COR.vermelho, href: links.agenda, resumo: 'faltas' },
+    { id: 'cancelamentos', label: 'Cancelamentos', value: String(p.cancelamentos), sub: 'consultas canceladas', icon: CalendarX, cor: COR.ambar, href: links.agenda, resumo: 'cancelamentos' },
+    { id: 'retornos', label: 'Retornos', value: String(p.retornosAgendados), sub: `agendados · ${p.retornos.limitePrazo} no limite, ${p.retornos.vencidos} vencidos`, icon: Repeat2, cor: COR.roxo, href: retornosPendentes > 0 ? links.retornos : undefined, resumo: 'retornos' },
+    { id: 'receita', label: 'Receita gerada', value: brl(p.receita.total), sub: `atendimentos ${brl(p.receita.atendimentos)} · prescrições ${brl(p.receita.prescricoes)}`, icon: Wallet, cor: COR.azul, href: links.receita, resumo: 'receita' },
     { id: 'ocupacao', label: 'Ocupação da agenda', value: `${p.ocupacao.percentual.toLocaleString('pt-BR')}%`, sub: `${p.ocupacao.ocupados} ocupados · ${p.ocupacao.disponiveis} horários livres`, icon: Activity, cor: COR.rosa, href: links.agenda },
-    { id: 'conversao', label: 'Prescrições convertidas', value: `${p.prescricoes.convertidas} de ${p.prescricoes.total}`, sub: `${p.prescricoes.taxaConversao.toLocaleString('pt-BR')}% viraram venda`, icon: FileCheck2, cor: COR.verde, href: links.prescricoes },
+    { id: 'conversao', label: 'Prescrições convertidas', value: `${p.prescricoes.convertidas} de ${p.prescricoes.total}`, sub: `${p.prescricoes.taxaConversao.toLocaleString('pt-BR')}% viraram venda`, icon: FileCheck2, cor: COR.verde, href: links.prescricoes, resumo: 'prescricoes' },
   ]
   const corStatus = { realizados: COR.verde, faltas: COR.vermelho, cancelamentos: COR.ambar }
 
@@ -103,7 +106,7 @@ export function PerformancePanel({ performance, titulo, links }: { performance: 
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <KpiCard key={kpi.id} kpi={kpi} />
+          <KpiCard key={kpi.id} kpi={kpi} onResumo={onResumo} />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

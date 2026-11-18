@@ -6,6 +6,7 @@ import type { AgendamentoStatus } from '@/types/agenda'
 import { carregarCaixasPorUnidade, type CaixaUnidade } from './caixas'
 import { calcularPerformance, classificarFaturamento, type TipoFaturamento } from './performance'
 import { agendamentoConta, contarSituacoes } from './retornos'
+import { periodoDoMes, type ResumoCard } from './resumo'
 import { descreverPedidosNf, resumirPedidosNf } from '@/lib/pedidos-nf'
 import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
@@ -62,10 +63,7 @@ const CARD_HREF: Record<string, string> = {
   usuarios: '/usuarios',
 }
 
-const endOfMonthIso = (monthStart: string) => {
-  const lastDay = new Date(Date.UTC(Number(monthStart.slice(0, 4)), Number(monthStart.slice(5, 7)), 0)).getUTCDate()
-  return `${monthStart.slice(0, 8)}${String(lastDay).padStart(2, '0')}`
-}
+const RESUMO_POR_CARD: Record<string, ResumoCard> = { 'agenda-hoje': 'consultas', pendentes: 'pendentes', concluidas: 'concluidas' }
 
 const toVariant = (role: string): DashboardVariant => {
   if (role === 'master') return 'master'
@@ -177,7 +175,7 @@ export async function GET(request: NextRequest) {
   const isEspecialista = variant === 'especialista'
   const needsPerformance = isEspecialista || isAdmin
   const perfFrom = isEspecialista ? monthStart : adminPeriod.from
-  const perfTo = isEspecialista ? endOfMonthIso(monthStart) : adminPeriod.to
+  const perfTo = isEspecialista ? periodoDoMes(monthStart).ate : adminPeriod.to
   let perfAgendaQuery = supabase
     .from('agendamentos')
     .select('paciente_id,status,tipo,valor_procedimento')
@@ -923,8 +921,10 @@ export async function GET(request: NextRequest) {
     },
   }
 
+  // Especialista: o card abre uma janela de resumo (GET /api/dashboard/resumo), não a agenda inteira.
+  const resumoDoCard = (card: { id: string }) => (variant === 'especialista' ? RESUMO_POR_CARD[card.id] : undefined)
   const cardHref = (card: { id: string }) => {
-    if (card.id === 'pendentes') return variant === 'especialista' ? '/agenda' : undefined
+    if (resumoDoCard(card)) return undefined
     return CARD_HREF[card.id]
   }
   // Recepção e especialista não recebem dados financeiros do gestor (permissão decidida no servidor).
@@ -936,5 +936,5 @@ export async function GET(request: NextRequest) {
         gestor: { accounts: [], paymentsDue: [], receivables: [] },
         finance: { recebimentosPendentes: '0', pagamentosPendentes: '0', saldoPrevisto: '0' },
       }
-  return NextResponse.json({ ...body, cards: body.cards.map((card) => ({ ...card, href: cardHref(card) })) })
+  return NextResponse.json({ ...body, cards: body.cards.map((card) => ({ ...card, href: cardHref(card), resumo: resumoDoCard(card) })) })
 }

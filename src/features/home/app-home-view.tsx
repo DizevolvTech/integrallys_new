@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { CartaoMobile } from '@/components/shared/mobile-card'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -54,6 +54,8 @@ import {
 } from 'recharts'
 import { AtalhoCard } from '@/features/home/components/atalho-card'
 import { PerformancePanel } from '@/features/home/components/performance-panel'
+import { ResumoModal } from '@/features/home/components/resumo-modal'
+import type { ResumoCard } from '@/app/api/dashboard/resumo'
 import { RetornosCards } from '@/features/home/components/retornos-cards'
 import { useDashboard, type DashboardCardItem, type DashboardEspecialistaCharts, type DashboardPerformance, type TipoFaturamento } from '@/features/home/hooks/use-dashboard'
 
@@ -277,6 +279,7 @@ function EspecialistaDashboard({
   charts?: DashboardEspecialistaCharts
   performance?: DashboardPerformance
 }) {
+  const [resumoAberto, setResumoAberto] = useState<ResumoCard | null>(null)
   const semanaData = charts?.atendimentosPorSemana ?? []
   const tiposData = charts?.tiposConsulta ?? []
   const totalAtendimentosUltimas4Semanas = semanaData.reduce((acc, item) => acc + item.total, 0)
@@ -293,7 +296,7 @@ function EspecialistaDashboard({
         {cards.map((card) => {
           const Icon = iconByCardId[card.id as keyof typeof iconByCardId] ?? Calendar
           return (
-            <AtalhoCard key={card.id} href={card.href}>
+            <AtalhoCard key={card.id} href={card.href} onClick={card.resumo ? () => setResumoAberto(card.resumo ?? null) : undefined}>
               <StatCard
                 label={card.label.charAt(0).toUpperCase() + card.label.slice(1).toLowerCase()}
                 value={card.value}
@@ -311,8 +314,10 @@ function EspecialistaDashboard({
           performance={performance}
           titulo="Minha performance no mês"
           links={{ agenda: '/agenda', prescricoes: '/prescricoes' }}
+          onResumo={setResumoAberto}
         />
       )}
+      <ResumoModal card={resumoAberto} onClose={() => setResumoAberto(null)} />
 
       {hasChartData && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
