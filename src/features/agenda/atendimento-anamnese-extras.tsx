@@ -97,7 +97,7 @@ function CampoPersonalizado({ campo, valor, onChange, disabled }: { campo: Campo
     <div className="space-y-2">
       <Label className="font-normal text-app-text-primary dark:text-white">{campo.label}</Label>
       <Input
-        type={campo.tipo === 'numero' ? 'number' : 'text'}
+        type="text"
         inputMode={campo.tipo === 'numero' ? 'decimal' : undefined}
         value={valor}
         onChange={(e) => onChange(e.target.value)}
