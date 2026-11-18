@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  checkInFeito,
   umPorCompromisso,
   deslocarPeriodo,
   duracaoEmMinutos,
@@ -137,4 +138,9 @@ describe('STATUS_ELEGIVEIS_ATRASO', () => {
     expect(STATUS_ELEGIVEIS_ATRASO as readonly string[]).not.toContain('Check-in')
     expect(STATUS_ELEGIVEIS_ATRASO as readonly string[]).toContain('Confirmado')
   })
+})
+
+describe('checkInFeito (especialista só inicia após check-in)', () => {
+  it.each(['Check-in', 'Aguardando', 'Pendente'])('%s libera', (s) => expect(checkInFeito(s)).toBe(true))
+  it.each(['Agendado', 'Confirmado', 'Em Atraso', 'Faltou', 'Adiado'])('%s não libera', (s) => expect(checkInFeito(s)).toBe(false))
 })
