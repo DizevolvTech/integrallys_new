@@ -627,7 +627,7 @@ function ProntuarioSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                     <p className="text-app-text-muted text-xs mt-1">
                       Produtos:{' '}
                       {consulta.prescricoes
-                        .map((item) => (item.posologia ? `${item.produto} (${item.posologia})` : item.produto))
+                        .map((item) => (item.posologia ? `${item.produto} (${item.posologia.replace(/\s*\n\s*/g, ' / ')})` : item.produto))
                         .join(' · ')}
                     </p>
                   )}
@@ -702,7 +702,8 @@ function ProntuarioSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                               </div>
                               {item.posologia && (
                                 <p className="text-sm text-app-text-muted mt-1">
-                                  <span className="font-medium">Posologia:</span> {item.posologia}
+                                  <span className="font-medium">Posologia:</span>
+                                  <span className="block whitespace-pre-line">{item.posologia}</span>
                                 </p>
                               )}
                             </div>
@@ -785,7 +786,19 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
   const [searchTerm, setSearchTerm] = useState('')
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [selectedLabelData, setSelectedLabelData] = useState<LabelData | null>(null)
+  const [recemAdicionado, setRecemAdicionado] = useState<string | null>(null)
   const isReadOnly = status === 'read-only'
+
+  // Rola até o item recém-adicionado e leva o foco à Posologia dele
+  useEffect(() => {
+    if (!recemAdicionado) return
+    const card = document.getElementById(`prescrito-${recemAdicionado}`)
+    if (!card) return
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    document.getElementById(`posologia-${recemAdicionado}`)?.focus({ preventScroll: true })
+    const t = setTimeout(() => setRecemAdicionado(null), 2500)
+    return () => clearTimeout(t)
+  }, [recemAdicionado, prescritos.length])
 
   const stockItems = useMemo(
     () =>
@@ -826,6 +839,7 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
   const handleAddItem = (item: (typeof stockItems)[0]) => {
     if (isReadOnly) return
     if (prescritos.find((p) => p.id === item.id)) return
+    setRecemAdicionado(item.id)
     setPrescritos((prev) => [
       { id: item.id, nome: item.nome, categoria: item.categoria, quantidade: 1, posologia: '' },
       ...prev,
@@ -849,16 +863,90 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
         <p className="text-app-text-muted">Selecione medicamentos do estoque e defina a posologia</p>
       </div>
 
-      {/* Prescribed items */}
-      {prescritos.length > 0 && (
+      {/* Busca no estoque (em cima) */}
+      <div className="space-y-3">
+        <h3 className="font-normal text-app-text-primary dark:text-white">
+          Estoque Disponível ({filteredStock.length} {filteredStock.length === 1 ? 'produto' : 'produtos'})
+        </h3>
+        <div className="relative">
+          <Input
+            placeholder="Buscar suplementos por nome ou categoria..."
+            aria-label="Buscar produtos do estoque"
+            className="pl-10 h-12 bg-app-bg-secondary dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-normal text-base"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-app-text-muted" />
+        </div>
+        <div className="space-y-2 max-h-[280px] overflow-y-auto pr-2 rounded-[12px]" data-testid="prescricao-estoque-lista">
+          {filteredStock.length === 0 && (
+            <p className="text-sm text-app-text-muted py-4 text-center">Nenhum produto encontrado.</p>
+          )}
+          {filteredStock.map((item) => {
+            const isAdded = prescritos.some((p) => p.id === item.id)
+            return (
+              <div
+                key={item.id}
+                className="bg-app-card dark:bg-app-card-dark border border-app-border dark:border-app-border-dark px-4 py-3 rounded-[12px] flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <h4 className="font-normal text-app-text-primary dark:text-white text-base truncate">{item.nome}</h4>
+                  <p className="text-app-text-muted text-sm truncate">{item.categoria}</p>
+                  <div className="flex flex-wrap gap-x-4 text-xs text-app-text-muted mt-1">
+                    <span>Água Boa: {item.aguaBoa}</span>
+                    <span>Querência: {item.querencia}</span>
+                    <span>Total: {item.total}</span>
+                  </div>
+                </div>
+                <Button
+                  variant={isAdded ? 'ghost' : 'outline'}
+                  onClick={() => !isAdded && handleAddItem(item)}
+                  disabled={isAdded || isReadOnly}
+                  className={`h-10 px-4 shrink-0 rounded-integrallys font-normal gap-2 ${isAdded ? 'text-app-text-muted cursor-default hover:bg-transparent' : ''}`}
+                >
+                  <Plus className="h-4 w-4" />
+                  {isAdded ? 'Adicionado' : 'Adicionar'}
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Prescrição sendo montada (logo abaixo da busca) */}
+      <div className="space-y-4 rounded-[16px] border border-app-border dark:border-app-border-dark p-4 md:p-5" data-testid="prescricao-montada">
+        <div className="flex items-center justify-between">
+          <h3 className="font-normal text-app-text-primary dark:text-white">Prescrição montada</h3>
+          <Badge variant="secondary" data-testid="prescricao-contador">
+            {prescritos.length} {prescritos.length === 1 ? 'item' : 'itens'}
+          </Badge>
+        </div>
+        {prescritos.length === 0 && (
+          <p className="text-sm text-app-text-muted py-3 text-center">
+            Nenhum item ainda. Use Adicionar nos produtos acima: eles aparecem aqui.
+          </p>
+        )}
         <div className="space-y-4">
-          <h3 className="font-normal text-app-text-primary dark:text-white">Medicamentos Prescritos ({prescritos.length})</h3>
-          <div className="space-y-4">
-            {prescritos.map((item) => {
-              const stockRef = stockItems.find((s) => s.id === item.id)
-              return (
-                <div key={item.id} className="bg-app-card dark:bg-app-card-dark border border-app-border dark:border-app-border-dark rounded-[12px] p-6 shadow-sm relative">
-                  <div className="absolute top-4 right-4 flex items-center gap-2">
+          {prescritos.map((item) => {
+            const stockRef = stockItems.find((s) => s.id === item.id)
+            return (
+              <div
+                key={item.id}
+                id={`prescrito-${item.id}`}
+                className={`bg-app-card dark:bg-app-card-dark border rounded-[12px] p-4 md:p-6 shadow-sm relative transition-colors ${recemAdicionado === item.id ? 'border-app-primary ring-2 ring-app-primary/30' : 'border-app-border dark:border-app-border-dark'}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
+                  <div className="min-w-0">
+                    <h4 className="font-normal text-app-text-primary dark:text-white text-lg">{item.nome}</h4>
+                    <p className="text-app-text-muted text-sm">Categoria: {item.categoria}</p>
+                    {stockRef && (
+                      <div className="flex gap-4 text-xs text-app-text-muted mt-1">
+                        <span>Água Boa: {stockRef.aguaBoa}</span>
+                        <span>Querência: {stockRef.querencia}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       onClick={() => handleOpenLabelEditor(item)}
@@ -870,90 +958,39 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label={`Remover ${item.nome}`}
                       className="h-8 w-8 text-red-400 hover:text-[var(--app-danger-text)]"
                       onClick={() => handleRemoveItem(item.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="mb-4">
-                    <h4 className="font-normal text-app-text-primary dark:text-white text-lg">{item.nome}</h4>
-                    <p className="text-app-text-muted text-sm">Categoria: {item.categoria}</p>
-                    {stockRef && (
-                      <div className="flex gap-4 text-xs text-app-text-muted mt-1">
-                        <span>Água Boa: {stockRef.aguaBoa}</span>
-                        <span>Querência: {stockRef.querencia}</span>
-                      </div>
-                    )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="space-y-2">
+                    <Label className="font-normal text-app-text-primary dark:text-white text-sm">Quantidade</Label>
+                    <Input
+                      type="number"
+                      value={item.quantidade}
+                      onChange={(e) => updateItem(item.id, 'quantidade', parseInt(e.target.value) || 0)}
+                      min={1}
+                      className="h-11 bg-app-bg-secondary/50 dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-normal"
+                    />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="space-y-2">
-                      <Label className="font-normal text-app-text-primary dark:text-white text-sm">Quantidade</Label>
-                      <Input
-                        type="number"
-                        value={item.quantidade}
-                        onChange={(e) => updateItem(item.id, 'quantidade', parseInt(e.target.value) || 0)}
-                        min={1}
-                        className="h-11 bg-app-bg-secondary/50 dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-normal"
-                      />
-                    </div>
-                    <div className="md:col-span-3 space-y-2">
-                      <Label className="font-normal text-app-text-primary dark:text-white text-sm">Posologia *</Label>
-                      <Input
-                        placeholder="Ex: Tomar 1 cápsula 2x ao dia, após refeições"
-                        value={item.posologia}
-                        onChange={(e) => updateItem(item.id, 'posologia', e.target.value)}
-                        className="h-11 px-4 bg-app-bg-secondary/50 dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-normal"
-                      />
-                    </div>
+                  <div className="md:col-span-3 space-y-2">
+                    <Label htmlFor={`posologia-${item.id}`} className="font-normal text-app-text-primary dark:text-white text-sm">
+                      Posologia * <span className="text-app-text-muted text-xs">(Enter pula linha; sai igual na etiqueta)</span>
+                    </Label>
+                    <Textarea
+                      id={`posologia-${item.id}`}
+                      rows={3}
+                      placeholder={'Ex:\n1 cap. às 08:00\n1 cap. às 12:00\n1 cap. às 18:00'}
+                      value={item.posologia}
+                      onChange={(e) => updateItem(item.id, 'posologia', e.target.value)}
+                      className="px-4 py-3 min-h-[88px] bg-app-bg-secondary/50 dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-normal whitespace-pre-wrap"
+                    />
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Stock section */}
-      <div className="space-y-4">
-        <h3 className="font-normal text-app-text-primary dark:text-white">
-          Estoque Disponível ({filteredStock.length} produtos)
-        </h3>
-        <div className="relative">
-          <Input
-            placeholder="Buscar suplementos por nome ou categoria..."
-            className="pl-10 h-12 bg-app-bg-secondary dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-normal text-base"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-app-text-muted" />
-        </div>
-        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-          {filteredStock.map((item) => {
-            const isAdded = prescritos.some((p) => p.id === item.id)
-            return (
-              <div
-                key={item.id}
-                className="bg-app-card dark:bg-app-card-dark border border-app-border dark:border-app-border-dark p-4 rounded-[12px] flex items-center justify-between"
-              >
-                <div>
-                  <h4 className="font-normal text-app-text-primary dark:text-white text-lg">{item.nome}</h4>
-                  <p className="text-app-text-muted text-sm">{item.categoria}</p>
-                  <div className="flex gap-4 text-xs text-app-text-muted mt-1">
-                    <span>Água Boa: {item.aguaBoa}</span>
-                    <span>Querência: {item.querencia}</span>
-                    <span>Total: {item.total}</span>
-                  </div>
-                </div>
-                <Button
-                  variant={isAdded ? 'ghost' : 'outline'}
-                  onClick={() => !isAdded && handleAddItem(item)}
-                  disabled={isAdded || isReadOnly}
-                  className={`h-10 px-4 rounded-integrallys font-normal gap-2 ${isAdded ? 'text-app-text-muted cursor-default hover:bg-transparent' : ''}`}
-                >
-                  <Plus className="h-4 w-4" />
-                  {isAdded ? 'Adicionado' : 'Adicionar'}
-                </Button>
               </div>
             )
           })}
