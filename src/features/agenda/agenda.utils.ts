@@ -143,6 +143,15 @@ export function isHorarioPassado(
   return slot < wallClockStamp(agora, timeZone)
 }
 
+/** Dica do botão "Iniciar atendimento" desativado enquanto a recepção não deu check-in. */
+export const DICA_AGUARDANDO_CHECKIN = 'Aguardando check-in da recepção'
+
+/** O especialista só inicia depois do check-in da recepção (paciente chegou e está aguardando). */
+export function checkInFeito(status: string): boolean {
+  const normalizado = normalizeAgendaStatus(status)
+  return normalizado === 'Check-in' || normalizado === 'Aguardando'
+}
+
 /** Preferir `capabilities.iniciarAtendimento` de `/api/auth/me` nas views. */
 export function canIniciarAtendimento(role: string | undefined | null): boolean {
   return role === 'especialista' || role === 'master'

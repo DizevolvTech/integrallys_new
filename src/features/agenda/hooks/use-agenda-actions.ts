@@ -86,7 +86,6 @@ export function useAgendaActions({
   const handleStatusChange = async (
     slot: AgendaSlot,
     status: string,
-    options?: { openClinicalFlow?: boolean },
   ) => {
     if (status === 'Cancelado') {
       setSelectedSlot(slot)
@@ -118,14 +117,6 @@ export function useAgendaActions({
         urlOnline: slot.urlOnline,
       })
       toast.success(`Status atualizado para ${status}.`)
-
-      if (options?.openClinicalFlow && status === 'Em Atendimento' && typeof window !== 'undefined') {
-        window.open(
-          `/prontuarios?paciente_id=${encodeURIComponent(pacienteId)}&hardware=1`,
-          '_blank',
-          'noopener',
-        )
-      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível atualizar o status.')
     }

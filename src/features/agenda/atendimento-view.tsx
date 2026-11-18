@@ -26,6 +26,7 @@ import type { GeneratedDoc, HistoricoItem, PatientDetails } from '@/contexts/ate
 import { useAtendimentoHistorico } from '@/hooks/use-atendimento-historico'
 import { useProntuarioLivePublish } from '@/hooks/use-prontuario-live-sync'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
+import { useProcedimentoRetornoAutomatico } from '@/features/retornos/hooks/use-procedimento-retorno-automatico'
 import { alvoParaCorpo, useRetornoAlvo, type RetornoAlvo, type RetornoOpcoes } from '@/features/retornos/hooks/use-retorno-alvo'
 import { RetornoAlvoCampos } from '@/features/retornos/retorno-alvo-campos'
 import {
@@ -1537,6 +1538,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     agendamentoId: appointmentId,
     pacienteId,
   })
+  useProcedimentoRetornoAutomatico({ opcoes: opcoesRetorno, prazo: prazoValor, alvo: alvoRetorno, onAlvoChange: setAlvoRetorno })
   const [isFinalizing, setIsFinalizing] = useState(false)
 
   const handleNext = () => {
@@ -1670,11 +1672,12 @@ interface AtendimentoViewProps {
   pacienteId?: string
   appointmentId?: string
   appointmentTime?: string
+  initialAnamneseType?: 'consulta' | 'reconsulta'
   onBack: () => void
   onFinalize?: () => void | Promise<void>
 }
 
-export function AtendimentoView({ patientName, patientDetails, pacienteId, appointmentId, appointmentTime, onBack, onFinalize }: AtendimentoViewProps) {
+export function AtendimentoView({ patientName, patientDetails, pacienteId, appointmentId, appointmentTime, initialAnamneseType, onBack, onFinalize }: AtendimentoViewProps) {
   const { data: historicoAtendimentos } = useAtendimentoHistorico(pacienteId)
   return (
     <AtendimentoProvider
@@ -1683,6 +1686,7 @@ export function AtendimentoView({ patientName, patientDetails, pacienteId, appoi
       pacienteId={pacienteId}
       appointmentId={appointmentId}
       appointmentTime={appointmentTime}
+      initialAnamneseType={initialAnamneseType}
       historicoAtendimentos={historicoAtendimentos}
     >
       <AtendimentoInner onBack={onBack} onFinalize={onFinalize} />
