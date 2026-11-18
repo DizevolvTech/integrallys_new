@@ -1,5 +1,7 @@
 'use client'
 
+import { useLayoutEffect, useRef } from 'react'
+
 import type {
   DocumentoTemplate,
   Secao,
@@ -22,19 +24,22 @@ import type {
 } from './types'
 
 interface Props {
-  template: DocumentoTemplate
+  template: Pick<DocumentoTemplate, 'conteudo'>
   valores: ValoresForm
   onChange: (next: ValoresForm) => void
+  /** Quando informado, os parágrafos do modelo viram texto editável (atendimento do especialista). */
+  onParagrafoChange?: (index: number, texto: string) => void
+  disabled?: boolean
 }
 
-export function TemplateForm({ template, valores, onChange }: Props) {
+export function TemplateForm({ template, valores, onChange, onParagrafoChange, disabled }: Props) {
   const setValor = (index: number, valor: unknown) => {
     onChange({ ...valores, [index]: valor as ValoresForm[number] })
   }
 
   const secoesEditaveis = template.conteudo.secoes
     .map((secao, index) => ({ secao, index }))
-    .filter(({ secao }) => secao.tipo !== 'paragrafo')
+    .filter(({ secao }) => secao.tipo !== 'paragrafo' || !!onParagrafoChange)
 
   if (secoesEditaveis.length === 0) {
     return (
@@ -52,6 +57,8 @@ export function TemplateForm({ template, valores, onChange }: Props) {
           secao={secao}
           valor={valores[index]}
           onValorChange={(next) => setValor(index, next)}
+          onParagrafoChange={onParagrafoChange ? (texto) => onParagrafoChange(index, texto) : undefined}
+          disabled={disabled}
         />
       ))}
     </div>
@@ -62,14 +69,20 @@ function CampoRenderer({
   secao,
   valor,
   onValorChange,
+  onParagrafoChange,
+  disabled,
 }: {
   secao: Secao
   valor: unknown
   onValorChange: (next: unknown) => void
+  onParagrafoChange?: (texto: string) => void
+  disabled?: boolean
 }) {
+  const bloqueio = disabled ? 'pointer-events-none opacity-60' : ''
   switch (secao.tipo) {
     case 'paragrafo':
-      return null
+      if (!onParagrafoChange) return null
+      return <ParagrafoEditavel texto={secao.conteudo} disabled={disabled} onChange={onParagrafoChange} />
 
     case 'campo_data': {
       const s = secao as SecaoCampoData
@@ -80,6 +93,7 @@ function CampoRenderer({
             type="date"
             value={typeof valor === 'string' ? valor : ''}
             onChange={(event) => onValorChange(event.target.value)}
+            disabled={disabled}
             className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl"
           />
         </div>
@@ -98,6 +112,7 @@ function CampoRenderer({
             value={typeof valor === 'string' ? valor : s.valor_padrao ?? ''}
             placeholder={s.placeholder}
             onChange={(event) => onValorChange(event.target.value)}
+            disabled={disabled}
             className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl"
           />
         </div>
@@ -114,6 +129,7 @@ function CampoRenderer({
             step="any"
             value={typeof valor === 'string' ? valor : ''}
             onChange={(event) => onValorChange(event.target.value)}
+            disabled={disabled}
             className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl"
           />
         </div>
@@ -128,6 +144,7 @@ function CampoRenderer({
           <Textarea
             value={typeof valor === 'string' ? valor : s.valor_padrao ?? ''}
             onChange={(event) => onValorChange(event.target.value)}
+            disabled={disabled}
             className="min-h-[100px] bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl font-normal resize-none"
           />
         </div>
@@ -140,7 +157,7 @@ function CampoRenderer({
       return (
         <div className="space-y-2">
           <div className="text-sm font-medium dark:text-white/80">{s.label}</div>
-          <div className="space-y-2 rounded-xl border border-app-border dark:border-app-border-dark p-3">
+          <div className={`space-y-2 rounded-xl border border-app-border dark:border-app-border-dark p-3 ${bloqueio}`}>
             {s.itens.map((item, idx) => {
               const resp = respostas[idx] ?? { sim: false, obs: '' }
               return (
@@ -197,7 +214,7 @@ function CampoRenderer({
       return (
         <div className="space-y-2">
           <div className="text-sm font-medium dark:text-white/80">{s.label}</div>
-          <div className="rounded-xl border border-app-border dark:border-app-border-dark p-3 space-y-1">
+          <div className={`rounded-xl border border-app-border dark:border-app-border-dark p-3 space-y-1 ${bloqueio}`}>
             {s.itens.map((item, idx) => (
               <label
                 key={idx}
@@ -229,7 +246,7 @@ function CampoRenderer({
       return (
         <div className="space-y-2">
           <div className="text-sm font-medium dark:text-white/80">{s.label}</div>
-          <div className="flex flex-wrap gap-2 rounded-xl border border-app-border dark:border-app-border-dark p-3">
+          <div className={`flex flex-wrap gap-2 rounded-xl border border-app-border dark:border-app-border-dark p-3 ${bloqueio}`}>
             {s.opcoes.map((opcao, idx) => (
               <label
                 key={idx}
@@ -253,4 +270,33 @@ function CampoRenderer({
       )
     }
   }
+}
+
+/** Texto do modelo editável; a caixa cresce com o conteúdo (sem barra de rolagem interna, também no celular). */
+function ParagrafoEditavel({
+  texto,
+  disabled,
+  onChange,
+}: {
+  texto: string
+  disabled?: boolean
+  onChange: (texto: string) => void
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight + 2}px`
+  }, [texto])
+  return (
+    <Textarea
+      ref={ref}
+      value={texto}
+      rows={2}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      className="min-h-0 overflow-hidden bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl font-normal leading-relaxed resize-none"
+    />
+  )
 }

@@ -21,7 +21,7 @@ function formatDateHour(d: Date): string {
   return `${formatDate(d)} às ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-function buildTokenMap(ctx: ContextoVariaveis): Record<string, string> {
+export function buildTokenMap(ctx: ContextoVariaveis): Record<string, string> {
   const agora = ctx.agora ?? new Date()
   const ah = ctx.agendamento?.data_hora
   const ahDate = ah instanceof Date ? ah : ah ? new Date(ah) : null

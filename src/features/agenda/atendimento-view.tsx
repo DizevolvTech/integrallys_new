@@ -40,11 +40,6 @@ import {
 } from '@/features/retornos/prazo-retorno-selector'
 import { useApi } from '@/hooks/use-api'
 import { usePacientes } from '@/hooks/use-pacientes'
-import {
-  loadDocumentTemplatesAsync,
-  resetDocumentTemplateAsync,
-  saveDocumentTemplateAsync,
-} from '@/lib/document-templates'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -62,10 +57,16 @@ import {
 import { SignaturePad } from '@/components/shared/signature-pad'
 import { PacienteCadastroCard } from '@/components/shared/paciente-cadastro-card'
 import { AnatomyPanel } from '@/components/shared/anatomy-panel'
-import { DocumentPreviewModal } from './components/document-preview-modal'
 import { LabelEditorModal } from './components/label-editor-modal'
 import type { LabelData } from './components/label-editor-modal'
-import { GerarDocumentoModal, DocumentosEmitidosPanel } from '@/features/documentacao-gerar'
+import {
+  DocumentoAtendimentoEditor,
+  DocumentoAtendimentoPreviewModal,
+  DocumentosEmitidosPanel,
+  GerarDocumentoModal,
+  useDocumentosAtendimento,
+} from '@/features/documentacao-gerar'
+import { conteudoAtestado, conteudoParaTexto, resolverConteudo, type TemplateConteudo } from '@/lib/documentos'
 import { ExamesPacienteCard } from '@/features/gestao-pacientes/components/exames-paciente-card'
 import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
 
@@ -107,8 +108,6 @@ interface DocumentTemplate {
   defaultValue?: string
 }
 
-const today = new Date().toLocaleDateString('pt-BR')
-
 const DOCUMENT_TYPES: DocumentTemplate[] = [
   {
     id: 'atestado',
@@ -141,19 +140,19 @@ const DOCUMENT_TYPES: DocumentTemplate[] = [
     id: 'declaracao',
     title: 'Declaração de Comparecimento',
     type: 'editor',
-    defaultValue: `DECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro para os devidos fins que o(a) paciente [NOME DO PACIENTE] compareceu à consulta médica nesta data (${today}).\n\nA consulta teve duração aproximada de 1 (uma) hora.\n\nEsta declaração é válida para aprovação junto ao empregador ou instituição de ensino.\n\nAtenciosamente,\n\nDr(a). [NOME DO MÉDICO]\nCRM: [NÚMERO]\nData: ${today}`,
+    defaultValue: `DECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro para os devidos fins que o(a) paciente #CLIENTE_NOME# compareceu à consulta médica nesta data (#DATA_ATUAL#).\n\nA consulta teve duração aproximada de 1 (uma) hora.\n\nEsta declaração é válida para aprovação junto ao empregador ou instituição de ensino.\n\nAtenciosamente,\n\nDr(a). #PROFISSIONAL_NOME#\nRegistro: #PROFISSIONAL_CONSELHO#\nData: #DATA_ATUAL#`,
   },
   {
     id: 'fototerapy',
     title: 'Procedimento Fototerapia',
     type: 'editor',
-    defaultValue: `RELATÓRIO DE PROCEDIMENTO - FOTOTERAPIA\n\nPaciente: [NOME DO PACIENTE]\nData do Procedimento: ${today}\n\nPROCEDIMENTO REALIZADO:\nFototerapia com LED de alta potência\n\nÁREA TRATADA:\n[Descrever a área do corpo tratada]\n\nPROTOCOLO UTILIZADO:\n- Comprimento de onda: [especificar nm]\n- Potência: [especificar mW/cm²]\n- Tempo de exposição: [especificar minutos]\n- Distância do equipamento: [especificar cm]`,
+    defaultValue: `RELATÓRIO DE PROCEDIMENTO - FOTOTERAPIA\n\nPaciente: #CLIENTE_NOME#\nData do Procedimento: #DATA_ATUAL#\n\nPROCEDIMENTO REALIZADO:\nFototerapia com LED de alta potência\n\nÁREA TRATADA:\n[Descrever a área do corpo tratada]\n\nPROTOCOLO UTILIZADO:\n- Comprimento de onda: [especificar nm]\n- Potência: [especificar mW/cm²]\n- Tempo de exposição: [especificar minutos]\n- Distância do equipamento: [especificar cm]`,
   },
   {
     id: 'biomodular',
     title: 'Procedimento Biomodular Infra',
     type: 'editor',
-    defaultValue: `RELATÓRIO DE PROCEDIMENTO - BIOMODULAÇÃO INFRAVERMELHO\n\nPaciente: [NOME DO PACIENTE]\nData do Procedimento: ${today}\n\nPROCEDIMENTO REALIZADO:\nBiomodulação com Infravermelho de Alta Intensidade\n\nÁREA TRATADA:\n[Descrever a região anatômica tratada]\n\nPROTOCOLO UTILIZADO:\n- Comprimento de onda: [especificar nm]\n- Potência: [especificar W]\n- Densidade de energia: [especificar J/cm²]\n- Tempo de aplicação: [especificar minutos]\n- Modo de aplicação: [contínuo/pulsado]`,
+    defaultValue: `RELATÓRIO DE PROCEDIMENTO - BIOMODULAÇÃO INFRAVERMELHO\n\nPaciente: #CLIENTE_NOME#\nData do Procedimento: #DATA_ATUAL#\n\nPROCEDIMENTO REALIZADO:\nBiomodulação com Infravermelho de Alta Intensidade\n\nÁREA TRATADA:\n[Descrever a região anatômica tratada]\n\nPROTOCOLO UTILIZADO:\n- Comprimento de onda: [especificar nm]\n- Potência: [especificar W]\n- Densidade de energia: [especificar J/cm²]\n- Tempo de aplicação: [especificar minutos]\n- Modo de aplicação: [contínuo/pulsado]`,
   },
 ]
 
@@ -1067,18 +1066,19 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
   const [docData, setDocData] = useState<Record<string, Record<string, string>>>({})
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [showGerarDocumentoModal, setShowGerarDocumentoModal] = useState(false)
-  const [previewDoc, setPreviewDoc] = useState<{ title: string; content: string } | null>(null)
-  const [templates, setTemplates] = useState<Record<string, string>>({})
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null)
 
-  useEffect(() => {
-    // SEC-05 fechado: única fonte = API. Helpers sync/localStorage foram
-    // removidos do `document-templates.ts` (Agente 19). Slugs ausentes no
-    // admin caem no `defaultValue` do `DocumentTemplate` via `getTemplateContent`.
-    void (async () => {
-      const apiTemplates = await loadDocumentTemplatesAsync()
-      setTemplates(apiTemplates)
-    })()
-  }, [])
+  const padroes = useMemo(
+    () => Object.fromEntries(DOCUMENT_TYPES.map((d) => [d.id, d.defaultValue ?? ''])),
+    [],
+  )
+  const modelos = useDocumentosAtendimento({
+    pacienteId,
+    agendamentoId: appointmentId,
+    pacienteNome: patientName,
+    pacienteCpf: patientDetails?.cpf,
+    padroes,
+  })
 
   const authenticationId = useMemo(
     () =>
@@ -1100,58 +1100,44 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
     [patientName, selectedDocs.length],
   )
 
-  const getTemplateContent = (doc: DocumentTemplate) => templates[doc.id] ?? doc.defaultValue ?? ''
+  /** Documento só com campos (atestado) enquanto a clínica não cadastrar modelo; com modelo vira o editor estruturado. */
+  const usaCampos = (doc: DocumentTemplate) => doc.type === 'fields' && modelos.estadoDe(doc.id).origem === 'padrao'
 
-  const getDocContent = (doc: DocumentTemplate) => {
-    const base = docData[doc.id]?.content ?? getTemplateContent(doc)
-    return base.replace('[NOME DO PACIENTE]', patientName || 'Paciente')
-  }
+  /** Conteúdo que será visualizado, impresso e gerado (já com paciente/profissional/data preenchidos). */
+  const conteudoDoDocumento = (doc: DocumentTemplate): TemplateConteudo =>
+    usaCampos(doc)
+      ? resolverConteudo(
+          conteudoAtestado(docData[doc.id]?.['Dias de Afastamento'] ?? '', docData[doc.id]?.['Motivo'] ?? ''),
+          modelos.contextoVariaveis,
+        )
+      : modelos.estadoDe(doc.id).conteudo
 
   const toggleDoc = (doc: DocumentTemplate) => {
     if (isReadOnly) return
     setSelectedDocs((prev) =>
       prev.includes(doc.id) ? prev.filter((d) => d !== doc.id) : [...prev, doc.id],
     )
-    if (doc.type === 'editor' && !docData[doc.id]?.content) {
-      setDocData((prev) => ({ ...prev, [doc.id]: { ...prev[doc.id], content: getTemplateContent(doc) } }))
-    }
   }
 
   const updateDocData = (id: string, field: string, value: string) => {
     setDocData((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }))
   }
 
-  const handleSaveTemplate = async (doc: DocumentTemplate) => {
-    const content = docData[doc.id]?.content ?? doc.defaultValue ?? ''
-    const next = { ...templates, [doc.id]: content }
-    setTemplates(next)
-    // SEC-05 fechado: persistência só via API. Se o slug não está cadastrado
-    // no admin (`saveDocumentTemplateAsync` retorna `false`), avisa o usuário —
-    // não há mais fallback de localStorage.
-    const ok = await saveDocumentTemplateAsync(doc.id, content)
-    if (!ok) {
-      toast.error('Template não cadastrado nesta unidade. Cadastre em Configurações → Documentos antes de personalizar.')
-    }
-  }
-
-  const handleResetTemplate = async (doc: DocumentTemplate) => {
-    const next = { ...templates }
-    delete next[doc.id]
-    setTemplates(next)
-    setDocData((prev) => ({ ...prev, [doc.id]: { ...prev[doc.id], content: doc.defaultValue || '' } }))
-    const ok = await resetDocumentTemplateAsync(doc.id)
-    if (!ok) {
-      toast.error('Não foi possível restaurar o template no servidor.')
-    }
-  }
-
   const buildGeneratedDocuments = (): GeneratedDoc[] =>
     selectedDocs.flatMap((docId) => {
       const doc = DOCUMENT_TYPES.find((d) => d.id === docId)
       if (!doc) return []
-      const documento =
-        doc.type === 'fields' ? JSON.stringify(docData[doc.id] ?? {}) : getDocContent(doc)
-      return [{ tipo: doc.id, categoria: doc.title, documento: signature ? `${documento}\n\nAssinatura: ${signature}` : documento }]
+      const conteudo = conteudoDoDocumento(doc)
+      const documento = conteudoParaTexto(conteudo, usaCampos(doc) ? {} : modelos.estadoDe(doc.id).valores, modelos.contextoVariaveis)
+      return [
+        {
+          tipo: doc.id,
+          categoria: doc.title,
+          documento: signature ? `${documento}\n\nAssinatura: ${signature}` : documento,
+          conteudo,
+          valores: usaCampos(doc) ? {} : modelos.estadoDe(doc.id).valores,
+        },
+      ]
     })
 
   const handleNextClick = () => {
@@ -1260,7 +1246,7 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
-                          setPreviewDoc({ title: doc.title, content: getDocContent(doc) })
+                          setPreviewDocId(doc.id)
                         }}
                         className="h-8 px-3 rounded-full text-xs font-normal text-[var(--app-primary)] hover:bg-blue-50"
                       >
@@ -1279,7 +1265,7 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
               {isSelected && (
                 <div className="p-6 pt-0">
                   <div className="pt-4 border-t border-app-border dark:border-app-border-dark space-y-4">
-                    {doc.type === 'fields' && doc.fields && (
+                    {usaCampos(doc) && doc.fields && (
                       <div className="space-y-4">
                         {doc.fields.map((field, idx) => (
                           <div key={idx} className="space-y-2">
@@ -1296,40 +1282,22 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                       </div>
                     )}
 
-                    {doc.type === 'editor' && (
-                      <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <Label className="font-normal text-app-text-primary dark:text-white">Modelo do documento (editável)</Label>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSaveTemplate(doc)}
-                              disabled={isReadOnly}
-                              className="h-8 px-3 rounded-full text-xs font-normal"
-                            >
-                              Salvar modelo
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleResetTemplate(doc)}
-                              disabled={isReadOnly}
-                              className="h-8 px-3 rounded-full text-xs font-normal text-app-text-muted"
-                            >
-                              Restaurar padrão
-                            </Button>
-                          </div>
-                        </div>
-                        <Textarea
-                          className="min-h-[300px] p-4 bg-app-bg-secondary/50 dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-mono text-sm leading-relaxed whitespace-pre-wrap"
-                          value={docData[doc.id]?.content ?? getTemplateContent(doc)}
-                          onChange={(e) => updateDocData(doc.id, 'content', e.target.value)}
+                    {!usaCampos(doc) && (
+                      modelos.carregando ? (
+                        <p className="text-sm text-app-text-muted">Carregando modelo da clínica…</p>
+                      ) : (
+                        <DocumentoAtendimentoEditor
+                          conteudo={modelos.estadoDe(doc.id).conteudo}
+                          valores={modelos.estadoDe(doc.id).valores}
+                          origem={modelos.estadoDe(doc.id).origem}
                           disabled={isReadOnly}
+                          ocupado={modelos.ocupado === doc.id}
+                          onConteudoChange={(conteudo) => modelos.editar(doc.id, { conteudo })}
+                          onValoresChange={(valores) => modelos.editar(doc.id, { valores })}
+                          onSalvarModelo={() => void modelos.salvarModelo(doc.id, doc.title)}
+                          onRestaurarPadrao={() => void modelos.restaurarPadrao(doc.id, doc.title)}
                         />
-                      </div>
+                      )
                     )}
 
                     {isSigned && (
@@ -1389,12 +1357,21 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
       </div>
 
       {/* Preview modal */}
-      <DocumentPreviewModal
-        isOpen={!!previewDoc}
-        onClose={() => setPreviewDoc(null)}
-        docTitle={previewDoc?.title || ''}
-        docContent={previewDoc?.content || ''}
-      />
+      {(() => {
+        const doc = DOCUMENT_TYPES.find((d) => d.id === previewDocId)
+        return (
+          <DocumentoAtendimentoPreviewModal
+            open={!!doc}
+            onClose={() => setPreviewDocId(null)}
+            titulo={doc?.title ?? ''}
+            pacienteNome={patientName}
+            conteudo={doc ? conteudoDoDocumento(doc) : null}
+            valores={doc && !usaCampos(doc) ? modelos.estadoDe(doc.id).valores : {}}
+            contexto={modelos.contextoPreview}
+            assinaturaUrl={signature}
+          />
+        )
+      })()}
 
       {appointmentId && (
         <DocumentosEmitidosPanel

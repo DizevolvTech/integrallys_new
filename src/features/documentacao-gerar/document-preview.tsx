@@ -23,13 +23,15 @@ import type {
 } from './types'
 
 interface Props {
-  template: DocumentoTemplate
+  template: Pick<DocumentoTemplate, 'conteudo'>
   valores: ValoresForm
   contexto: PreenchimentoContexto
+  /** Imagem da assinatura manuscrita (atendimento): aparece acima da linha do profissional. */
+  assinaturaUrl?: string | null
 }
 
 export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function DocumentPreview(
-  { template, valores, contexto },
+  { template, valores, contexto, assinaturaUrl },
   ref,
 ) {
   const corPrimaria = contexto.clinica?.cor_primaria ?? '#111827'
@@ -98,6 +100,14 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
       <footer style={{ marginTop: '28px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
         {template.conteudo.rodape.assinatura && (
           <div style={{ margin: '32px 0', textAlign: 'center' }}>
+            {assinaturaUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={assinaturaUrl}
+                alt="Assinatura"
+                style={{ height: '56px', width: 'auto', objectFit: 'contain', margin: '0 auto', filter: 'grayscale(1)' }}
+              />
+            )}
             <div
               style={{
                 borderTop: '1px solid #374151',
@@ -154,7 +164,7 @@ function SecaoRenderer({
   switch (secao.tipo) {
     case 'paragrafo': {
       const s = secao as SecaoParagrafo
-      return <p style={{ ...blockStyle, textAlign: 'justify' }}>{resolve(s.conteudo)}</p>
+      return <p style={{ ...blockStyle, textAlign: 'justify', whiteSpace: 'pre-wrap' }}>{resolve(s.conteudo)}</p>
     }
 
     case 'campo_data':
