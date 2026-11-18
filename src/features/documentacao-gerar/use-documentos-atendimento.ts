@@ -66,7 +66,7 @@ export function useDocumentosAtendimento({ pacienteId, agendamentoId, pacienteNo
     return {
       ...c,
       agora,
-      cliente: { nome: c.cliente?.nome || pacienteNome, cpf: c.cliente?.cpf || pacienteCpf },
+      cliente: { nome: c.cliente?.nome || pacienteNome, cpf: c.cliente?.cpf || (pacienteCpf && /\d{11}/.test(pacienteCpf.replace(/\D/g, '')) ? pacienteCpf : undefined) },
     }
   }, [payload, agora, pacienteNome, pacienteCpf])
 

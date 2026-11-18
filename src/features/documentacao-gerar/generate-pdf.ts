@@ -23,18 +23,18 @@ export async function gerarPdfDoElemento(element: HTMLElement, filename: string)
   const imgWidth = pageWidth
   const imgHeight = (canvas.height * pageWidth) / canvas.width
 
-  const imgData = canvas.toDataURL('image/png')
+  const imgData = canvas.toDataURL('image/jpeg', 0.92)
 
   // Paginação simples: corta a imagem total se exceder uma página
   let heightLeft = imgHeight
   let position = 0
-  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
   heightLeft -= pageHeight
 
   while (heightLeft > 0) {
     position = heightLeft - imgHeight
     pdf.addPage()
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
     heightLeft -= pageHeight
   }
 

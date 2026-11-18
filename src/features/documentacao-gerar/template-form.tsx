@@ -1,5 +1,7 @@
 'use client'
 
+import { useLayoutEffect, useRef } from 'react'
+
 import type {
   DocumentoTemplate,
   Secao,
@@ -80,14 +82,7 @@ function CampoRenderer({
   switch (secao.tipo) {
     case 'paragrafo':
       if (!onParagrafoChange) return null
-      return (
-        <Textarea
-          value={secao.conteudo}
-          disabled={disabled}
-          onChange={(event) => onParagrafoChange(event.target.value)}
-          className="min-h-[96px] bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl font-normal leading-relaxed"
-        />
-      )
+      return <ParagrafoEditavel texto={secao.conteudo} disabled={disabled} onChange={onParagrafoChange} />
 
     case 'campo_data': {
       const s = secao as SecaoCampoData
@@ -275,4 +270,33 @@ function CampoRenderer({
       )
     }
   }
+}
+
+/** Texto do modelo editável; a caixa cresce com o conteúdo (sem barra de rolagem interna, também no celular). */
+function ParagrafoEditavel({
+  texto,
+  disabled,
+  onChange,
+}: {
+  texto: string
+  disabled?: boolean
+  onChange: (texto: string) => void
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight + 2}px`
+  }, [texto])
+  return (
+    <Textarea
+      ref={ref}
+      value={texto}
+      rows={2}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      className="min-h-0 overflow-hidden bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl font-normal leading-relaxed resize-none"
+    />
+  )
 }
