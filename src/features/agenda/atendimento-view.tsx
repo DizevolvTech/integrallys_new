@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   ArrowLeft,
@@ -21,6 +21,8 @@ import {
   User,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { CamposPersonalizadosAtendimento, PerguntaFixaSimNao } from './atendimento-anamnese-extras'
+import { montarPayloadFinalizar } from './atendimento-finalizar-payload'
 import { AtendimentoProvider, useAtendimento } from '@/contexts/atendimento-context'
 import type { GeneratedDoc, HistoricoItem, PatientDetails } from '@/contexts/atendimento-context'
 import { useAtendimentoHistorico } from '@/hooks/use-atendimento-historico'
@@ -462,6 +464,24 @@ function AnamneseSection({ onCancel, onNext }: { onCancel: () => void; onNext: (
                   </div>
                 )
               })}
+              <PerguntaFixaSimNao
+                titulo="Alergias"
+                testId="pergunta-alergias"
+                sim={anamneseData.alergiasSim}
+                texto={anamneseData.alergiasTexto}
+                disabled={isReadOnly}
+                onSim={(v) => setAnamneseData((p) => ({ ...p, alergiasSim: v }))}
+                onTexto={(v) => setAnamneseData((p) => ({ ...p, alergiasTexto: v }))}
+              />
+              <PerguntaFixaSimNao
+                titulo="Medicamentos em uso"
+                testId="pergunta-medicamentos-uso"
+                sim={anamneseData.medicamentosUsoSim}
+                texto={anamneseData.medicamentosUsoTexto}
+                disabled={isReadOnly}
+                onSim={(v) => setAnamneseData((p) => ({ ...p, medicamentosUsoSim: v }))}
+                onTexto={(v) => setAnamneseData((p) => ({ ...p, medicamentosUsoTexto: v }))}
+              />
             </div>
           </div>
 
@@ -535,6 +555,8 @@ function AnamneseSection({ onCancel, onNext }: { onCancel: () => void; onNext: (
           </div>
         </>
       )}
+
+      <CamposPersonalizadosAtendimento disabled={isReadOnly} />
 
       {/* Actions */}
       <div className="flex items-center justify-between pt-6 border-t border-app-border dark:border-app-border-dark">
@@ -1526,6 +1548,13 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     pacienteId,
     appointmentId,
     evolucaoAtual,
+    anamneseType,
+    anamneseData,
+    camposAnamnese,
+    prescritos,
+    observacoesGerais,
+    observacoesFinais,
+    generatedDocuments,
   } = useAtendimento()
   const api = useApi()
   useProntuarioLivePublish(pacienteId, evolucaoAtual)
@@ -1538,6 +1567,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     pacienteId,
   })
   const [isFinalizing, setIsFinalizing] = useState(false)
+  const finalizandoRef = useRef(false)
 
   const handleNext = () => {
     if (currentStep < 5) setCurrentStep(currentStep + 1)
@@ -1556,7 +1586,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     onBack()
   }
 
-  // O prazo é gravado antes de finalizar: se falhar, o atendimento continua aberto.
+  // O registro e o prazo são gravados antes de finalizar: se falhar, o atendimento continua aberto.
   const handleFinalize = async () => {
     const escolhido = semPrazo ? null : prazoEscolhido(prazoValor)
     if (escolhido && 'erro' in escolhido) {
@@ -1564,16 +1594,40 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
       toast.error(escolhido.erro)
       return
     }
+    if (!appointmentId) {
+      setShowFinalizeModal(false)
+      toast.error('Este atendimento não está ligado a um agendamento; não foi possível gravar o registro.')
+      return
+    }
+    if (finalizandoRef.current) return
+    finalizandoRef.current = true
     setIsFinalizing(true)
     try {
+      // Grava anamnese, prontuário, evolução, prescrição e documentos de uma vez (idempotente por agendamento).
+      await api.post('/api/atendimento/finalizar', {
+        agendamentoId: appointmentId,
+        ...montarPayloadFinalizar({
+          tipo: anamneseType,
+          dados: anamneseData,
+          campos: camposAnamnese,
+          historicosLista: HISTORICOS,
+          medicamentosLista: MEDICAMENTOS,
+          evolucao: evolucaoAtual,
+          prescritos,
+          observacoesGerais,
+          observacoesFinais,
+          documentos: generatedDocuments,
+        }),
+      })
       if (escolhido && pacienteId) {
         await api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo: escolhido, ...alvoParaCorpo(alvoRetorno) })
       }
       setShowFinalizeModal(false)
       await doFinalize()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível salvar o prazo de retorno.')
+      toast.error(err instanceof Error ? err.message : 'Não foi possível finalizar o atendimento. Nada foi perdido: tente de novo.')
     } finally {
+      finalizandoRef.current = false
       setIsFinalizing(false)
     }
   }

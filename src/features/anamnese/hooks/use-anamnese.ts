@@ -19,7 +19,7 @@ export interface AnamneseItem {
   gorduraVisceral?: number
   massaOssea?: number
   aguaCorporal?: number
-  camposExtras?: Record<string, string | number | boolean>
+  camposExtras?: Record<string, unknown>
 }
 
 export interface NovaAnamneseInput {
@@ -36,7 +36,7 @@ export interface NovaAnamneseInput {
   gorduraVisceral?: number
   massaOssea?: number
   aguaCorporal?: number
-  camposExtras?: Record<string, string | number | boolean>
+  camposExtras?: Record<string, unknown>
 }
 
 export function useAnamnese() {

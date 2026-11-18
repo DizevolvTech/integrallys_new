@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import type { AnamneseItem } from '../hooks/use-anamnese'
+import { extrasLegiveis } from '../anamnese-extras-view'
 
 interface VisualizarAnamneseModalProps {
   isOpen: boolean
@@ -34,6 +35,7 @@ export function VisualizarAnamneseModal({
   if (!anamnese) return null
 
   const imcCategory = getIMCCategory(anamnese.imc)
+  const extras = extrasLegiveis(anamnese.camposExtras)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -195,16 +197,42 @@ export function VisualizarAnamneseModal({
               <div className="space-y-1.5">
                 <h4 className="text-xs font-normal text-app-text-muted tracking-wider">Medicamentos em uso</h4>
                 <div className="p-4 rounded-[12px] bg-app-bg-secondary/20 dark:bg-app-table-header-dark border border-app-border dark:border-app-border-dark/50 min-h-[60px] flex items-center">
-                  <p className="text-sm text-app-text-secondary dark:text-white/80 font-normal">Não informado</p>
+                  <p className="text-sm text-app-text-secondary dark:text-white/80 font-normal break-words">{extras.medicamentosUso || 'Não informado'}</p>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <h4 className="text-xs font-normal text-app-text-muted tracking-wider">Alergias</h4>
                 <div className="p-4 rounded-[12px] bg-app-bg-secondary/20 dark:bg-app-table-header-dark border border-app-border dark:border-app-border-dark/50 min-h-[60px] flex items-center">
-                  <p className="text-sm text-app-text-secondary dark:text-white/80 font-normal">Não informado</p>
+                  <p className="text-sm text-app-text-secondary dark:text-white/80 font-normal break-words">{extras.alergias || 'Não informado'}</p>
                 </div>
               </div>
             </div>
+
+            {(extras.respostas.length > 0 || extras.textos.length > 0 || extras.personalizados.length > 0) && (
+              <div className="space-y-3" data-testid="anamnese-respostas-atendimento">
+                {extras.respostas.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {extras.respostas.map((r) => (
+                      <div key={r.label} className="p-3.5 rounded-[12px] border border-app-border dark:border-app-border-dark bg-app-card dark:bg-app-card-dark shadow-sm">
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-xs font-normal text-app-text-muted">{r.label}</span>
+                          <span className="text-xs font-normal text-app-text-primary dark:text-white">{r.resposta}</span>
+                        </div>
+                        {r.detalhe && <p className="text-sm text-app-text-secondary dark:text-white/80 mt-1 break-words">{r.detalhe}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {[...extras.textos, ...extras.personalizados].map((t) => (
+                  <div key={t.label} className="space-y-1.5">
+                    <h4 className="text-xs font-normal text-app-text-muted tracking-wider">{t.label}</h4>
+                    <div className="p-4 rounded-[12px] bg-app-bg-secondary/20 dark:bg-app-table-header-dark border border-app-border dark:border-app-border-dark/50">
+                      <p className="text-sm text-app-text-secondary dark:text-white/80 font-normal break-words">{t.valor}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-4">
               <div className="space-y-1.5">

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useMemo, useState } from 'react'
+import type { CampoPersonalizadoDef } from '@/features/agenda/atendimento-finalizar-payload'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,14 @@ export interface AnamneseData {
   historicos: Set<string>
   medicamentos: Set<string>
   condicoes: Record<string, string>
+  // Perguntas fixas Sim/Não com texto (cartão 1073)
+  alergiasSim: boolean
+  alergiasTexto: string
+  medicamentosUsoSim: boolean
+  medicamentosUsoTexto: string
+  // Campos personalizados cadastrados (id → valor) e campos avulsos desta anamnese
+  camposPersonalizados: Record<string, string>
+  camposAdicionais: { id: string; label: string; valor: string }[]
 }
 
 export interface ItemPrescrito {
@@ -103,6 +112,12 @@ const DEFAULT_ANAMNESE_DATA: AnamneseData = {
   historicos: new Set<string>(),
   medicamentos: new Set<string>(),
   condicoes: {},
+  alergiasSim: false,
+  alergiasTexto: '',
+  medicamentosUsoSim: false,
+  medicamentosUsoTexto: '',
+  camposPersonalizados: {},
+  camposAdicionais: [],
 }
 
 const DEFAULT_DOCUMENTOS: DocumentosData = {
@@ -136,6 +151,8 @@ interface AtendimentoContextValue {
   setAnamneseType: (t: 'consulta' | 'reconsulta') => void
   anamneseData: AnamneseData
   setAnamneseData: React.Dispatch<React.SetStateAction<AnamneseData>>
+  camposAnamnese: CampoPersonalizadoDef[]
+  setCamposAnamnese: (campos: CampoPersonalizadoDef[]) => void
 
   // Step 2 – Prontuário
   evolucaoAtual: string
@@ -202,6 +219,8 @@ export function AtendimentoProvider({
   const [anamneseType, setAnamneseType] = useState<'consulta' | 'reconsulta'>('consulta')
   const [anamneseData, setAnamneseData] = useState<AnamneseData>(DEFAULT_ANAMNESE_DATA)
 
+  const [camposAnamnese, setCamposAnamnese] = useState<CampoPersonalizadoDef[]>([])
+
   const [evolucaoAtual, setEvolucaoAtual] = useState('')
 
   const [prescritos, setPrescritos] = useState<ItemPrescrito[]>([])
@@ -231,6 +250,8 @@ export function AtendimentoProvider({
       setAnamneseType,
       anamneseData,
       setAnamneseData,
+      camposAnamnese,
+      setCamposAnamnese,
       evolucaoAtual,
       setEvolucaoAtual,
       historicoAtendimentos,
@@ -253,7 +274,7 @@ export function AtendimentoProvider({
     [
       patientName, patientDetails, pacienteId, appointmentId, appointmentTime,
       currentStep, status,
-      anamneseType, anamneseData,
+      anamneseType, anamneseData, camposAnamnese,
       evolucaoAtual, historicoAtendimentos,
       prescritos, observacoesGerais,
       documentosData, isSigned, signature, generatedDocuments,

@@ -509,7 +509,7 @@ export function mapAnamneseItem(row: Record<string, unknown>) {
     aguaCorporal: row.agua_corporal ? Number(row.agua_corporal) : undefined,
     camposExtras:
       row.campos_extras && typeof row.campos_extras === 'object' && !Array.isArray(row.campos_extras)
-        ? (row.campos_extras as Record<string, string | number | boolean>)
+        ? (row.campos_extras as Record<string, unknown>)
         : {},
   }
 }
