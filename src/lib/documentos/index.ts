@@ -1,3 +1,4 @@
 export * from './types'
-export { resolverVariaveisEmTexto, resolverVariaveisEmTemplate } from './variables'
+export { buildTokenMap, resolverVariaveisEmTexto, resolverVariaveisEmTemplate } from './variables'
+export * from './atendimento'
 export { carregarContexto } from './context'

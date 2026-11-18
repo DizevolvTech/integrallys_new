@@ -90,6 +90,9 @@ export interface GeneratedDoc {
   tipo: string
   categoria: string
   documento: string
+  /** Estrutura do documento (modelo da clínica preenchido) e itens marcados — para gravar no histórico. */
+  conteudo?: unknown
+  valores?: Record<number, unknown>
 }
 
 const DEFAULT_ANAMNESE_DATA: AnamneseData = {

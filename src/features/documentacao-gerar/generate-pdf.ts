@@ -52,3 +52,19 @@ export function downloadBlob(blob: Blob, filename: string) {
   anchor.remove()
   setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
+
+/** Abre o documento renderizado numa janela própria e dispara a impressão. Retorna false se o pop-up foi bloqueado. */
+export function imprimirElemento(element: HTMLElement): boolean {
+  const win = window.open('', '_blank', 'width=900,height=1200')
+  if (!win) return false
+  win.document.write(
+    `<!doctype html><html><head><title>Documento</title></head><body style="margin:0">${element.outerHTML}</body></html>`,
+  )
+  win.document.close()
+  win.focus()
+  setTimeout(() => {
+    win.print()
+    win.close()
+  }, 300)
+  return true
+}

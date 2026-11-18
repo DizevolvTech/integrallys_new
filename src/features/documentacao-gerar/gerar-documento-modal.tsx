@@ -26,7 +26,7 @@ import { useApi } from '@/hooks/use-api'
 import { SignaturePad } from '@/components/shared/signature-pad'
 import { DocumentPreview } from './document-preview'
 import { TemplateForm } from './template-form'
-import { downloadBlob, gerarPdfDoElemento } from './generate-pdf'
+import { downloadBlob, gerarPdfDoElemento, imprimirElemento } from './generate-pdf'
 import type {
   ConteudoPreenchido,
   PreenchimentoContexto,
@@ -177,19 +177,7 @@ export function GerarDocumentoModal({
 
   const handleImprimir = useCallback(() => {
     if (!previewRef.current) return
-    const printContent = previewRef.current.outerHTML
-    const win = window.open('', '_blank', 'width=900,height=1200')
-    if (!win) {
-      toast.error('Habilite pop-ups para imprimir')
-      return
-    }
-    win.document.write(`<!doctype html><html><head><title>Documento</title></head><body style="margin:0">${printContent}</body></html>`)
-    win.document.close()
-    win.focus()
-    setTimeout(() => {
-      win.print()
-      win.close()
-    }, 300)
+    if (!imprimirElemento(previewRef.current)) toast.error('Habilite pop-ups para imprimir')
   }, [])
 
   const persistirDocumento = useCallback(async (): Promise<{ id: string } | null> => {
