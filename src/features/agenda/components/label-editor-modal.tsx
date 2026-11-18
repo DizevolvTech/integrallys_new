@@ -119,7 +119,7 @@ export function LabelEditorModal({ isOpen, onClose, data, dataList }: LabelEdito
         </div>
         <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; margin-bottom: 2mm;">
           <p style="font-size: 8pt; font-weight: bold; margin: 0 0 1.5mm 0; color: #3b82f6; text-transform: lowercase; letter-spacing: 0.5px;">modo de uso</p>
-          <p style="font-size: 10.5pt; margin: 0; line-height: 1.4; color: #111; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(item.usage)}</p>
+          <p style="font-size: ${item.usage.split('\n').length > 4 ? '8.5pt' : '10.5pt'}; margin: 0; line-height: 1.4; color: #111; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(item.usage)}</p>
         </div>
         <div style="margin-top: auto; border-top: 0.2mm solid #f2f4f7; padding-top: 1.5mm; display: flex; justify-content: center;">
           <p style="font-size: 6pt; margin: 0; color: #9ca3af; letter-spacing: 1px;">${safeDominio}</p>

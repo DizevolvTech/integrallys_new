@@ -42,7 +42,7 @@ export function LabelEditorModal({ isOpen, onClose, data, dataList = [] }: Label
                   <p className="mt-4 text-xs uppercase tracking-wide text-app-text-muted">Produto</p>
                   <p className="text-base text-app-text-primary dark:text-white">{item.productName}</p>
                   <p className="mt-4 text-sm text-app-text-secondary dark:text-white/70">{item.composition || 'Composição não informada'}</p>
-                  <p className="text-sm text-app-text-secondary dark:text-white/70">{item.usage || 'Modo de uso não informado'}</p>
+                  <p className="text-sm text-app-text-secondary dark:text-white/70 whitespace-pre-line">{item.usage || 'Modo de uso não informado'}</p>
                 </div>
               ))
             )}

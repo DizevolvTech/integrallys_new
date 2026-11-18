@@ -19,7 +19,7 @@ export function ProdutosPosologiaLista({ prescricoes }: { prescricoes: Prescrica
           <span className="text-app-text-primary dark:text-white">
             {item.quantidade > 1 ? `${item.quantidade}× ` : ''}
             {item.produto}
-            <span className="text-app-text-muted">
+            <span className="text-app-text-muted whitespace-pre-line">
               {' — '}
               {item.posologia ? `Posologia: ${item.posologia}` : 'posologia não informada'}
             </span>
