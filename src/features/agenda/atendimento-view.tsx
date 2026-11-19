@@ -822,6 +822,17 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
     return () => clearTimeout(t)
   }, [recemAdicionado, prescritos.length])
 
+  // Posologia é obrigatória: vai para a etiqueta que a recepção imprime.
+  const avancar = () => {
+    const semPosologia = prescritos.find((item) => !item.posologia.trim())
+    if (semPosologia && !isReadOnly) {
+      toast.error(`Preencha a posologia de ${semPosologia.nome}.`)
+      document.getElementById(`posologia-${semPosologia.id}`)?.focus()
+      return
+    }
+    onNext()
+  }
+
   const stockItems = useMemo(
     () =>
       estoqueItems
@@ -1035,7 +1046,7 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
         <Button variant="outline" onClick={onBack} className="h-12 px-6 rounded-integrallys font-normal flex items-center gap-2">
           <ChevronLeft className="h-4 w-4" /> Voltar: Prontuário
         </Button>
-        <Button onClick={onNext} className="h-12 px-8 bg-app-primary hover:bg-app-primary-hover text-white rounded-integrallys font-normal flex items-center gap-2">
+        <Button onClick={avancar} className="h-12 px-8 bg-app-primary hover:bg-app-primary-hover text-white rounded-integrallys font-normal flex items-center gap-2">
           Próximo: Documentos <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
