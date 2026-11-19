@@ -1,5 +1,6 @@
 'use client'
 
+import { hojeClinicaComoData } from '@/lib/fuso-clinica'
 import { useMemo, useState } from 'react'
 import type { ViewMode, AgendaSlot } from '../agenda.types'
 import {
@@ -12,7 +13,7 @@ import {
 
 export function useAgendaCalendar(agendaSlots: AgendaSlot[]) {
   const [viewMode, setViewMode] = useState<ViewMode>('dia')
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState(() => hojeClinicaComoData())
   const [selectedFilter, setSelectedFilter] = useState('todos')
 
   const formattedCurrentDate = useMemo(

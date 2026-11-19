@@ -1,5 +1,6 @@
 'use client'
 
+import { hojeIsoClinica } from '@/lib/fuso-clinica'
 import { useEffect, useState } from 'react'
 import { Calendar, CreditCard } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -375,7 +376,7 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
 
           <div className="flex items-center gap-1 text-xs text-app-text-muted">
             <Calendar className="h-3 w-3" />
-            {formatDateBR(new Date().toISOString().split('T')[0])}
+            {formatDateBR(hojeIsoClinica())}
           </div>
 
           {error && <p className="text-xs text-[var(--app-danger-text)]">{error}</p>}

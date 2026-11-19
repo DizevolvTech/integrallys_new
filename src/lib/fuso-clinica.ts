@@ -30,3 +30,9 @@ export function formatarHoraClinica(valor: string | number | Date | null | undef
 export function hojeIsoClinica(agora: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: FUSO_CLINICA }).format(agora)
 }
+
+/** Hoje no horário de Brasília como Date ao meio-dia local, para calendários que trabalham com Date. */
+export function hojeClinicaComoData(agora: Date = new Date()): Date {
+  const [a, m, d] = hojeIsoClinica(agora).split('-').map(Number)
+  return new Date(a, m - 1, d, 12, 0, 0)
+}

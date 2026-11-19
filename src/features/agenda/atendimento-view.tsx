@@ -161,9 +161,9 @@ const DOCUMENT_TYPES: DocumentTemplate[] = [
 function ProgressBar({ currentStep }: { currentStep: number }) {
   const pct = ((currentStep - 1) / (STEPS.length - 1)) * 100
   return (
-    <div className="bg-app-card dark:bg-app-card-dark p-6 rounded-integrallys-lg shadow-sm border border-app-border dark:border-app-border-dark">
-      <div className="flex items-center justify-between relative px-12">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full px-20 -z-0">
+    <div className="bg-app-card dark:bg-app-card-dark p-4 sm:p-6 rounded-integrallys-lg shadow-sm border border-app-border dark:border-app-border-dark overflow-hidden">
+      <div className="flex items-center justify-between relative px-0 sm:px-12">
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full px-6 sm:px-20 -z-0">
           <div className="h-0.5 bg-app-bg-secondary dark:bg-app-hover w-full relative">
             <div
               className="absolute left-0 top-0 h-full bg-app-primary transition-all duration-500"
@@ -177,10 +177,10 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
           return (
             <div
               key={step.id}
-              className="relative z-10 flex flex-col items-center gap-2 bg-app-card dark:bg-app-card-dark px-4"
+              className="relative z-10 flex flex-col items-center gap-2 bg-app-card dark:bg-app-card-dark px-1 sm:px-4 min-w-0"
             >
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-normal border-2 transition-all ${
+                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-normal border-2 transition-all ${
                   isCompleted || isActive
                     ? 'bg-app-primary border-[var(--app-primary)] text-white'
                     : 'bg-app-bg-secondary border-app-border dark:border-app-border-dark text-app-text-muted dark:bg-app-hover'
@@ -188,7 +188,7 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
               >
                 {isCompleted ? <Check className="h-5 w-5 stroke-[3]" /> : step.id}
               </div>
-              <span className={`text-xs font-normal ${isActive ? 'text-[var(--app-primary)]' : 'text-app-text-muted'}`}>
+              <span className={`text-[10px] sm:text-xs font-normal ${isActive ? 'text-[var(--app-primary)]' : 'hidden sm:inline text-app-text-muted'}`}>
                 {step.label}
               </span>
             </div>
@@ -912,7 +912,7 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                 className="bg-app-card dark:bg-app-card-dark border border-app-border dark:border-app-border-dark px-4 py-3 rounded-[12px] flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
-                  <h4 className="font-normal text-app-text-primary dark:text-white text-base truncate">{item.nome}</h4>
+                  <h4 className="font-normal text-app-text-primary dark:text-white text-base break-words">{item.nome}</h4>
                   <p className="text-app-text-muted text-sm truncate">{item.categoria}</p>
                   <div className="flex flex-wrap gap-x-4 text-xs text-app-text-muted mt-1">
                     <span>Água Boa: {item.aguaBoa}</span>

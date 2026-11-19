@@ -1,5 +1,6 @@
 'use client'
 
+import { hojeClinicaComoData } from '@/lib/fuso-clinica'
 import { anamneseInicialDoAgendamento } from '@/features/retornos/retorno-procedimento'
 import { ReciboModal } from '@/features/recibos'
 import { useEffect, useMemo, useState } from 'react'
@@ -893,7 +894,7 @@ export function AgendaView() {
                   <Button
                     variant="outline"
                     className="h-10 rounded-xl"
-                    onClick={() => calendar.setCurrentDate(new Date())}
+                    onClick={() => calendar.setCurrentDate(hojeClinicaComoData())}
                   >
                     Hoje
                   </Button>
