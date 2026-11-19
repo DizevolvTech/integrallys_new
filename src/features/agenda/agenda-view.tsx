@@ -775,6 +775,13 @@ export function AgendaView() {
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
+                  <Button
+                    variant="outline"
+                    className="h-10 rounded-xl"
+                    onClick={() => calendar.setCurrentDate(hojeClinicaComoData())}
+                  >
+                    Hoje
+                  </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   {podeCriarNaAgenda && (

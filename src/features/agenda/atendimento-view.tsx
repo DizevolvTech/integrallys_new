@@ -1620,24 +1620,27 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
     setIsFinalizing(true)
     try {
       // Grava anamnese, prontuário, evolução, prescrição e documentos de uma vez (idempotente por agendamento).
-      await api.post('/api/atendimento/finalizar', {
-        agendamentoId: appointmentId,
-        ...montarPayloadFinalizar({
-          tipo: anamneseType,
-          dados: anamneseData,
-          campos: camposAnamnese,
-          historicosLista: HISTORICOS,
-          medicamentosLista: MEDICAMENTOS,
-          evolucao: evolucaoAtual,
-          prescritos,
-          observacoesGerais,
-          observacoesFinais,
-          documentos: generatedDocuments,
-        }),
-      })
-      if (escolhido && pacienteId) {
-        await api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo: escolhido, ...alvoParaCorpo(alvoRetorno) })
-      }
+      // Registro clínico e prazo de retorno são independentes: gravados em paralelo, antes do check-out.
+      await Promise.all([
+        api.post('/api/atendimento/finalizar', {
+          agendamentoId: appointmentId,
+          ...montarPayloadFinalizar({
+            tipo: anamneseType,
+            dados: anamneseData,
+            campos: camposAnamnese,
+            historicosLista: HISTORICOS,
+            medicamentosLista: MEDICAMENTOS,
+            evolucao: evolucaoAtual,
+            prescritos,
+            observacoesGerais,
+            observacoesFinais,
+            documentos: generatedDocuments,
+          }),
+      }),
+        escolhido && pacienteId
+          ? api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo: escolhido, ...alvoParaCorpo(alvoRetorno) })
+          : Promise.resolve(),
+      ])
       setShowFinalizeModal(false)
       await doFinalize()
     } catch (err) {
