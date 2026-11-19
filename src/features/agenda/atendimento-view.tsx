@@ -1636,7 +1636,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
             observacoesFinais,
             documentos: generatedDocuments,
           }),
-      }),
+        }),
         escolhido && pacienteId
           ? api.post('/api/retornos', { origem: 'atendimento', pacienteId, agendamentoId: appointmentId, prazo: escolhido, ...alvoParaCorpo(alvoRetorno) })
           : Promise.resolve(),
