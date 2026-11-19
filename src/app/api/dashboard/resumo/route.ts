@@ -1,3 +1,4 @@
+import { hojeIsoClinica } from '@/lib/fuso-clinica'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
@@ -138,7 +139,7 @@ export async function GET(request: NextRequest) {
   if (!ehResumoCard(card)) return serverErrorResponse('Card inválido', 'INVALID_CARD', 400)
   const page = Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1)
 
-  const hoje = new Date().toISOString().slice(0, 10) // mesma data que o card usa
+  const hoje = hojeIsoClinica() // mesma data que o card usa (horário de Brasília)
   const { de, ate } = periodoDoMes(hoje)
   const escopo: Escopo = { supabase: getAppSupabase(), userId: session.userId, de, ate, hoje, page }
   const resultado = card === 'receita' ? await resumoReceita(escopo) : await resumoPaginado(card, escopo)

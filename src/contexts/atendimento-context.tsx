@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { apagarRascunho, carregarRascunho, salvarRascunho } from './atendimento-rascunho'
 import type { CampoPersonalizadoDef } from '@/features/agenda/atendimento-finalizar-payload'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -218,27 +219,36 @@ export function AtendimentoProvider({
   historicoAtendimentos?: HistoricoItem[]
   children: React.ReactNode
 }) {
-  const [currentStep, setCurrentStep] = useState(1)
+  const [rascunho] = useState(() => carregarRascunho(appointmentId, DEFAULT_ANAMNESE_DATA))
+  const [currentStep, setCurrentStep] = useState(rascunho?.currentStep ?? 1)
   const [status, setStatus] = useState<AtendimentoStatus>('draft')
 
-  const [anamneseType, setAnamneseType] = useState<'consulta' | 'reconsulta'>(initialAnamneseType)
-  const [anamneseData, setAnamneseData] = useState<AnamneseData>(DEFAULT_ANAMNESE_DATA)
+  const [anamneseType, setAnamneseType] = useState<'consulta' | 'reconsulta'>(rascunho?.anamneseType ?? initialAnamneseType)
+  const [anamneseData, setAnamneseData] = useState<AnamneseData>(rascunho?.anamneseData ?? DEFAULT_ANAMNESE_DATA)
 
   const [camposAnamnese, setCamposAnamnese] = useState<CampoPersonalizadoDef[]>([])
 
-  const [evolucaoAtual, setEvolucaoAtual] = useState('')
+  const [evolucaoAtual, setEvolucaoAtual] = useState(rascunho?.evolucaoAtual ?? '')
 
-  const [prescritos, setPrescritos] = useState<ItemPrescrito[]>([])
-  const [observacoesGerais, setObservacoesGerais] = useState('')
+  const [prescritos, setPrescritos] = useState<ItemPrescrito[]>(rascunho?.prescritos ?? [])
+  const [observacoesGerais, setObservacoesGerais] = useState(rascunho?.observacoesGerais ?? '')
 
   const [documentosData, setDocumentosData] = useState<DocumentosData>(DEFAULT_DOCUMENTOS)
   const [isSigned, setIsSigned] = useState(false)
   const [signature, setSignature] = useState<string | null>(null)
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDoc[]>([])
 
-  const [observacoesFinais, setObservacoesFinais] = useState('')
+  const [observacoesFinais, setObservacoesFinais] = useState(rascunho?.observacoesFinais ?? '')
 
-  const finalizeAtendimento = () => setStatus('finalized')
+  useEffect(() => {
+    if (status !== 'draft') return
+    salvarRascunho(appointmentId, { currentStep, anamneseType, anamneseData, evolucaoAtual, prescritos, observacoesGerais, observacoesFinais })
+  }, [appointmentId, status, currentStep, anamneseType, anamneseData, evolucaoAtual, prescritos, observacoesGerais, observacoesFinais])
+
+  const finalizeAtendimento = () => {
+    setStatus('finalized')
+    apagarRascunho(appointmentId)
+  }
 
   const value = useMemo<AtendimentoContextValue>(
     () => ({

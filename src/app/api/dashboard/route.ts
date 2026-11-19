@@ -1,3 +1,4 @@
+import { hojeIsoClinica } from '@/lib/fuso-clinica'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = getAppSupabase()
   const today = new Date()
-  const todayIso = today.toISOString().slice(0, 10)
+  const todayIso = hojeIsoClinica(today)
   const monthStart = `${todayIso.slice(0, 7)}-01`
   const variant = toVariant(session.role)
 

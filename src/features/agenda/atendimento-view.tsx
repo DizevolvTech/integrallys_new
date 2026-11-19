@@ -68,7 +68,7 @@ import {
 } from '@/features/documentacao-gerar'
 import { conteudoAtestado, conteudoParaTexto, resolverConteudo, type TemplateConteudo } from '@/lib/documentos'
 import { ExamesPacienteCard } from '@/features/gestao-pacientes/components/exames-paciente-card'
-import { formatarDataHoraClinica } from '@/lib/fuso-clinica'
+import { formatarDataHoraClinica, hojeIsoClinica } from '@/lib/fuso-clinica'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -302,7 +302,7 @@ function AnamneseSection({ onCancel, onNext }: { onCancel: () => void; onNext: (
           <Label className="font-normal text-app-text-primary dark:text-white">Data *</Label>
           <div className="relative">
             <Input
-              defaultValue={new Date().toISOString().split('T')[0]}
+              defaultValue={hojeIsoClinica().split('-').reverse().join('/')}
               readOnly
               className="pl-10 h-11 bg-app-bg-secondary/50 dark:bg-app-card-dark/50 border-app-border dark:border-app-border-dark rounded-integrallys font-normal"
             />
@@ -975,7 +975,7 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
                       className="bg-app-primary hover:bg-app-primary-hover text-white h-9 px-3 rounded-integrallys font-normal flex items-center gap-2"
                     >
                       <Tag className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline text-xs">Imprimir Etiqueta</span>
+                      <span className="text-xs">Etiqueta</span>
                     </Button>
                     <Button
                       variant="ghost"
@@ -1152,24 +1152,24 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
           <h3 className="text-lg font-normal text-app-text-primary dark:text-white">Documentos Adicionais</h3>
           <p className="text-app-text-muted">Gere atestados, dietas, encaminhamentos, laudos, declarações e documentos de procedimentos</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
           {pacienteId && (
             <Button
               variant="outline"
               onClick={() => setShowGerarDocumentoModal(true)}
               disabled={isReadOnly}
-              className="h-11 px-4 rounded-[12px] font-normal flex items-center gap-2 border-app-border dark:border-app-border-dark"
+              className="h-auto min-h-11 px-4 py-2 whitespace-normal text-left rounded-[12px] font-normal flex items-center justify-center gap-2 border-app-border dark:border-app-border-dark w-full sm:w-auto"
             >
-              <FileText className="h-4 w-4" />
+              <FileText className="h-4 w-4 shrink-0" />
               Usar modelo da clínica
             </Button>
           )}
           {!isSigned && selectedDocs.length > 0 && (
             <Button
               onClick={() => setShowSignatureModal(true)}
-              className="h-11 px-6 bg-app-primary hover:bg-app-primary-hover text-white rounded-[12px] font-normal flex items-center gap-2"
+              className="h-auto min-h-11 px-6 py-2 whitespace-normal bg-app-primary hover:bg-app-primary-hover text-white rounded-[12px] font-normal flex items-center justify-center gap-2 w-full sm:w-auto"
             >
-              <ShieldCheck className="h-4 w-4" />
+              <ShieldCheck className="h-4 w-4 shrink-0" />
               Assinar documentos selecionados
             </Button>
           )}
