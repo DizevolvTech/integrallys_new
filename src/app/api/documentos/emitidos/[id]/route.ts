@@ -57,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({
     data: {
       id: doc.id,
-      titulo: conteudo.cabecalho.titulo || String(templateRes.data.nome ?? 'Documento'),
+      titulo: String(templateRes.data.nome || conteudo.cabecalho.titulo || 'Documento'),
       pacienteNome: contexto.cliente?.nome ?? '',
       geradoEm: doc.gerado_em,
       conteudo,
