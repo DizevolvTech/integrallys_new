@@ -32,7 +32,7 @@ export function nomeArquivoDocumento(titulo: string, paciente: string, geradoEm:
     : new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
         .format(data)
         .replace(/\//g, '-')
-  const limpar = (t: string) => t.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const limpar = (t: string) => [...t].filter((c) => c.charCodeAt(0) >= 32).join('').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim()
   const partes = [limpar(titulo) || 'Documento', limpar(paciente), dia].filter(Boolean)
   return `${partes.join(' - ').slice(0, 150)}.pdf`
 }
