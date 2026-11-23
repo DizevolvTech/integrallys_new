@@ -118,7 +118,7 @@ export function ConfiguracoesClinicaView() {
   const router = useRouter()
   const api = useApi()
   const { data, error, isLoading, saveConfiguracoes, deleteConfiguracao } = useConfiguracoes()
-  const [activeTab, setActiveTab] = useState<MainTab>('Clínica')
+  const [activeTab, setActiveTab] = useState<MainTab>('Identidade')
   const [activeCadastroTab, setActiveCadastroTab] = useState<CadastroTab>('bancos')
   const [clinicaForm, setClinicaForm] = useState({
     nomeFantasia: '',
@@ -1124,40 +1124,23 @@ export function ConfiguracoesClinicaView() {
                 <h3 className="text-xl font-normal">Perfil da Clínica</h3>
               </div>
               <p className="text-app-text-secondary dark:text-white/60 font-normal">
-                Dados institucionais utilizados nos documentos oficiais.
+                Dados cadastrais e fiscais da empresa (razão social, CNPJ, inscrição municipal).
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 bg-app-surface-muted dark:bg-app-surface-muted rounded-[16px] border border-app-border dark:border-app-border-dark">
-              <div className="w-32 h-16 bg-white dark:bg-app-hover rounded-lg border border-app-border dark:border-app-border-dark flex items-center justify-center p-2 shrink-0">
-                <span className="text-xs text-app-text-muted uppercase tracking-wider font-medium">
-                  Logotipo
-                </span>
-              </div>
-              <div className="space-y-3">
-                <h4 className="text-sm font-normal dark:text-white">Logotipo da Instituição</h4>
-                <p className="text-xs text-app-text-muted font-normal max-w-md leading-relaxed">
-                  Utilizado no cabeçalho de receitas, atestados e documentos oficiais.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg h-9 font-normal border-app-border dark:border-app-border-dark"
-                    onClick={() => toast.info('Upload de logo em implementação.')}
-                  >
-                    <Upload className="h-3.5 w-3.5 mr-2" /> Carregar nova
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-lg h-9 font-normal text-[var(--app-danger-text)]"
-                    onClick={() => toast.info('Remoção de logo em implementação.')}
-                  >
-                    Remover
-                  </Button>
-                </div>
-              </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-[16px] border border-app-border dark:border-app-border-dark bg-app-surface-muted dark:bg-app-surface-muted">
+              <p className="text-sm text-app-text-secondary dark:text-white/70 font-normal flex-1">
+                O nome, a cidade/UF, o logotipo e o contato que saem nos documentos (declaração, encaminhamento,
+                laudos, recibos) ficam na aba Identidade.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto min-h-11 whitespace-normal rounded-xl font-normal w-full sm:w-auto"
+                onClick={() => setActiveTab('Identidade')}
+              >
+                Abrir Identidade
+              </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
