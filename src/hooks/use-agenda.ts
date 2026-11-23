@@ -35,6 +35,9 @@ export interface AgendaItem {
   tipoEncaixe?: string
   foraJanela?: boolean
   motivoEncaixe?: string
+  /** Momento (servidor) em que o paciente fez check-in; vazio em registros antigos. */
+  checkinEm?: string
+  atendimentoInicioEm?: string
 }
 
 export interface AgendaInput {
@@ -99,6 +102,7 @@ export function useAgenda() {
   const [patients, setPatients] = useState<Array<{ id: string; nome: string; procedimentoIds?: string[] }>>([])
   const [professionals, setProfessionals] = useState<Array<{ id: string; nome: string; procedimentoIds?: string[] }>>([])
   const [podeEmitirRecibo, setPodeEmitirRecibo] = useState(false)
+  const [relogioOffsetMs, setRelogioOffsetMs] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -106,6 +110,8 @@ export function useAgenda() {
     setPatients(Array.isArray(meta.patients) ? meta.patients.map((item) => ({ id: String(item.id), nome: String(item.nome) })) : [])
     setProfessionals(Array.isArray(meta.professionals) ? meta.professionals.map((item) => ({ id: String(item.id), nome: String(item.nome), procedimentoIds: Array.isArray(item.procedimentoIds) ? item.procedimentoIds.map(String) : [] })) : [])
     setPodeEmitirRecibo(meta.podeEmitirRecibo === true)
+    const servidor = typeof meta.serverNow === 'string' ? Date.parse(meta.serverNow) : Number.NaN
+    if (!Number.isNaN(servidor)) setRelogioOffsetMs(servidor - Date.now())
   }
 
   const load = async () => {
@@ -182,5 +188,5 @@ export function useAgenda() {
     return response.data
   }
 
-  return { data, patients, professionals, podeEmitirRecibo, isLoading, error, load, refresh, createAgendamento, updateAgendamento, deleteAgendamento }
+  return { data, patients, professionals, podeEmitirRecibo, relogioOffsetMs, isLoading, error, load, refresh, createAgendamento, updateAgendamento, deleteAgendamento }
 }

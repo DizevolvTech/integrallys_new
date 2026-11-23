@@ -18,6 +18,7 @@ export type RelatorioTipo =
   | 'aniversariantes'
   | 'desempenho'
   | 'desempenho-detalhe'
+  | 'tempo-espera'
 
 export interface RelatorioTab {
   id: string
@@ -50,6 +51,8 @@ export const PERFIS_POR_TIPO: Record<RelatorioTipo, Perfil[]> = {
   desempenho: [...GESTAO_E_RECEPCAO, 'especialista'],
   // Lista dos registros atrás de cada cartão do Desempenho geral: mesmo público do resumo.
   'desempenho-detalhe': [...GESTAO_E_RECEPCAO, 'especialista'],
+  // Espera do paciente (check-in → início do atendimento): visão de gestão e da recepção que opera o check-in.
+  'tempo-espera': GESTAO_E_RECEPCAO,
 }
 
 /** Tipos em que o especialista é forçado ao próprio profissional_id. */
@@ -65,6 +68,7 @@ export const TIPOS_DO_PROPRIO_ESPECIALISTA: RelatorioTipo[] = [
 
 const ABAS_GESTAO: RelatorioTab[] = [
   { id: 'desempenho', label: 'Desempenho geral' },
+  { id: 'tempo-espera', label: 'Tempo de espera' },
   { id: 'consultas', label: 'Consultas' },
   { id: 'agendamentos', label: 'Agendamentos' },
   { id: 'justificativas', label: 'Justificativas de cancelamento' },
@@ -86,6 +90,7 @@ const ABAS_GESTAO: RelatorioTab[] = [
 
 const ABAS_RECEPCAO: RelatorioTab[] = [
   { id: 'desempenho', label: 'Desempenho geral' },
+  { id: 'tempo-espera', label: 'Tempo de espera' },
   { id: 'consultas', label: 'Consultas' },
   { id: 'agendamentos', label: 'Agendamentos' },
   { id: 'justificativas', label: 'Justificativas de cancelamento' },

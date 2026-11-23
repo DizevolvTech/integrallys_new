@@ -46,6 +46,8 @@ export interface AgendaSlot {
   dataPagamentoAnterior?: string
   foraJanela?: boolean
   motivoEncaixe?: string
+  checkinEm?: string
+  atendimentoInicioEm?: string
 }
 
 export interface WeekDayData {

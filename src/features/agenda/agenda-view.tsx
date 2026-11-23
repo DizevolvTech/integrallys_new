@@ -62,6 +62,8 @@ import {
 import { useAgendaCalendar } from './hooks/use-agenda-calendar'
 import { useAgendaActions } from './hooks/use-agenda-actions'
 import { AgendaDayView } from './components/agenda-day-view'
+import { EsperaChip } from './components/espera-chip'
+import { useRelogioEspera } from './hooks/use-relogio-espera'
 import { AgendaCombinadaList } from './components/agenda-combinada-list'
 import { AgendaWeekView } from './components/agenda-week-view'
 import { AgendaMonthView } from './components/agenda-month-view'
@@ -111,11 +113,18 @@ export function AgendaView() {
     load: reloadAgenda,
     refresh: refreshAgenda,
     podeEmitirRecibo,
+    relogioOffsetMs,
   } = useAgenda()
   const api = useApi()
   const { data: bloqueios, create: createBloqueio, remove: removeBloqueio, reload: reloadBloqueios } = useAgendaBloqueios()
   // Horários livres cobertos por bloqueio (férias, folga, horário parcial) não aparecem na grade nem no seletor.
   const data = useMemo(() => removerSlotsBloqueados(agendaBruta, bloqueios), [agendaBruta, bloqueios])
+  // Um único relógio por tela para os cronômetros de espera (só roda enquanto há paciente em check-in).
+  const haPacienteEmCheckin = useMemo(
+    () => agendaBruta.some((i) => i.checkinEm && normalizeAgendaStatus(i.status) === 'Check-in'),
+    [agendaBruta],
+  )
+  const agoraMs = useRelogioEspera(haPacienteEmCheckin, relogioOffsetMs)
   const { data: pacientes, createPaciente, updatePaciente, units: pacienteUnits } = usePacientes()
   const { data: waitlistItems, createItem: createWaitlistItem, marcarAgendado: marcarListaEsperaAgendado } = useListaEspera()
   const { createTarefa } = useTarefas()
@@ -1034,6 +1043,7 @@ export function AgendaView() {
                 currentDate={calendar.currentDate}
                 selectedProfessional={profissionalDosBloqueios}
                 showDaySlots={showDaySlots}
+                agoraMs={agoraMs}
                 onOpenSlotModal={actions.openSlotModal}
                 onOpenCharge={actions.handleOpenCharge}
                 onOpenRecibo={podeEmitirRecibo ? (slot) => setReciboAgendamentoId(slot.id) : undefined}
@@ -1117,6 +1127,7 @@ export function AgendaView() {
             )}
             {activeTab === 'ambas' && !isLoading && calendar.viewMode === 'dia' && (
               <AgendaCombinadaList
+                agoraMs={agoraMs}
                 groups={[
                   {
                     key: 'dia',
@@ -1128,6 +1139,7 @@ export function AgendaView() {
             )}
             {activeTab === 'ambas' && !isLoading && calendar.viewMode === 'semana' && (
               <AgendaCombinadaList
+                agoraMs={agoraMs}
                 groups={calendar.weekAgendaGroups.map((group) => ({
                   key: group.formattedDay,
                   label: `${group.label} · ${group.formattedDay}`,
@@ -1183,11 +1195,14 @@ export function AgendaView() {
                             {item.data} às {item.hora}
                           </p>
                         </div>
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs ${getStatusBadgeTone(item.status)}`}
-                        >
-                          {item.status}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {item.paciente && <EsperaChip slot={item} agoraMs={agoraMs} />}
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs ${getStatusBadgeTone(item.status)}`}
+                          >
+                            {item.status}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-3">
                         {podeIniciarAtendimento &&

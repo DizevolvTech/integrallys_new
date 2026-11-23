@@ -1,3 +1,4 @@
+import { formatarMinutos } from '@/lib/tempo-espera'
 import { formatData, formatDataHora, ROTULO_FORMA } from '@/features/relatorios/format'
 import { gerarPdf } from '@/features/relatorios/exportacao/pdf'
 import { gerarXlsx, type CelulaXlsx, type PlanilhaXlsx } from '@/features/relatorios/exportacao/xlsx'
@@ -33,6 +34,8 @@ export function textoDaCelula(coluna: ColunaRelatorio, valor: unknown): string {
       return ROTULO_BADGE[String(valor)] ?? String(valor)
     case 'dias':
       return `${Number(valor)} d`
+    case 'minutos':
+      return formatarMinutos(Number(valor))
     case 'dinheiro':
       return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     case 'pct':
