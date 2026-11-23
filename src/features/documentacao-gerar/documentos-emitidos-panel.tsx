@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, ExternalLink, FileText, MessageCircle, RefreshCw } from 'lucide-react'
+import { FileText, MessageCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DocumentoEmitidoAcoes } from './documento-emitido-acoes'
 import { useApi } from '@/hooks/use-api'
 
 interface DocumentoEmitido {
@@ -92,7 +93,7 @@ export function DocumentosEmitidosPanel({ agendamentoId, pacienteTelefone }: Pro
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-11 w-11 sm:h-8 sm:w-8"
           onClick={() => setRefreshKey((k) => k + 1)}
           title="Atualizar"
         >
@@ -123,37 +124,13 @@ export function DocumentosEmitidosPanel({ agendamentoId, pacienteTelefone }: Pro
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                {doc.pdf_url && (
-                  <>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      title="Baixar PDF"
-                    >
-                      <a href={doc.pdf_url} target="_blank" rel="noopener noreferrer">
-                        <Download className="h-3.5 w-3.5" />
-                      </a>
-                    </Button>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      title="Abrir em nova aba"
-                    >
-                      <a href={doc.pdf_url} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    </Button>
-                  </>
-                )}
+                <DocumentoEmitidoAcoes documentoId={doc.id} />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-11 w-11 sm:h-8 sm:w-8"
                   title="Enviar por WhatsApp"
+                  aria-label="Enviar por WhatsApp"
                   onClick={() => enviarWhatsapp(doc)}
                 >
                   <MessageCircle className="h-3.5 w-3.5" />

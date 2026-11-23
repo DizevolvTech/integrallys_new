@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
-import { requirePermission } from '@/lib/authz'
+import { can } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
 /**
@@ -20,8 +20,12 @@ import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/reques
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
-  const denied = await requirePermission(session.userId, 'documentacao', 'read')
-  if (denied) return denied
+  // Documentação lê tudo; quem só tem Pacientes (recepção) lê os documentos emitidos de UM paciente.
+  const podeDocs = await can(session.userId, 'documentacao', 'read')
+  const pacienteDoFiltro = new URL(request.url).searchParams.get('paciente_id')
+  if (!podeDocs && !(pacienteDoFiltro && (await can(session.userId, 'pacientes', 'read')))) {
+    return serverErrorResponse('Acesso negado', 'FORBIDDEN', 403)
+  }
 
   const scopedUnit = await getScopedUnitId(session)
   const unidadeId = scopedUnit.error ? null : scopedUnit.unidadeId
@@ -128,5 +132,5 @@ export async function GET(request: NextRequest) {
     tipo: String(row.tipo ?? ''),
   }))
 
-  return NextResponse.json({ data: payload, templates: templatesList, meta: session })
+  return NextResponse.json({ data: payload, templates: podeDocs ? templatesList : [], meta: session })
 }
