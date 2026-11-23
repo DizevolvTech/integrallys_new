@@ -64,7 +64,7 @@ export function useAgendaActions({
   const [selectedSlot, setSelectedSlot] = useState<AgendaSlot | null>(null)
 
   const openSlotModal = (
-    modal: Extract<AgendaModal, 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente' | 'chamar-especialista' | 'estornar-recebimento'>,
+    modal: Extract<AgendaModal, 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente' | 'documentos' | 'chamar-especialista' | 'estornar-recebimento'>,
     slot: AgendaSlot,
   ) => {
     setSelectedSlot(slot)

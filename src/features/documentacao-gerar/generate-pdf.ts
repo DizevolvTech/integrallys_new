@@ -25,13 +25,13 @@ export async function gerarPdfDoElemento(element: HTMLElement, filename: string)
 
   const imgData = canvas.toDataURL('image/jpeg', 0.92)
 
-  // Paginação simples: corta a imagem total se exceder uma página
+  // Paginação simples: corta a imagem total se exceder uma página (sobra de até 1 mm não vira página em branco)
   let heightLeft = imgHeight
   let position = 0
   pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
   heightLeft -= pageHeight
 
-  while (heightLeft > 0) {
+  while (heightLeft > 1) {
     position = heightLeft - imgHeight
     pdf.addPage()
     pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
@@ -53,18 +53,33 @@ export function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
-/** Abre o documento renderizado numa janela própria e dispara a impressão. Retorna false se o pop-up foi bloqueado. */
+/**
+ * Imprime só o documento renderizado, num quadro oculto (sem abrir janela, então o bloqueador de pop-up não atrapalha
+ * nem depois de uma chamada assíncrona). Retorna false se o navegador não deu acesso ao quadro.
+ */
 export function imprimirElemento(element: HTMLElement): boolean {
-  const win = window.open('', '_blank', 'width=900,height=1200')
-  if (!win) return false
-  win.document.write(
-    `<!doctype html><html><head><title>Documento</title></head><body style="margin:0">${element.outerHTML}</body></html>`,
+  const frame = document.createElement('iframe')
+  frame.setAttribute('aria-hidden', 'true')
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  document.body.appendChild(frame)
+  const doc = frame.contentDocument
+  const win = frame.contentWindow
+  if (!doc || !win) {
+    frame.remove()
+    return false
+  }
+  doc.open()
+  doc.write(
+    `<!doctype html><html><head><title>Documento</title><style>@page{size:A4;margin:0}body{margin:0}</style></head><body>${element.outerHTML}</body></html>`,
   )
-  win.document.close()
-  win.focus()
-  setTimeout(() => {
+  doc.close()
+  const imprimir = () => {
+    win.focus()
     win.print()
-    win.close()
-  }, 300)
+    setTimeout(() => frame.remove(), 1000)
+  }
+  const imagens = Array.from(doc.images).filter((img) => !img.complete)
+  if (imagens.length === 0) setTimeout(imprimir, 100)
+  else void Promise.all(imagens.map((img) => new Promise((ok) => { img.onload = img.onerror = ok }))).then(imprimir)
   return true
 }

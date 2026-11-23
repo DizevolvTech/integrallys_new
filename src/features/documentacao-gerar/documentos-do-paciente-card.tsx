@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, ExternalLink, FileText, MessageCircle } from 'lucide-react'
+import { FileText, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DocumentoEmitidoAcoes } from './documento-emitido-acoes'
 import { useApi } from '@/hooks/use-api'
 import { isForbiddenError } from '@/lib/api-client'
 
@@ -151,12 +152,12 @@ export function DocumentosDoPacienteCard({
         ) : (
           <ul className="divide-y divide-app-border dark:divide-app-border-dark -my-2">
             {documentos.map((doc) => (
-              <li key={doc.id} className="flex items-center gap-3 py-3">
+              <li key={doc.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
                 <div className="h-9 w-9 rounded-lg bg-app-bg-secondary dark:bg-app-hover flex items-center justify-center shrink-0">
                   <FileText className="h-4 w-4 text-app-text-secondary dark:text-white/70" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium dark:text-white truncate">
+                <div className="min-w-0 flex-1 basis-40">
+                  <div className="text-sm font-medium dark:text-white break-words sm:truncate">
                     {doc.template_nome}
                   </div>
                   <div className="text-xs text-app-text-muted">
@@ -164,38 +165,14 @@ export function DocumentosDoPacienteCard({
                     {doc.disponivel_no_portal && ' · no portal do paciente'}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {doc.pdf_url && (
-                    <>
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        title="Baixar PDF"
-                      >
-                        <a href={doc.pdf_url} target="_blank" rel="noopener noreferrer">
-                          <Download className="h-3.5 w-3.5" />
-                        </a>
-                      </Button>
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        title="Abrir em nova aba"
-                      >
-                        <a href={doc.pdf_url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      </Button>
-                    </>
-                  )}
+                <div className="ml-auto flex shrink-0 items-center gap-1">
+                  <DocumentoEmitidoAcoes documentoId={doc.id} />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-11 w-11 sm:h-8 sm:w-8"
                     title="Enviar WhatsApp"
+                    aria-label="Enviar WhatsApp"
                     onClick={() => enviarWhatsapp(doc)}
                   >
                     <MessageCircle className="h-3.5 w-3.5" />

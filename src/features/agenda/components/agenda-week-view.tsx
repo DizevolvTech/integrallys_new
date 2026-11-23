@@ -23,7 +23,7 @@ interface AgendaWeekViewProps {
   weekAgendaGroups: ReturnType<typeof useAgendaCalendar>['weekAgendaGroups']
   /** Alinha empty copy ao day view: todos/agendamentos vs filtro de status. */
   showDaySlots: boolean
-  onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes', slot: AgendaSlot) => void
+  onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes' | 'documentos', slot: AgendaSlot) => void
   onSetCurrentDate: (date: Date) => void
   bloqueios?: AgendaBloqueio[]
   bloqueiosProfissionais?: Array<{ id: string; nome: string }>
@@ -136,6 +136,7 @@ export function AgendaWeekView({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => onOpenSlotModal('detalhes', item)}>Visualizar</DropdownMenuItem>
+                            {item.paciente && <DropdownMenuItem onClick={() => onOpenSlotModal('documentos', item)}>Visualizar documentos</DropdownMenuItem>}
                             {normalizeAgendaStatus(item.status) !== 'Cancelado' && (
                               <DropdownMenuItem onClick={() => onOpenSlotModal('remarcar', item)}>Reagendar</DropdownMenuItem>
                             )}
