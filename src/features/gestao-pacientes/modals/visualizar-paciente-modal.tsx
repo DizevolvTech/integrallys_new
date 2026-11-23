@@ -8,7 +8,7 @@ import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ModalHeader } from '@/components/shared/modal-header'
-import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -107,6 +107,7 @@ export function VisualizarPacienteModal({
   const [activeTab, setActiveTab] = useState<'dados' | 'crm'>(initialTab)
   const [crmForm, setCrmForm] = useState<CrmFormState>(() => crmToForm(crm))
   const [isSaving, setIsSaving] = useState(false)
+  const [fotoAmpliada, setFotoAmpliada] = useState(false)
 
   // Reset ao abrir / trocar de paciente / receber novo crm
   useEffect(() => {
@@ -141,6 +142,7 @@ export function VisualizarPacienteModal({
   }
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden rounded-[24px] p-0">
         <ModalHeader
@@ -151,21 +153,20 @@ export function VisualizarPacienteModal({
 
         <div className="custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5" data-testid="visualizar-paciente-corpo">
           <div className="flex items-center gap-3">
-            <div className="h-16 w-16 rounded-full overflow-hidden border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-hover shrink-0">
-              {paciente?.photoUrl ? (
-                <Image
-                  src={paciente.photoUrl}
-                  alt={paciente?.name || 'Paciente'}
-                  fill
-                  unoptimized
-                  className="object-cover"
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-app-text-muted text-xs font-semibold">
-                  {(paciente?.name || 'Paciente').split(' ').map((part) => part[0]).slice(0, 2).join('')}
-                </div>
-              )}
-            </div>
+            {paciente?.photoUrl ? (
+              <button
+                type="button"
+                onClick={() => setFotoAmpliada(true)}
+                aria-label="Ampliar foto do paciente"
+                className="relative h-16 w-16 rounded-full overflow-hidden border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-hover shrink-0 cursor-zoom-in"
+              >
+                <Image src={paciente.photoUrl} alt={paciente.name || 'Paciente'} fill unoptimized className="object-cover" />
+              </button>
+            ) : (
+              <div className="relative h-16 w-16 rounded-full overflow-hidden border border-app-border dark:border-app-border-dark bg-app-bg-secondary dark:bg-app-hover shrink-0 flex items-center justify-center text-app-text-muted text-xs font-semibold">
+                {(paciente?.name || 'Paciente').split(' ').map((part) => part[0]).slice(0, 2).join('')}
+              </div>
+            )}
             <div>
               <p className="text-base font-normal text-app-text-primary dark:text-white">{paciente?.name || '-'}</p>
               <p className="text-sm text-app-text-secondary dark:text-white/70">CPF: {paciente?.cpf || '-'}</p>
@@ -294,5 +295,17 @@ export function VisualizarPacienteModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    {paciente?.photoUrl && (
+      <Dialog open={isOpen && fotoAmpliada} onOpenChange={setFotoAmpliada}>
+        <DialogContent className="max-w-[min(92vw,34rem)] overflow-hidden rounded-[24px] p-0">
+          <DialogTitle className="sr-only">Foto de {paciente.name || 'paciente'}</DialogTitle>
+          <DialogDescription className="sr-only">Foto ampliada do paciente</DialogDescription>
+          <div className="relative aspect-square w-full">
+            <Image src={paciente.photoUrl} alt={paciente.name || 'Paciente'} fill unoptimized className="object-cover" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   )
 }

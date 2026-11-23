@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/features/documentacao-gerar', () => ({ DocumentosDoPacienteCard: () => <div>docs</div> }))
@@ -27,5 +27,26 @@ describe('Visualizar paciente: rolagem interna', () => {
     // overflow-hidden no conteúdo é o que cortava o final do modal sem barra
     expect(dialog.className).not.toMatch(/overflow-y-auto/)
     expect(corpo.contains(screen.getByText('Salvar estágio'))).toBe(true)
+  })
+})
+
+describe('Visualizar paciente: foto', () => {
+  const comFoto = { id: 'p2', name: 'Camila', cpf: '1', photoUrl: 'http://x/foto.jpg' } as never
+
+  it('com foto, abre o modal do paciente e a foto fica contida no avatar (relative)', () => {
+    render(<VisualizarPacienteModal isOpen onClose={() => {}} paciente={comFoto} />)
+    expect(screen.getByText('Visualizar paciente')).toBeTruthy()
+    const botao = screen.getByRole('button', { name: 'Ampliar foto do paciente' })
+    // sem "relative" a imagem (fill = absolute) cobria o modal inteiro
+    expect(botao.className).toContain('relative')
+    expect(botao.className).toContain('overflow-hidden')
+  })
+
+  it('a foto só abre ampliada ao tocar nela', () => {
+    render(<VisualizarPacienteModal isOpen onClose={() => {}} paciente={comFoto} />)
+    expect(screen.queryByText('Foto ampliada do paciente')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Ampliar foto do paciente' }))
+    expect(screen.getByText('Foto ampliada do paciente')).toBeTruthy()
+    expect(screen.getByText('Visualizar paciente')).toBeTruthy()
   })
 })
