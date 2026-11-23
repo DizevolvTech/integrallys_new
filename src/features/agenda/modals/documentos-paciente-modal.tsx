@@ -17,7 +17,7 @@ interface DocumentosPacienteModalProps {
 export function DocumentosPacienteModal({ open, onOpenChange, pacienteId, pacienteNome, pacienteTelefone }: DocumentosPacienteModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" className="bg-app-card dark:bg-app-card-dark">
+      <DialogContent size="lg" className="grid-cols-[minmax(0,1fr)] bg-app-card dark:bg-app-card-dark">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-normal text-app-text-primary dark:text-white">
             <FileText className="h-5 w-5 text-[var(--app-primary)]" />
@@ -25,7 +25,7 @@ export function DocumentosPacienteModal({ open, onOpenChange, pacienteId, pacien
           </DialogTitle>
           <DialogDescription>{pacienteNome ? `Documentos de ${pacienteNome}` : 'Documentos do paciente'}</DialogDescription>
         </DialogHeader>
-        <div className="p-6 pt-0">
+        <div className="min-w-0 p-6 pt-0">
           {open && pacienteId ? (
             <DocumentosDoPacienteCard pacienteId={pacienteId} pacienteTelefone={pacienteTelefone} limit={50} />
           ) : (
