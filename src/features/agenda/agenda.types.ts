@@ -13,6 +13,7 @@ export type AgendaModal =
   | 'estornar-recebimento'
   | 'visualizar'
   | 'ficha-paciente'
+  | 'documentos'
   | 'chamar-especialista'
   | null
 

@@ -36,7 +36,7 @@ interface AgendaDayViewProps {
   selectedProfessional: string
   /** Filtro atual é "todos"/"agendamentos" — decide o texto do estado vazio. */
   showDaySlots: boolean
-  onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente' | 'estornar-recebimento', slot: AgendaSlot) => void
+  onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente' | 'documentos' | 'estornar-recebimento', slot: AgendaSlot) => void
   onOpenCharge: (slot: AgendaSlot) => void
   /** Item 28: recibo ou NF — só aparece com a consulta quitada. */
   onOpenRecibo?: (slot: AgendaSlot) => void
@@ -302,6 +302,7 @@ export function AgendaDayView({
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => onOpenSlotModal('visualizar', item)}>Visualizar detalhes</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onOpenSlotModal('ficha-paciente', item)}>Ficha do paciente</DropdownMenuItem>
+                            {item.paciente && <DropdownMenuItem onClick={() => onOpenSlotModal('documentos', item)}>Visualizar documentos</DropdownMenuItem>}
                             <DropdownMenuItem onClick={() => onOpenSlotModal('detalhes', item)}>Dados do agendamento</DropdownMenuItem>
                             {normalizeAgendaStatus(item.status) !== 'Cancelado' && (
                               <DropdownMenuItem onClick={() => onOpenSlotModal('remarcar', item)}>Reagendar</DropdownMenuItem>

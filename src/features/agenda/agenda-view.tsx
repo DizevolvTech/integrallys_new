@@ -84,6 +84,7 @@ import {
   RemarcarConsultaModal,
   TarefasModal,
   VisualizarConsultaModal,
+  DocumentosPacienteModal,
   CompromissoDetalhesModal,
 } from './modals'
 import { NovoPacienteModal, EditarPacienteModal } from '@/features/gestao-pacientes/modals'
@@ -1665,6 +1666,15 @@ export function AgendaView() {
           if (!v) actions.setActiveModal(null)
         }}
         item={selectedAgendaItem}
+      />
+      <DocumentosPacienteModal
+        open={actions.activeModal === 'documentos'}
+        onOpenChange={(v) => {
+          if (!v) actions.setActiveModal(null)
+        }}
+        pacienteId={actions.selectedSlot ? (findPacienteId(actions.selectedSlot) ?? null) : null}
+        pacienteNome={actions.selectedSlot?.paciente}
+        pacienteTelefone={pacientes.find((p) => p.id === (actions.selectedSlot && findPacienteId(actions.selectedSlot)))?.telefone}
       />
       <EditarPacienteModal
         isOpen={actions.activeModal === 'ficha-paciente'}
