@@ -24,6 +24,7 @@ const RPC_POR_TIPO: Record<RelatorioTipo, string> = {
   aniversariantes: 'rel_aniversariantes',
   desempenho: 'rel_desempenho',
   'desempenho-detalhe': 'rel_desempenho_detalhe',
+  'tempo-espera': 'rel_tempo_espera',
 }
 
 interface ResultadoRpc {

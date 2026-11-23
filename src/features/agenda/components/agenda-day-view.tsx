@@ -27,6 +27,7 @@ import {
 } from '../agenda.utils'
 import { bloqueiosDoDia, corDoTipoBloqueio, isoDateLocal, rotuloDoBloqueio, textoDoBloqueio } from '../bloqueios.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
+import { EsperaChip } from './espera-chip'
 
 interface AgendaDayViewProps {
   dayFilteredItems: AgendaSlot[]
@@ -47,6 +48,8 @@ interface AgendaDayViewProps {
   /** Reabre o atendimento já em andamento (sem mudar o status). */
   onContinueAtendimento?: (slot: AgendaSlot) => void
   onRemoveBloqueio?: (bloqueio: AgendaBloqueio) => void
+  /** Relógio único da tela (ms, corrigido pelo servidor) para o cronômetro de espera. */
+  agoraMs?: number
 }
 
 export function AgendaDayView({
@@ -65,6 +68,7 @@ export function AgendaDayView({
   onStartAtendimento,
   onContinueAtendimento,
   onRemoveBloqueio,
+  agoraMs = 0,
 }: AgendaDayViewProps) {
   const router = useRouter()
 
@@ -195,6 +199,7 @@ export function AgendaDayView({
                           <span className="app-status-neutral px-2 py-0.5 rounded text-xs font-normal whitespace-nowrap">
                             {item.procedimento ?? item.tipo ?? 'Consulta'}
                           </span>
+                          <EsperaChip slot={item} agoraMs={agoraMs} />
                           {item.foraJanela && (
                             <span
                               className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 whitespace-nowrap"

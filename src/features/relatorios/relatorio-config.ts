@@ -1,8 +1,9 @@
 import { formatMoeda, ROTULO_FORMA } from '@/features/relatorios/format'
 import { formatarMargemPct } from '@/lib/relatorios/margem'
+import { formatarMinutos } from '@/lib/tempo-espera'
 import type { FonteOpcoes } from '@/features/relatorios/hooks/use-opcoes-filtro'
 
-export type TipoColuna = 'texto' | 'data' | 'dataHora' | 'dinheiro' | 'pct' | 'numero' | 'badge' | 'forma' | 'dias'
+export type TipoColuna = 'texto' | 'data' | 'dataHora' | 'dinheiro' | 'pct' | 'numero' | 'badge' | 'forma' | 'dias' | 'minutos'
 
 export interface ColunaRelatorio {
   key: string
@@ -692,6 +693,33 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { label: 'Concluídas', valor: String(num(t.concluidas)), tom: 'sucesso', detalhe: 'concluidas' },
       { label: 'Atrasadas', valor: String(num(t.atrasadas)), tom: 'perigo', detalhe: 'atrasadas' },
     ],
+  },
+  'tempo-espera': {
+    mobile: { titulo: 'paciente', valor: 'mediaMin' },
+    descricao: 'Quanto tempo os pacientes esperam, do check-in na recepção até o início do atendimento pelo especialista.',
+    colunas: [
+      { key: 'paciente', label: 'Paciente' },
+      { key: 'atendimentos', label: 'Atendimentos medidos', tipo: 'numero', direita: true },
+      { key: 'mediaMin', label: 'Espera média', tipo: 'minutos', direita: true },
+      { key: 'maiorMin', label: 'Maior espera', tipo: 'minutos', direita: true },
+    ],
+    filtros: [{ key: 'q', label: 'Buscar paciente', tipo: 'busca' }, ...periodo('ha30dias', 'hoje'), unidade, profissional()],
+    cartoes: (t) => [
+      { label: `Espera média geral (${num(t.qtd)} ${num(t.qtd) === 1 ? 'atendimento' : 'atendimentos'})`, valor: formatarMinutos(t.mediaMin as number | null), tom: 'alerta' },
+      { label: 'Maior espera', valor: formatarMinutos(t.maiorMin as number | null), tom: 'neutro' },
+    ],
+    resumos: (t) => [
+      {
+        titulo: 'Espera média por especialista',
+        vazio: 'Nenhum atendimento com check-in e início registrados no período.',
+        itens: lista(t.porEspecialista).map((i) => ({
+          nome: String(i.nome),
+          valor: `${formatarMinutos(i.mediaMin as number)} · ${plural(num(i.qtd), 'atendimento', 'atendimentos')}`,
+        })),
+      },
+    ],
+    legenda:
+      'Espera = início do atendimento − check-in, só nos atendimentos que têm os dois registros (agendamentos antigos, sem check-in registrado, não entram). A lista traz um paciente por linha, da maior para a menor espera média.',
   },
   desempenho: {
     descricao: 'Números reais da agenda no período: atendimentos, cancelamentos, faltas e pacientes atendidos.',

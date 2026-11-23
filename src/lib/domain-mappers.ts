@@ -63,6 +63,8 @@ export function mapAgendaItem(row: Record<string, unknown>) {
     tipoEncaixe: row.tipo_encaixe ? String(row.tipo_encaixe) : undefined,
     foraJanela: row.fora_janela === true,
     motivoEncaixe: row.motivo_encaixe ? String(row.motivo_encaixe) : undefined,
+    checkinEm: row.checkin_em ? String(row.checkin_em) : undefined,
+    atendimentoInicioEm: row.atendimento_inicio_em ? String(row.atendimento_inicio_em) : undefined,
   }
 }
 

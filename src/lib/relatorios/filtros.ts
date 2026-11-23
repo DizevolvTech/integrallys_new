@@ -49,6 +49,7 @@ const CHAVES: Record<RelatorioTipo, Record<string, Regra>> = {
   },
   aniversariantes: { q: 'texto', data: 'data', modo: 'texto', unidade_id: 'uuid', enviado: 'texto' },
   desempenho: { inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid' },
+  'tempo-espera': { q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid' },
   'desempenho-detalhe': { inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid', metrica: 'texto' },
 }
 

@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import type { ColunaRelatorio } from '@/features/relatorios/relatorio-config'
+import { formatarMinutos } from '@/lib/tempo-espera'
 import { formatData, formatDataHora, formatMoeda, formatPct, ROTULO_FORMA } from '@/features/relatorios/format'
 
 const TOM_BADGE: Array<[RegExp, string]> = [
@@ -27,6 +28,8 @@ export function RelatorioCelula({ coluna, valor }: { coluna: ColunaRelatorio; va
       return <>{Number(valor).toLocaleString('pt-BR')}</>
     case 'dias':
       return <>{`${Number(valor)} d`}</>
+    case 'minutos':
+      return <>{formatarMinutos(valor as number)}</>
     case 'forma':
       return <>{ROTULO_FORMA[String(valor)] ?? String(valor)}</>
     case 'badge': {

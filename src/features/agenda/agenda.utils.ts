@@ -32,6 +32,8 @@ export function mapAgendaItemToSlot(item: AgendaItem): AgendaSlot {
     dataPagamentoAnterior: item.dataPagamentoAnterior,
     foraJanela: item.foraJanela,
     motivoEncaixe: item.motivoEncaixe,
+    checkinEm: item.checkinEm,
+    atendimentoInicioEm: item.atendimentoInicioEm,
   }
 }
 

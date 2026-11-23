@@ -3,10 +3,13 @@
 import { EmptyState } from '@/components/shared/empty-state'
 import type { AgendaSlot } from '../agenda.types'
 import { getStatusBadgeTone, getStatusCardTone } from '../agenda.utils'
+import { EsperaChip } from './espera-chip'
 
 interface AgendaCombinadaListProps {
   /** Um grupo por dia (visão do dia = 1 grupo; semana = 7). */
   groups: Array<{ key: string; label: string; items: AgendaSlot[] }>
+  /** Relógio único da tela (ms, corrigido pelo servidor) para o cronômetro de espera. */
+  agoraMs?: number
 }
 
 function isPersonal(item: AgendaSlot) {
@@ -14,7 +17,7 @@ function isPersonal(item: AgendaSlot) {
 }
 
 /** Visão simultânea (somente leitura): atendimentos + compromissos pessoais na mesma linha do tempo. */
-export function AgendaCombinadaList({ groups }: AgendaCombinadaListProps) {
+export function AgendaCombinadaList({ groups, agoraMs = 0 }: AgendaCombinadaListProps) {
   const hasAny = groups.some((group) => group.items.length > 0)
   if (!hasAny) {
     return <EmptyState title="Nenhum atendimento ou compromisso neste período." />
@@ -55,6 +58,7 @@ export function AgendaCombinadaList({ groups }: AgendaCombinadaListProps) {
                     {!personal && (item.procedimento ?? item.tipo) ? ` · ${item.procedimento ?? item.tipo}` : ''}
                   </p>
                   <p className="text-xs text-app-text-secondary dark:text-app-text-muted">{item.profissional}</p>
+                  {!personal && <EsperaChip slot={item} agoraMs={agoraMs} />}
                   {!personal && (
                     <span className={`rounded px-2 py-0.5 text-xs ${getStatusBadgeTone(item.status)}`}>{item.status}</span>
                   )}

@@ -217,7 +217,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   let query = supabase
     .from('agendamentos')
     .select(
-      'id,paciente_id,profissional_id,procedimento_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe,criado_por_id,compromisso_grupo_id',
+      'id,paciente_id,profissional_id,procedimento_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe,criado_por_id,compromisso_grupo_id,checkin_em,atendimento_inicio_em',
     )
     .order('data_agendamento', { ascending: true })
     .order('horario_inicio', { ascending: true })
@@ -363,6 +363,8 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
     }),
     meta: {
       ...session,
+      // Relógio do servidor: o cronômetro de espera não depende da hora do computador de quem olha.
+      serverNow: new Date().toISOString(),
       podeEmitirRecibo: perfilPodeEmitirRecibo(session?.role),
       patients: (patientOptionsData ?? []).map((row) => ({
         id: String(row.id ?? ''),
