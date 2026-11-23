@@ -106,7 +106,8 @@ cross join (values
   "cabecalho": { "titulo": "ENCAMINHAMENTO", "logo": true },
   "secoes": [
     { "tipo": "paragrafo", "conteudo": "Encaminho o(a) paciente #CLIENTE_NOME# para avaliação e/ou tratamento em:" },
-    { "tipo": "campo_texto", "label": "Especialidade de destino", "placeholder": "Ex.: Liberação Miofascial", "obrigatorio": true },
+    { "tipo": "campo_texto", "label": "Especialidade de destino", "placeholder": "Ex.: Liberação Miofascial", "obrigatorio": true, "opcoes": ["Qualquer especialidade"] },
+    { "tipo": "campo_texto", "label": "Profissional recomendado", "opcoes": ["À escolha do paciente"], "opcoes_profissionais": true, "valor_padrao": "À escolha do paciente" },
     { "tipo": "campo_texto_longo", "label": "Motivo do encaminhamento" },
     { "tipo": "paragrafo", "conteudo": "#CLINICA_CIDADE_UF#, #DATA_ATUAL#." }
   ],

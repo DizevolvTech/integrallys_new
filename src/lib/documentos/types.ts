@@ -34,6 +34,10 @@ export interface SecaoCampoTexto {
   placeholder?: string
   obrigatorio?: boolean
   valor_padrao?: string
+  /** Respostas prontas: viram botões que preenchem o campo (ex.: "Qualquer especialidade"). */
+  opcoes?: string[]
+  /** Campo vira uma lista com os especialistas da clínica (mais as `opcoes`), ex.: "Profissional recomendado". */
+  opcoes_profissionais?: boolean
 }
 export interface SecaoCampoTextoLongo {
   tipo: 'campo_texto_longo'

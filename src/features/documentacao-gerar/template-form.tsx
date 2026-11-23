@@ -16,6 +16,7 @@ import type {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { CampoTextoOpcoes } from './campo-texto-opcoes'
 import type {
   ValoresForm,
   ValorChecklist,
@@ -108,13 +109,22 @@ function CampoRenderer({
             {s.label}
             {s.obrigatorio && <span className="text-[var(--app-danger-text)]"> *</span>}
           </label>
-          <Input
-            value={typeof valor === 'string' ? valor : s.valor_padrao ?? ''}
-            placeholder={s.placeholder}
-            onChange={(event) => onValorChange(event.target.value)}
-            disabled={disabled}
-            className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl"
-          />
+          {s.opcoes_profissionais || s.opcoes?.length ? (
+            <CampoTextoOpcoes
+              secao={s}
+              valor={typeof valor === 'string' ? valor : s.valor_padrao ?? ''}
+              onChange={onValorChange}
+              disabled={disabled}
+            />
+          ) : (
+            <Input
+              value={typeof valor === 'string' ? valor : s.valor_padrao ?? ''}
+              placeholder={s.placeholder}
+              onChange={(event) => onValorChange(event.target.value)}
+              disabled={disabled}
+              className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl"
+            />
+          )}
         </div>
       )
     }

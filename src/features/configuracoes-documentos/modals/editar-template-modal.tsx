@@ -643,6 +643,27 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
               onCheckedChange={(checked) => onChange({ ...secao, obrigatorio: checked })}
             />
           </label>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-xs text-app-text-secondary dark:text-white/60">
+              Respostas prontas (separe por ponto e vírgula)
+            </label>
+            <Input
+              value={(secao.opcoes ?? []).join('; ')}
+              placeholder="Ex.: Qualquer especialidade"
+              onChange={(event) => {
+                const opcoes = event.target.value.split(';').map((o) => o.trimStart())
+                onChange({ ...secao, opcoes: opcoes.some((o) => o.trim()) ? opcoes : undefined })
+              }}
+              className="h-10 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-lg"
+            />
+          </div>
+          <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-app-border dark:border-app-border-dark md:col-span-2">
+            <span className="text-sm dark:text-white/70">Escolher entre os profissionais da clínica</span>
+            <Switch
+              checked={Boolean(secao.opcoes_profissionais)}
+              onCheckedChange={(checked) => onChange({ ...secao, opcoes_profissionais: checked || undefined })}
+            />
+          </label>
         </div>
       )
 

@@ -485,6 +485,9 @@ function AnamneseSection({ onCancel, onNext }: { onCancel: () => void; onNext: (
             </div>
           </div>
 
+          {/* Campos personalizados: entre Medicamentos em uso e Diagnose (vídeo 23/11) */}
+          <CamposPersonalizadosAtendimento disabled={isReadOnly} />
+
           {/* Diagnose */}
           <div className="space-y-2">
             <Label className="font-normal text-app-text-primary dark:text-white">Diagnose *</Label>
@@ -553,10 +556,9 @@ function AnamneseSection({ onCancel, onNext }: { onCancel: () => void; onNext: (
               />
             </div>
           </div>
+          <CamposPersonalizadosAtendimento disabled={isReadOnly} />
         </>
       )}
-
-      <CamposPersonalizadosAtendimento disabled={isReadOnly} />
 
       {/* Actions */}
       <div className="flex items-center justify-between pt-6 border-t border-app-border dark:border-app-border-dark">
