@@ -1,5 +1,6 @@
 'use client'
 
+import { salvarComAviso } from './salvar-com-aviso'
 import {
   Bell,
   Building,
@@ -1181,7 +1182,7 @@ export function ConfiguracoesClinicaView() {
             <div className="flex justify-end">
               <Button
                 className="h-12 px-10 bg-app-primary hover:bg-app-primary-hover text-white font-normal rounded-xl shadow-lg shadow-[var(--app-primary)]/20"
-                onClick={() => void handleSaveClinica()}
+                onClick={() => void salvarComAviso(handleSaveClinica)}
               >
                 <Save className="h-4 w-4 mr-2" />
                 Salvar alterações
@@ -1296,7 +1297,7 @@ export function ConfiguracoesClinicaView() {
             <div className="flex justify-end">
               <Button
                 className="h-12 px-10 bg-app-primary hover:bg-app-primary-hover text-white font-normal rounded-xl shadow-lg shadow-[var(--app-primary)]/20"
-                onClick={() => void handleSaveSistema()}
+                onClick={() => void salvarComAviso(handleSaveSistema)}
               >
                 <Save className="h-4 w-4 mr-2" />
                 Salvar alterações
@@ -2526,7 +2527,7 @@ export function ConfiguracoesClinicaView() {
             {integracaoDialog.mode !== 'view' && (
               <Button
                 className="rounded-xl bg-app-primary text-white hover:bg-app-primary-hover"
-                onClick={() => void handleSaveIntegracao()}
+                onClick={() => void salvarComAviso(handleSaveIntegracao)}
               >
                 Salvar
               </Button>
@@ -2607,7 +2608,7 @@ export function ConfiguracoesClinicaView() {
             {cadastroDialog.mode !== 'view' && (
               <Button
                 className="rounded-xl bg-app-primary text-white hover:bg-app-primary-hover"
-                onClick={() => void handleSaveCadastro()}
+                onClick={() => void salvarComAviso(handleSaveCadastro)}
               >
                 Salvar
               </Button>
@@ -2637,7 +2638,7 @@ export function ConfiguracoesClinicaView() {
             </Button>
             <Button
               className="rounded-xl bg-[var(--app-danger-text)] text-white hover:opacity-90"
-              onClick={() => void handleDelete()}
+              onClick={() => void salvarComAviso(handleDelete)}
             >
               Excluir
             </Button>
