@@ -1,6 +1,7 @@
 'use client'
 
 import { salvarComAviso } from './salvar-com-aviso'
+import { UnidadeIdentidadeSelect } from './unidade-identidade-select'
 import {
   Bell,
   Building,
@@ -229,12 +230,14 @@ export function ConfiguracoesClinicaView() {
   const [maquininhaForm, setMaquininhaForm] = useState<MaquininhaConfig>(DEFAULT_MAQUININHA)
   const [isSavingPayment, setIsSavingPayment] = useState(false)
 
+  const [unidadeIdentidade, setUnidadeIdentidade] = useState<string | null>(null)
   const {
     data: identidadeData,
     isLoading: isIdentidadeLoading,
     save: saveIdentidade,
     uploadLogo,
-  } = useClinicaConfig()
+    precisaEscolherUnidade,
+  } = useClinicaConfig(unidadeIdentidade)
   const [identidadeForm, setIdentidadeForm] = useState({
     nome: '',
     cidade_uf: '',
@@ -249,18 +252,18 @@ export function ConfiguracoesClinicaView() {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   useEffect(() => {
-    if (!identidadeData) return
+    if (isIdentidadeLoading) return
     setIdentidadeForm({
-      nome: identidadeData.nome ?? '',
-      cidade_uf: identidadeData.cidade_uf ?? '',
-      endereco: identidadeData.endereco ?? '',
-      cep: identidadeData.cep ?? '',
-      telefone: identidadeData.telefone ?? '',
-      logo_url: identidadeData.logo_url ?? '',
-      cor_primaria: identidadeData.cor_primaria ?? '#000000',
-      cor_secundaria: identidadeData.cor_secundaria ?? '#ffffff',
+      nome: identidadeData?.nome ?? '',
+      cidade_uf: identidadeData?.cidade_uf ?? '',
+      endereco: identidadeData?.endereco ?? '',
+      cep: identidadeData?.cep ?? '',
+      telefone: identidadeData?.telefone ?? '',
+      logo_url: identidadeData?.logo_url ?? '',
+      cor_primaria: identidadeData?.cor_primaria ?? '#000000',
+      cor_secundaria: identidadeData?.cor_secundaria ?? '#ffffff',
     })
-  }, [identidadeData])
+  }, [identidadeData, isIdentidadeLoading])
 
   useEffect(() => {
     setMaquininhaForm(loadedMaquininha)
@@ -825,6 +828,10 @@ export function ConfiguracoesClinicaView() {
                 ela aparece como assinante ou rodapé.
               </p>
             </div>
+
+            {(precisaEscolherUnidade || unidadeIdentidade) && (
+              <UnidadeIdentidadeSelect value={unidadeIdentidade} onChange={setUnidadeIdentidade} />
+            )}
 
             {isIdentidadeLoading && (
               <p className="text-sm text-app-text-secondary dark:text-white/60">
