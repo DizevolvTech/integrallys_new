@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { FUSO_CLINICA } from '@/lib/fuso-clinica'
 import Link from 'next/link'
 import { CartaoMobile } from '@/components/shared/mobile-card'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -136,6 +137,7 @@ function RecepcaoDashboard({
     weekday: 'long',
     day: '2-digit',
     month: 'long',
+    timeZone: FUSO_CLINICA,
   }).format(new Date())
 
   return (
