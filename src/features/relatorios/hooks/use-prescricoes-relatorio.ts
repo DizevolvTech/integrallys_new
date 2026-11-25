@@ -7,7 +7,7 @@ import type {
   PrescricoesMeta,
 } from '@/app/api/relatorios/prescricoes/route'
 
-export type PrescricaoSituacaoFilter = 'todos' | 'ativa' | 'no_prazo' | 'limite_prazo' | 'vencido'
+export type PrescricaoSituacaoFilter = 'todos' | 'ativa' | 'no_prazo' | 'limite_prazo' | 'vencido' | 'sem_validade'
 
 export interface PrescricoesRelatorioFiltros {
   situacao: PrescricaoSituacaoFilter

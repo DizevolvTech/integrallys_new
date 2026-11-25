@@ -235,7 +235,8 @@ export async function GET(request: NextRequest) {
     if (situacaoFilter === 'limite_prazo') return ativasLimite
     if (situacaoFilter === 'vencido') return vencidas
     if (situacaoFilter === 'no_prazo' || situacaoFilter === 'sem_validade') {
-      return itens.filter((item) => item.situacao === situacaoFilter)
+      // Mesma conta do resumo de validade: só orçamentos em aberto (classe Ativa).
+      return ativas.filter((item) => item.situacao === situacaoFilter)
     }
     return itens
   })()

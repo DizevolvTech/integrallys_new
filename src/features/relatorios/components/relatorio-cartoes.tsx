@@ -50,7 +50,15 @@ export function RelatorioCartoes({ cartoes, onAbrirDetalhe }: CartoesProps) {
   )
 }
 
-export function RelatorioResumos({ resumos }: { resumos: ResumoLista[] }) {
+interface ResumosProps {
+  resumos: ResumoLista[]
+  /** Linhas com `chave` viram botões que chamam esta função. */
+  onSelecionar?: (chave: string) => void
+  /** Chave da linha em uso (destacada). */
+  selecionada?: string | null
+}
+
+export function RelatorioResumos({ resumos, onSelecionar, selecionada }: ResumosProps) {
   const comDados = resumos.filter((r) => r.itens.length > 0 || r.vazio)
   if (comDados.length === 0) return null
   return (
@@ -61,9 +69,23 @@ export function RelatorioResumos({ resumos }: { resumos: ResumoLista[] }) {
           {r.itens.length === 0 && <p className="text-sm text-app-text-muted">{r.vazio}</p>}
           <ul className="max-h-72 space-y-1 overflow-y-auto text-sm text-app-text-secondary dark:text-white/70">
             {r.itens.map((i, indice) => (
-              <li key={`${i.nome}-${indice}`} className="flex justify-between gap-3">
-                <span className="min-w-0 break-words">{i.nome}</span>
-                <span className="shrink-0 text-right">{i.valor}</span>
+              <li key={`${i.nome}-${indice}`}>
+                {i.chave && onSelecionar ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelecionar(i.chave as string)}
+                    title="Clique para filtrar a lista por esta situação"
+                    className={`flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-app-bg-secondary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-app-primary dark:hover:bg-app-hover ${selecionada === i.chave ? 'bg-app-bg-secondary/60 ring-1 ring-app-primary/50 dark:bg-app-hover' : ''}`}
+                  >
+                    <span className="min-w-0 break-words">{i.nome}</span>
+                    <span className="shrink-0 text-right">{i.valor}</span>
+                  </button>
+                ) : (
+                  <div className="flex justify-between gap-3">
+                    <span className="min-w-0 break-words">{i.nome}</span>
+                    <span className="shrink-0 text-right">{i.valor}</span>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

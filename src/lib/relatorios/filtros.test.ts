@@ -63,4 +63,10 @@ describe('montarFiltros', () => {
   it('especialista continua preso ao próprio profissional no detalhe do Desempenho', () => {
     expect(montarFiltros('desempenho-detalhe', qs(`profissional_id=${OUTRO_PROF}`), especialista).profissional_id).toBe(ESPECIALISTA)
   })
+
+  it('#1645: indicador (Consultas) e repasse (Meus repasses) passam; o especialista segue preso a si mesmo', () => {
+    expect(montarFiltros('consultas', qs('indicador=aberto'), admin)).toMatchObject({ indicador: 'aberto' })
+    const r = montarFiltros('repasse', qs(`repasse=falta&profissional_id=${OUTRO_PROF}`), especialista)
+    expect(r).toMatchObject({ repasse: 'falta', profissional_id: ESPECIALISTA })
+  })
 })

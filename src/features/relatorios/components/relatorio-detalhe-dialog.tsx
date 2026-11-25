@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { RelatorioCartoesMobile } from '@/features/relatorios/components/relatorio-cartoes-mobile'
+import { RelatorioCabecalho } from '@/features/relatorios/components/relatorio-cabecalho'
 import { RelatorioCelula } from '@/features/relatorios/components/relatorio-celula'
 import { useRelatorioTabela } from '@/features/relatorios/hooks/use-relatorio-tabela'
 import { descricaoDoPeriodo, type DetalheCartao } from '@/features/relatorios/relatorio-detalhes'
@@ -84,7 +85,7 @@ function ListaDoDetalhe({ tipo, filtros, colunas, config }: ListaProps) {
             <TableRow>
               {colunas.map((c) => (
                 <TableHead key={c.key} className={`whitespace-nowrap text-xs font-normal uppercase ${c.direita ? 'text-right' : ''}`}>
-                  {c.label}
+                  <RelatorioCabecalho coluna={c} />
                 </TableHead>
               ))}
             </TableRow>
@@ -101,7 +102,7 @@ function ListaDoDetalhe({ tipo, filtros, colunas, config }: ListaProps) {
               <TableRow key={linha.id}>
                 {colunas.map((c) => (
                   <TableCell key={c.key} className={`py-2.5 text-sm ${c.direita ? 'whitespace-nowrap text-right' : ''}`}>
-                    <RelatorioCelula coluna={c} valor={linha[c.key]} />
+                    <RelatorioCelula coluna={c} valor={linha[c.key]} linha={linha} />
                   </TableCell>
                 ))}
               </TableRow>
