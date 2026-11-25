@@ -11,9 +11,9 @@ const TOM_BADGE: Array<[RegExp, string]> = [
 
 const ROTULO_BADGE: Record<string, string> = { a_receber: 'A receber', atrasado: 'Atrasado', liquidado: 'Liquidado', entrada: 'Entrada', saida: 'Saída' }
 
-export function RelatorioCelula({ coluna, valor }: { coluna: ColunaRelatorio; valor: unknown }) {
+export function RelatorioCelula({ coluna, valor, linha }: { coluna: ColunaRelatorio; valor: unknown; linha?: Record<string, unknown> }) {
   const vazio = valor === null || valor === undefined || valor === ''
-  if (vazio) return <span className="text-app-text-muted">—</span>
+  if (vazio) return <span className="text-app-text-muted">{coluna.vazio && coluna.vazioSe && linha?.[coluna.vazioSe] ? coluna.vazio : '—'}</span>
 
   switch (coluna.tipo) {
     case 'data':

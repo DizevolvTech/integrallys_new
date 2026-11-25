@@ -76,6 +76,7 @@ begin
      where case v_rep
              when 'recebido' then sit_repasse = 'Pago'
              when 'falta' then sit_repasse in ('Em aberto', 'Pendente')
+             when 'sem_percentual' then atendido and pct is null
              else true end
   ),
   pag as (select * from filt order by data desc, id limit v_lim offset v_off)

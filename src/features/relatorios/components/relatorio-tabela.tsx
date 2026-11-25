@@ -10,6 +10,8 @@ import { RelatorioExportar } from '@/features/relatorios/components/relatorio-ex
 import { RolagemHorizontalComBarraNoTopo } from '@/features/relatorios/components/rolagem-horizontal-com-barra-no-topo'
 import { RelatorioCartoesMobile } from '@/features/relatorios/components/relatorio-cartoes-mobile'
 import { RelatorioCartoes, RelatorioResumos } from '@/features/relatorios/components/relatorio-cartoes'
+import { RelatorioCabecalho } from '@/features/relatorios/components/relatorio-cabecalho'
+import { RepasseLinhaDialog } from '@/features/relatorios/components/repasse-linha-dialog'
 import { RelatorioCelula } from '@/features/relatorios/components/relatorio-celula'
 import { RelatorioFiltros } from '@/features/relatorios/components/relatorio-filtros'
 import { hojeIso, somarDiasIso } from '@/features/relatorios/format'
@@ -98,7 +100,14 @@ export function RelatorioTabela({ tipo, proprio = false, titulo, resumosExtras =
           config={config}
           linhas={linhas}
           acao={
-            config.detalheItens
+            config.linhaDetalhe
+              ? (linha) => (
+                  <Button variant="outline" size="sm" className="h-auto min-h-11 whitespace-normal rounded-lg" onClick={() => setDetalhe(linha)}>
+                    <Eye className="mr-1 h-4 w-4" />
+                    Ver detalhe
+                  </Button>
+                )
+              : config.detalheItens
               ? (linha) => (
                   <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setDetalhe(linha)}>
                     <Eye className="mr-1 h-4 w-4" />
@@ -120,7 +129,7 @@ export function RelatorioTabela({ tipo, proprio = false, titulo, resumosExtras =
                     key={c.key}
                     className={`whitespace-nowrap text-xs font-normal uppercase text-app-text-secondary ${c.direita ? 'text-right' : ''}`}
                   >
-                    {c.label}
+                    <RelatorioCabecalho coluna={c} />
                   </TableHead>
                 ))}
                 {config.detalheItens && <TableHead className="text-right text-xs font-normal uppercase">Produtos</TableHead>}
@@ -142,13 +151,29 @@ export function RelatorioTabela({ tipo, proprio = false, titulo, resumosExtras =
                 </TableRow>
               )}
               {linhas.map((linha) => (
-                <TableRow key={linha.id} className="border-b border-app-border/50 transition-colors hover:bg-app-bg-secondary/30 dark:hover:bg-app-hover">
+                <TableRow
+                  key={linha.id}
+                  className={`border-b border-app-border/50 transition-colors hover:bg-app-bg-secondary/30 dark:hover:bg-app-hover${config.linhaDetalhe ? ' cursor-pointer' : ''}`}
+                  {...(config.linhaDetalhe
+                    ? {
+                        tabIndex: 0,
+                        title: 'Clique para ver o detalhe',
+                        onClick: () => setDetalhe(linha),
+                        onKeyDown: (e: React.KeyboardEvent) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setDetalhe(linha)
+                          }
+                        },
+                      }
+                    : {})}
+                >
                   {config.colunas.map((c) => (
                     <TableCell
                       key={c.key}
                       className={`py-3 text-sm text-app-text-primary dark:text-white ${c.direita ? 'whitespace-nowrap text-right' : ''}`}
                     >
-                      <RelatorioCelula coluna={c} valor={linha[c.key]} />
+                      <RelatorioCelula coluna={c} valor={linha[c.key]} linha={linha} />
                     </TableCell>
                   ))}
                   {config.detalheItens && (
@@ -202,6 +227,7 @@ export function RelatorioTabela({ tipo, proprio = false, titulo, resumosExtras =
         />
       )}
       {config.detalheItens && <ComissaoItensDialog linha={detalhe} onClose={() => setDetalhe(null)} />}
+      {config.linhaDetalhe && tipo === 'repasse' && <RepasseLinhaDialog linha={detalhe} onClose={() => setDetalhe(null)} />}
     </div>
   )
 }

@@ -50,6 +50,25 @@ const EXPLICACAO_TAREFAS: Record<string, string> = {
   atrasadas: 'Tarefas pendentes ou em andamento cujo prazo já passou.',
 }
 
+const EXPLICACAO_CONSULTAS: Record<string, string> = {
+  recebido: 'Consultas com pagamento recebido: quanto cada paciente já pagou e quando recebemos.',
+  aberto: 'Quem deve: valor de cada consulta, quanto já foi pago, quanto falta e a data da consulta (desde quando está em aberto).',
+  registros: 'Todas as consultas listadas na tela, com valor, pago e em aberto.',
+  presenca: 'Consultas marcadas dos pacientes da tela, que dão a conta da presença: realizadas ÷ marcadas.',
+  retornos: 'Consultas realizadas além da primeira consulta realizada de cada paciente.',
+}
+
+const EXPLICACAO_REPASSE: Record<string, string> = {
+  atendidos: 'Atendimentos realizados no período, com o valor e o repasse calculado pelo percentual cadastrado.',
+  recebido: 'Atendimentos cujo repasse já foi pago ao profissional (módulo Repasse).',
+  falta: 'Atendimentos cujo repasse ainda não foi pago: Em aberto (paciente já pagou) e Pendente (paciente ainda não pagou tudo).',
+  cancelados: 'Atendimentos cancelados no período: não geram repasse.',
+  sem_percentual: 'Atendimentos de profissionais sem percentual de repasse cadastrado (Repasse > Nova regra).',
+}
+
+const COL_CONSULTA = (config: ConfigRelatorio, ...chaves: string[]) =>
+  chaves.map((k) => config.colunas.find((c) => c.key === k)).filter((c): c is ColunaRelatorio => Boolean(c))
+
 /** Relatórios com cartões clicáveis (o cartão traz `detalhe` = indicador). */
 export const DETALHES_POR_TIPO: Record<string, DetalheCartao> = {
   desempenho: {
@@ -61,6 +80,35 @@ export const DETALHES_POR_TIPO: Record<string, DetalheCartao> = {
     mobile: { titulo: 'paciente', selo: 'status' },
     conta: (t) =>
       `Conta: ${numero(t.realizados)} realizados ÷ ${numero(t.agendamentos)} agendamentos = ${Number(t.taxaConclusaoPct ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`,
+  },
+  consultas: {
+    tipo: 'consultas',
+    titulo: (c) => c.label,
+    explicacao: (ind) => EXPLICACAO_CONSULTAS[ind] ?? '',
+    filtros: (valores, ind) => ({ ...valores, indicador: ind }),
+    colunas: (config, ind) =>
+      ind === 'presenca' || ind === 'retornos'
+        ? COL_CONSULTA(config, 'paciente', 'data', 'hora', 'procedimento', 'profissional', 'status')
+        : [
+            ...COL_CONSULTA(config, 'paciente', 'data', 'valor', 'pago', 'aberto', 'pagoPct'),
+            { key: 'recebidoEm', label: 'Recebido em', tipo: 'data' as const },
+            ...COL_CONSULTA(config, 'status', 'statusPagamento'),
+          ],
+    mobile: { titulo: 'paciente', valor: 'aberto', selo: 'statusPagamento' },
+  },
+  repasse: {
+    tipo: 'repasse',
+    titulo: (c) => c.label,
+    explicacao: (ind) => EXPLICACAO_REPASSE[ind] ?? '',
+    // Se a tela já filtra a situação oposta, o cartão não tem linhas: lista vazia em vez de contradizer.
+    filtros: (valores, ind) => {
+      const atual = valores.situacao
+      const situacao = ind === 'cancelados' ? 'cancelado' : 'atendido'
+      if (atual && atual !== 'todos' && atual !== situacao) return null
+      return { ...valores, situacao, ...(ind === 'recebido' || ind === 'falta' || ind === 'sem_percentual' ? { repasse: ind } : {}) }
+    },
+    colunas: (config) => config.colunas.filter((c) => !['profissional', 'unidade', 'situacao'].includes(c.key)),
+    mobile: { titulo: 'paciente', valor: 'repasse', selo: 'situacaoRepasse' },
   },
   recebimentos: {
     tipo: 'recebimentos',

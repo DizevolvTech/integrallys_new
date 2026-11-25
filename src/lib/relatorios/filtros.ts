@@ -14,7 +14,7 @@ type Regra = 'uuid' | 'data' | 'texto' | 'inteiro'
 const CHAVES: Record<RelatorioTipo, Record<string, Regra>> = {
   consultas: {
     q: 'texto', inicio: 'data', fim: 'data', procedimento_id: 'uuid', profissional_id: 'uuid',
-    convenio: 'texto', unidade_id: 'uuid', situacao: 'texto', pagamento: 'texto',
+    convenio: 'texto', unidade_id: 'uuid', situacao: 'texto', pagamento: 'texto', indicador: 'texto',
   },
   agendamentos: {
     q: 'texto', inicio: 'data', fim: 'data', procedimento_id: 'uuid', profissional_id: 'uuid',
@@ -40,7 +40,7 @@ const CHAVES: Record<RelatorioTipo, Record<string, Regra>> = {
   },
   repasse: {
     q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid',
-    procedimento_id: 'uuid', situacao: 'texto',
+    procedimento_id: 'uuid', situacao: 'texto', repasse: 'texto',
   },
   financeiro: { q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', usuario_id: 'uuid', tipo: 'texto' },
   comissoes: { q: 'texto', inicio: 'data', fim: 'data', unidade_id: 'uuid', profissional_id: 'uuid' },

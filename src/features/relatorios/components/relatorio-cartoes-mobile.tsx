@@ -26,7 +26,7 @@ export function RelatorioCartoesMobile({ config, linhas, acao }: Props) {
   const usadas = new Set([titulo?.key, valor?.key, selo?.key])
   const resto: ColunaRelatorio[] = config.colunas.filter((c) => !usadas.has(c.key))
   const celula = (c: ColunaRelatorio | undefined, linha: LinhaRelatorio) =>
-    c ? <RelatorioCelula coluna={c} valor={linha[c.key]} /> : undefined
+    c ? <RelatorioCelula coluna={c} valor={linha[c.key]} linha={linha} /> : undefined
   return (
     <ListaCartoesMobile>
       {linhas.map((linha) => (

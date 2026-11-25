@@ -10,6 +10,11 @@ export interface ColunaRelatorio {
   label: string
   tipo?: TipoColuna
   direita?: boolean
+  /** Explicação curta mostrada ao passar o mouse no título da coluna. */
+  dica?: string
+  /** Texto quando o valor vem vazio e a linha tem o campo `vazioSe` verdadeiro (padrão: "—"). */
+  vazio?: string
+  vazioSe?: string
 }
 
 export interface FiltroRelatorio {
@@ -47,6 +52,8 @@ export interface ConfigRelatorio {
   filtros: FiltroRelatorio[]
   cartoes?: (totais: Record<string, unknown>, total: number) => CartaoTotal[]
   resumos?: (totais: Record<string, unknown>) => ResumoLista[]
+  /** Clicar na linha abre a janela com o detalhe do registro (hoje: Meus repasses). */
+  linhaDetalhe?: boolean
   /** Linha com botão "Ver produtos" (Minhas comissões). */
   detalheItens?: boolean
   /** Explica em uma frase como os números da tela foram calculados (aparece abaixo dos cartões). */
@@ -216,6 +223,11 @@ export const COLUNAS_DESEMPENHO_DETALHE: ColunaRelatorio[] = [
   { key: 'status', label: 'Situação', tipo: 'badge' },
 ]
 
+const SEM_PERCENTUAL = 'Percentual não cadastrado'
+const DICA_SITUACAO_REPASSE =
+  'Situação do repasse: Pago = repasse já pago ao profissional (módulo Repasse); Em aberto = atendimento pago pelo paciente e repasse ainda não pago; ' +
+  'Pendente = o paciente ainda não pagou o atendimento por inteiro. "Em atraso" não é usado porque o módulo Repasse não tem data prevista de pagamento.'
+
 export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
   consultas: {
     descricao: 'Histórico de atendimentos com pagamento, presença e justificativa de cancelamentos.',
@@ -234,12 +246,19 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { key: 'unidade', label: 'Unidade' },
       { key: 'status', label: 'Situação', tipo: 'badge' },
       { key: 'justificativa', label: 'Justificativa' },
-      { key: 'presencaPct', label: 'Presença (histórico)', tipo: 'pct', direita: true },
+      {
+        key: 'presencaPct', label: 'Comparecimento do paciente', tipo: 'pct', direita: true,
+        dica: 'Quanto o paciente compareceu às consultas marcadas, em todo o histórico dele. Não tem relação com pagamento: veja "% pago".',
+      },
       { key: 'statusPagamento', label: 'Status pagamento', tipo: 'badge' },
       { key: 'formaPagamento', label: 'Forma de pagamento' },
       { key: 'valor', label: 'Valor', tipo: 'dinheiro', direita: true },
       { key: 'pago', label: 'Pago', tipo: 'dinheiro', direita: true },
       { key: 'aberto', label: 'Em aberto', tipo: 'dinheiro', direita: true },
+      {
+        key: 'pagoPct', label: '% pago', tipo: 'pct', direita: true,
+        dica: 'Quanto do valor do procedimento já foi recebido (Pago ÷ Valor). Ex.: valor 240, pago 120 = 50%.',
+      },
     ],
     filtros: [
       { key: 'q', label: 'Buscar paciente', tipo: 'busca' },
@@ -260,21 +279,22 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
     // Total recebido / em aberto só aparecem quando o servidor os envia (a recepção não recebe).
     cartoes: (t, total) => [
-      ...(t.recebido === undefined ? [] : [{ label: 'Total recebido', valor: formatMoeda(t.recebido), tom: 'sucesso' as const }]),
-      ...(t.aberto === undefined ? [] : [{ label: 'Total em aberto', valor: formatMoeda(t.aberto), tom: 'alerta' as const }]),
-      { label: 'Registros', valor: String(total), tom: 'neutro' },
+      ...(t.recebido === undefined ? [] : [{ label: 'Total recebido', valor: formatMoeda(t.recebido), tom: 'sucesso' as const, detalhe: 'recebido' }]),
+      ...(t.aberto === undefined ? [] : [{ label: 'Total em aberto', valor: formatMoeda(t.aberto), tom: 'alerta' as const, detalhe: 'aberto' }]),
+      { label: 'Registros', valor: String(total), tom: 'neutro', detalhe: 'registros' },
       {
         label: `Presença na clínica (${num(t.realizadas)} de ${num(t.agendadas)})`,
         valor: t.presencaPct == null ? '—' : `${num(t.presencaPct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`,
         tom: 'sucesso',
+        detalhe: 'presenca',
       },
-      { label: `Retornos · ${num(t.pacientes)} pacientes`, valor: String(num(t.retornos)), tom: 'neutro' },
+      { label: `Retornos · ${num(t.pacientes)} pacientes`, valor: String(num(t.retornos)), tom: 'neutro', detalhe: 'retornos' },
     ],
     legenda:
       'Presença no período = consultas realizadas ÷ consultas agendadas do paciente no período e filtros escolhidos ' +
       '(agendadas = marcadas até hoje, incluindo faltas e cancelamentos; adiadas não contam). ' +
       'Retornos = consultas realizadas além da primeira consulta realizada do paciente. ' +
-      '"Presença (histórico)" considera todo o histórico do paciente.',
+      '"Comparecimento do paciente" considera todo o histórico do paciente e não indica pagamento: o quanto foi pago está em "% pago".',
     resumos: (t) => resumosConsultasPorProfissional(t.porProfissional),
     mobile: { titulo: 'paciente', valor: 'valor', selo: 'status' },
   },
@@ -566,8 +586,9 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
   },
   repasse: {
-    mobile: { titulo: 'paciente', valor: 'repasse', selo: 'situacao' },
-    descricao: 'Atendimentos com o percentual de repasse cadastrado para o profissional.',
+    mobile: { titulo: 'paciente', valor: 'repasse', selo: 'situacaoRepasse' },
+    descricao: 'Atendimentos com o percentual de repasse cadastrado para o profissional e a situação de cada repasse. Clique em uma linha ou em um cartão para ver o detalhe.',
+    linhaDetalhe: true,
     colunas: [
       { key: 'data', label: 'Data', tipo: 'data' },
       { key: 'paciente', label: 'Cliente' },
@@ -576,8 +597,9 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { key: 'unidade', label: 'Unidade' },
       { key: 'situacao', label: 'Situação', tipo: 'badge' },
       { key: 'valor', label: 'Valor do atendimento', tipo: 'dinheiro', direita: true },
-      { key: 'percentual', label: 'Percentual', tipo: 'pct', direita: true },
-      { key: 'repasse', label: 'Repasse', tipo: 'dinheiro', direita: true },
+      { key: 'percentual', label: 'Percentual', tipo: 'pct', direita: true, vazio: SEM_PERCENTUAL, vazioSe: 'semRegra' },
+      { key: 'repasse', label: 'Repasse', tipo: 'dinheiro', direita: true, vazio: SEM_PERCENTUAL, vazioSe: 'semRegra' },
+      { key: 'situacaoRepasse', label: 'Situação do repasse', tipo: 'badge', dica: DICA_SITUACAO_REPASSE },
     ],
     filtros: [
       { key: 'q', label: 'Buscar cliente', tipo: 'busca' },
@@ -596,10 +618,18 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
     ],
     // A tabela lista atendidos e cancelados; os cartões separam os dois para a conta bater com as linhas.
     cartoes: (t, total) => [
-      { label: `Atendidos (${num(t.atendimentos)})`, valor: formatMoeda(t.valor), tom: 'neutro' },
-      { label: 'Repasse total', valor: formatMoeda(t.repasse), tom: 'sucesso' },
-      { label: 'Cancelados', valor: String(Math.max(total - Number(t.atendimentos ?? 0), 0)), tom: 'alerta' },
+      { label: `Atendidos (${num(t.atendimentos)})`, valor: formatMoeda(t.valor), tom: 'neutro', detalhe: 'atendidos' },
+      { label: 'Repasse total', valor: formatMoeda(t.repasse), tom: 'neutro', detalhe: 'atendidos' },
+      { label: 'Já recebido', valor: formatMoeda(t.jaRecebido), tom: 'sucesso', detalhe: 'recebido' },
+      { label: 'Falta receber', valor: formatMoeda(t.faltaReceber), tom: 'alerta', detalhe: 'falta' },
+      { label: 'Cancelados', valor: String(Math.max(total - Number(t.atendimentos ?? 0), 0)), tom: 'neutro', detalhe: 'cancelados' },
+      ...(num(t.semPercentual) > 0
+        ? [{ label: 'Sem percentual cadastrado', valor: `${num(t.semPercentual)} atendimento(s)`, tom: 'perigo' as const, detalhe: 'sem_percentual' }]
+        : []),
     ],
+    legenda:
+      'O percentual vem do cadastro de repasse do profissional (menu Repasse > Nova regra; para parceiros, também em Profissionais > editar). ' +
+      'Sem percentual cadastrado, a linha avisa e o atendimento não entra nos valores de repasse. ' + DICA_SITUACAO_REPASSE,
   },
   comissoes: {
     mobile: { titulo: 'cliente', valor: 'comissao' },
