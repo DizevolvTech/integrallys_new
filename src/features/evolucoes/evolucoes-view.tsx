@@ -61,6 +61,7 @@ import {
   EditarRetornoRecepcaoModal,
   MarcarRetornoModal,
 } from './modals'
+import { EvolucaoProdutosLista } from '@/features/evolucoes/evolucao-produtos-lista'
 import { EvolucaoDocumentosModal } from '@/features/evolucoes/evolucao-documentos-modal'
 import { DocumentosDoPacienteCard } from '@/features/documentacao-gerar'
 
@@ -718,6 +719,8 @@ export function EvolucoesView() {
                 <p className="text-sm leading-6 text-app-text-secondary dark:text-white/80 whitespace-pre-wrap">{selectedItem.resumo}</p>
               </div>
 
+              <EvolucaoProdutosLista evolucaoId={selectedItem.id} versao={versaoDocs} />
+
               {selectedItem.pacienteId && (
                 <DocumentosDoPacienteCard
                   pacienteId={selectedItem.pacienteId}
@@ -830,7 +833,7 @@ export function EvolucoesView() {
         onClose={() => setIsAddProdutoOpen(false)}
         evolucaoId={selectedItem?.id ?? ''}
         pacienteNome={selectedItem?.paciente}
-        onSaved={load}
+        onSaved={handleDocumentoSalvo}
       />
 
       <EditarRetornoRecepcaoModal

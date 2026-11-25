@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
 import { FileText, UploadCloud, X } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 

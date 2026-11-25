@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { acessoEvolucao } from '@/lib/evolucao-acesso'
 import { EXAMES_BUCKET, urlDeCaminho } from '@/lib/exames-storage'

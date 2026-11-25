@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
 import { ClipboardList, MessageSquare, Pill, Stethoscope } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { ProntuarioDetalhe } from '@/lib/domain-mappers'
 
 function Secao({
