@@ -493,3 +493,30 @@ table th {
   background: rgba(71, 85, 105, 0.9);
   background-clip: padding-box;
 }
+
+/* Janelas (modais): barra de rolagem sempre visível e com contraste, em toda a janela e nas áreas rolantes dentro dela. */
+[data-dialog-content],
+[data-dialog-content] * {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(100, 116, 139, 0.75) rgba(148, 163, 184, 0.2);
+}
+
+[data-dialog-content]::-webkit-scrollbar,
+[data-dialog-content] *::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+[data-dialog-content]::-webkit-scrollbar-track,
+[data-dialog-content] *::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 9999px;
+}
+
+[data-dialog-content]::-webkit-scrollbar-thumb,
+[data-dialog-content] *::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.75);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+}

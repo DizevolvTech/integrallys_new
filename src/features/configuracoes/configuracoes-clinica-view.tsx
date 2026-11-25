@@ -1,6 +1,6 @@
 'use client'
 
-import { salvarComAviso } from './salvar-com-aviso'
+import { mensagemErroSalvar, salvarComAviso } from './salvar-com-aviso'
 import { UnidadeIdentidadeSelect } from './unidade-identidade-select'
 import {
   Bell,
@@ -247,6 +247,7 @@ export function ConfiguracoesClinicaView() {
     logo_url: '',
     cor_primaria: '#000000',
     cor_secundaria: '#ffffff',
+    manual_servicos: '',
   })
   const [isSavingIdentidade, setIsSavingIdentidade] = useState(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
@@ -262,6 +263,7 @@ export function ConfiguracoesClinicaView() {
       logo_url: identidadeData?.logo_url ?? '',
       cor_primaria: identidadeData?.cor_primaria ?? '#000000',
       cor_secundaria: identidadeData?.cor_secundaria ?? '#ffffff',
+      manual_servicos: identidadeData?.manual_servicos ?? '',
     })
   }, [identidadeData, isIdentidadeLoading])
 
@@ -443,10 +445,11 @@ export function ConfiguracoesClinicaView() {
         logo_url: identidadeForm.logo_url || null,
         cor_primaria: identidadeForm.cor_primaria,
         cor_secundaria: identidadeForm.cor_secundaria,
+        manual_servicos: identidadeForm.manual_servicos.trim() || null,
       })
       toast.success('Identidade da clínica salva.')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Falha ao salvar identidade')
+      toast.error(mensagemErroSalvar(err))
     } finally {
       setIsSavingIdentidade(false)
     }
@@ -1109,6 +1112,31 @@ export function ConfiguracoesClinicaView() {
                   </div>
                 </div>
               </aside>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-app-border p-5 dark:border-app-border-dark">
+              <div className="space-y-1">
+                <label
+                  htmlFor="identidade-manual-servicos"
+                  className="text-lg font-normal text-app-text-primary dark:text-white"
+                >
+                  Manual de serviços e termos
+                </label>
+                <p className="text-sm text-app-text-secondary dark:text-white/60">
+                  Texto cadastrado uma vez por unidade. Aparece, só para leitura, em Pacientes &gt;
+                  Manual de Serviços, no PDF e na impressão. Separe os itens com uma linha em branco.
+                </p>
+              </div>
+              <Textarea
+                id="identidade-manual-servicos"
+                value={identidadeForm.manual_servicos}
+                onChange={(event) =>
+                  setIdentidadeForm((current) => ({ ...current, manual_servicos: event.target.value }))
+                }
+                maxLength={20000}
+                placeholder="1. DO AGENDAMENTO: ..."
+                className="min-h-[220px] bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-2xl font-normal"
+              />
             </div>
 
             <div className="flex justify-end">

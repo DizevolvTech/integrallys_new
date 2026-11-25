@@ -2,6 +2,13 @@ import React from 'react';
 import type { Patient } from '@/types/patient'
 import { descreverOrigem } from '../utils/origem'
 import { formatarCPF } from '@/lib/validacao-br'
+import { hojeIsoClinica } from '@/lib/fuso-clinica'
+
+/** YYYY-MM-DD -> DD/MM/AAAA (sem passar por Date, para não deslocar o dia). */
+function dataBr(iso?: string): string {
+    const [ano, mes, dia] = (iso ?? '').slice(0, 10).split('-')
+    return ano && mes && dia ? `${dia}/${mes}/${ano}` : '-'
+}
 
 interface DocumentoCadastroProps {
     data: Partial<Patient>;
@@ -9,6 +16,22 @@ interface DocumentoCadastroProps {
     clinicaNome?: string;
     clinicaSubtitulo?: string;
     clinicaLogoUrl?: string | null;
+}
+
+/** Manual já formatado: parágrafos separados e o título "1. DO AGENDAMENTO:" em negrito. */
+function ManualTexto({ texto }: { texto: string }) {
+    return (
+        <>
+            {texto.split(/\n\s*\n/).map((paragrafo, i) => {
+                const m = paragrafo.trim().match(/^(\d+\.\s+[^:\n]{2,60}:)([\s\S]*)$/)
+                return (
+                    <p key={`${i}-${paragrafo.slice(0, 12)}`} className="mb-2 whitespace-pre-wrap">
+                        {m ? <><strong>{m[1]}</strong>{m[2]}</> : paragrafo.trim()}
+                    </p>
+                )
+            })}
+        </>
+    )
 }
 
 export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadastroProps>(({ data, manualText, clinicaNome, clinicaSubtitulo, clinicaLogoUrl }, ref) => {
@@ -35,7 +58,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
                 </div>
                 <div className="text-right text-xs text-app-text-muted">
                     <p>Ficha Cadastral & Manual de Serviços</p>
-                    <p>{new Date().toLocaleDateString()}</p>
+                    <p>{dataBr(hojeIsoClinica())}</p>
                 </div>
             </div>
 
@@ -46,7 +69,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
                     <div><span className="font-bold">Nome:</span> {data.name}</div>
                     <div><span className="font-bold">CPF:</span> {formatarCPF(data.cpf ?? "")}</div>
                     <div><span className="font-bold">RG:</span> {data.rg || '-'}</div>
-                    <div><span className="font-bold">Data de Nasc.:</span> {data.birthDate || '-'}</div>
+                    <div><span className="font-bold">Data de Nasc.:</span> {dataBr(data.birthDate)}</div>
                     <div><span className="font-bold">Idade:</span> {data.age || (data.birthDate ? (() => {
                         const birth = new Date(data.birthDate);
                         const today = new Date();
@@ -69,7 +92,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
                     <div className="grid grid-cols-2 gap-4">
                         <div><span className="font-bold">Nome:</span> {data.responsible.name}</div>
                         <div><span className="font-bold">CPF:</span> {formatarCPF(data.responsible.cpf ?? "")}</div>
-                        <div><span className="font-bold">Data de Nasc.:</span> {data.responsible.birthDate || '-'}</div>
+                        <div><span className="font-bold">Data de Nasc.:</span> {dataBr(data.responsible.birthDate)}</div>
                         <div><span className="font-bold">Idade:</span> {data.responsible.age || (data.responsible.birthDate ? (() => {
                             const birth = new Date(data.responsible.birthDate!);
                             const today = new Date();
@@ -88,7 +111,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
             <section className="mb-8 text-justify leading-relaxed text-xs">
                 <h2 className="text-lg font-bold mb-3 uppercase border-b border-app-border pb-1">3. Manual de Serviços e Termos</h2>
                 {manualText ? (
-                    <div className="whitespace-pre-wrap">{manualText}</div>
+                    <ManualTexto texto={manualText} />
                 ) : (
                     <>
                         <p className="mb-2">

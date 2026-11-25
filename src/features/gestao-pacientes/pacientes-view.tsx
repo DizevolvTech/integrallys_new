@@ -41,7 +41,6 @@ import { formatarMoeda } from '@/lib/moeda'
 import { RegistrarEvolucaoModal } from '@/features/gestao-pacientes/modals'
 import { AjustePosologiaModal } from '@/features/gestao-pacientes/modals'
 import { PrescricaoComplementarModal } from '@/features/gestao-pacientes/modals'
-import type { PrescricaoAtiva } from '@/services/especialistaPrescricoes.service'
 import type { Patient } from '@/types/patient'
 import { usePacientes, type PacienteItem } from '@/hooks/use-pacientes'
 import { useApi } from '@/hooks/use-api'
@@ -62,24 +61,6 @@ function calculateAgeFromDate(dateStr: string): string {
 }
 
 const MANUAL_SERVICOS_TEXTO_PADRAO = 'Sem descricao de servicos registrada.'
-
-function getFallbackPrescricao(paciente: string): PrescricaoAtiva {
-  return {
-    id: `prescricao-${paciente}`,
-    paciente,
-    data: new Date().toISOString().slice(0, 10),
-    tipo: 'normal',
-    observacao: '',
-    produtos: [
-      {
-        id: 'produto-padrao',
-        nome: 'Produto sem estoque integrado',
-        quantidade: 1,
-        posologia: '',
-      },
-    ],
-  }
-}
 
 function isPacienteCompleto(item: PacienteItem): boolean {
   // Core (tabela pacientes): nome, CPF, data de nascimento, telefone
@@ -196,7 +177,6 @@ export function PacientesView() {
   const [isEvolucaoModalOpen, setIsEvolucaoModalOpen] = useState(false)
   const [isAjustePosologiaOpen, setIsAjustePosologiaOpen] = useState(false)
   const [isComplementarOpen, setIsComplementarOpen] = useState(false)
-  const [prescricaoSelecionada, setPrescricaoSelecionada] = useState<PrescricaoAtiva | null>(null)
   const [selectedPaciente, setSelectedPaciente] = useState<Patient | null>(null)
   const [impactoExclusao, setImpactoExclusao] = useState<ImpactoPaciente | null>(null)
   const [isLoadingImpacto, setIsLoadingImpacto] = useState(false)
@@ -385,8 +365,6 @@ export function PacientesView() {
   }
 
   const handleAjustePosologia = (patient: Patient) => {
-    const prescricao = getFallbackPrescricao(patient.name || 'Paciente')
-    setPrescricaoSelecionada(prescricao)
     setSelectedPaciente(patient)
     setIsAjustePosologiaOpen(true)
   }
@@ -681,7 +659,7 @@ export function PacientesView() {
       <div className="fixed -left-[9999px] -top-[9999px] pointer-events-none opacity-0">{patientForDocument && <DocumentoCadastro ref={documentoRef} data={patientForDocument} manualText={MANUAL_SERVICOS_TEXTO_PADRAO} />}</div>
 
       <RegistrarEvolucaoModal isOpen={isEvolucaoModalOpen} onClose={() => setIsEvolucaoModalOpen(false)} paciente={selectedPaciente ? { id: 0, nome: selectedPaciente.name || 'Paciente' } : null} />
-      <AjustePosologiaModal isOpen={isAjustePosologiaOpen} onClose={() => setIsAjustePosologiaOpen(false)} prescricao={prescricaoSelecionada} />
+      <AjustePosologiaModal isOpen={isAjustePosologiaOpen} onClose={() => setIsAjustePosologiaOpen(false)} paciente={selectedPaciente} />
       <PrescricaoComplementarModal isOpen={isComplementarOpen} onClose={() => setIsComplementarOpen(false)} paciente={selectedPaciente?.name || ''} />
     </div>
   )

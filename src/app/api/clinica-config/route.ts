@@ -6,6 +6,11 @@ import { resolverUnidade, respostaResolucaoInvalida } from './resolver-unidade'
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
 
+function normalizarManual(valor: string | null): string | null {
+  const texto = (valor ?? '').trim()
+  return texto === '' ? null : texto.slice(0, 20000)
+}
+
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
@@ -27,7 +32,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from('clinica_config')
     .select(
-      'id,unidade_id,nome,cidade_uf,endereco,cep,telefone,logo_url,cor_primaria,cor_secundaria,updated_at',
+      'id,unidade_id,nome,cidade_uf,endereco,cep,telefone,logo_url,cor_primaria,cor_secundaria,manual_servicos,updated_at',
     )
     .eq('unidade_id', unidadeId)
     .maybeSingle()
@@ -73,6 +78,10 @@ export async function PUT(request: NextRequest) {
     logo_url: typeof body.logo_url === 'string' ? body.logo_url : null,
     cor_primaria: corPrimaria,
     cor_secundaria: corSecundaria,
+    // Só grava o manual quando a tela manda o campo (outras telas que salvam a identidade não apagam o texto).
+    ...(typeof body.manual_servicos === 'string' || body.manual_servicos === null
+      ? { manual_servicos: normalizarManual(body.manual_servicos) }
+      : {}),
   }
 
   const supabase = getAppSupabase()
@@ -80,7 +89,7 @@ export async function PUT(request: NextRequest) {
     .from('clinica_config')
     .upsert(record, { onConflict: 'unidade_id' })
     .select(
-      'id,unidade_id,nome,cidade_uf,endereco,cep,telefone,logo_url,cor_primaria,cor_secundaria,updated_at',
+      'id,unidade_id,nome,cidade_uf,endereco,cep,telefone,logo_url,cor_primaria,cor_secundaria,manual_servicos,updated_at',
     )
     .maybeSingle()
 

@@ -15,6 +15,7 @@ export interface ClinicaConfig {
   logo_url: string | null
   cor_primaria: string
   cor_secundaria: string
+  manual_servicos: string | null
   updated_at: string
 }
 

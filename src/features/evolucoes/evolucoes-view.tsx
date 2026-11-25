@@ -830,7 +830,7 @@ export function EvolucoesView() {
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-app-border dark:border-app-border-dark">
+          <div className="sticky -bottom-8 z-10 -mx-8 -mb-8 mt-6 flex items-center justify-end gap-3 border-t border-app-border bg-app-card px-8 pb-8 pt-4 dark:border-app-border-dark dark:bg-app-card-dark">
             <Button variant="ghost" onClick={() => setIsDocumentsOpen(false)} className="h-12 rounded-[12px] font-normal border border-app-border dark:border-app-border-dark">
               Cancelar
             </Button>
