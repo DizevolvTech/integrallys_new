@@ -107,8 +107,8 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      // sticky: com o corpo rolando, os botões ficam sempre à vista no rodapé da janela
-      "sticky bottom-0 z-10 flex flex-col-reverse bg-app-card pb-4 pt-3 dark:bg-app-card-dark sm:flex-row sm:justify-end sm:space-x-2",
+      // sticky (-bottom-6 = padding p-6 padrão da janela): com o corpo rolando, os botões ficam à vista rente à borda de baixo
+      "sticky -bottom-6 z-10 flex flex-col-reverse bg-app-card pb-4 pt-3 dark:bg-app-card-dark sm:flex-row sm:justify-end sm:space-x-2",
       className
     )}
     {...props}
