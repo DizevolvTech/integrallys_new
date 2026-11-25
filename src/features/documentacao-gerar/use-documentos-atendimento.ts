@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useApi } from '@/hooks/use-api'
 import {
+  comLayoutPadrao,
   conteudoDeTexto,
   resolverConteudo,
   tokenizarConteudo,
@@ -89,7 +90,7 @@ export function useDocumentosAtendimento({ pacienteId, agendamentoId, pacienteNo
       const pessoal = docId in pessoalSalvo ? pessoalSalvo[docId] : m?.pessoal
       const escolhido = pessoal ?? m?.clinica ?? null
       const origem: OrigemModelo = pessoal ? 'pessoal' : m?.clinica ? 'clinica' : 'padrao'
-      const conteudo = escolhido ?? conteudoDeTexto(padroes[docId] ?? '')
+      const conteudo = comLayoutPadrao(docId, escolhido ?? conteudoDeTexto(padroes[docId] ?? ''))
       return { conteudo: resolverConteudo(conteudo, contextoVariaveis), origem }
     },
     [payload, pessoalSalvo, padroes, contextoVariaveis],

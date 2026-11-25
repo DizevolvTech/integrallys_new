@@ -88,7 +88,7 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
           />
         )}
         <div>
-          <h1 style={{ color: corPrimaria, fontSize: '16pt', fontWeight: 700, margin: 0 }}>
+          <h1 style={{ color: corPrimaria, fontSize: pagina ? '20pt' : '16pt', fontWeight: 700, margin: 0 }}>
             {resolve(template.conteudo.cabecalho.titulo)}
           </h1>
           {contexto.clinica?.nome && (
@@ -99,7 +99,7 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
 
       <main style={pagina?.corpo}>
         {template.conteudo.secoes.map((secao, index) => (
-          <SecaoRenderer key={index} secao={secao} valor={valores[index]} resolve={resolve} compacto={!!layout} ultimo={index === template.conteudo.secoes.length - 1} />
+          <SecaoRenderer key={index} secao={secao} valor={valores[index]} resolve={resolve} pagina={pagina} ultimo={index === template.conteudo.secoes.length - 1} />
         ))}
       </main>
 
@@ -155,36 +155,37 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
   )
 })
 
-const ESTILO_LAYOUT: Record<LayoutDocumento, { fonte: string; altura: number; corpo: CSSProperties }> = {
+const ESTILO_LAYOUT: Record<LayoutDocumento, { fonte: string; altura: number; espaco: string; corpo: CSSProperties }> = {
   // Corpo no meio da folha: o <main> ocupa o espaço entre o título e a assinatura e centraliza o texto na vertical.
-  pagina_centrada: { fonte: '14pt', altura: 1.9, corpo: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } },
-  pagina_cheia: { fonte: '14pt', altura: 1.6, corpo: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', padding: '6mm 0' } },
+  pagina_centrada: { fonte: '15pt', altura: 2, espaco: '16mm', corpo: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } },
+  pagina_cheia: { fonte: '16pt', altura: 1.7, espaco: '10mm', corpo: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', padding: '6mm 0' } },
 }
 
 function SecaoRenderer({
   secao,
   valor,
   resolve,
-  compacto,
+  pagina,
   ultimo,
 }: {
   secao: Secao
   valor: unknown
   resolve: (text: string) => string
   /** Documento com layout de página: tamanhos maiores e espaçamento fixo entre os blocos. */
-  compacto: boolean
+  pagina: (typeof ESTILO_LAYOUT)[LayoutDocumento] | null
   ultimo: boolean
 }) {
-  const labelStyle = { fontSize: compacto ? '15pt' : '10pt', fontWeight: 600, color: '#374151', marginBottom: compacto ? '8px' : '4px' }
-  const blockStyle = { marginBottom: compacto && !ultimo ? '10mm' : '14px' }
-  const campoPt = compacto ? '14pt' : '11pt'
+  const compacto = pagina !== null
+  const labelStyle = { fontSize: compacto ? '17pt' : '10pt', fontWeight: 600, color: '#374151', marginBottom: compacto ? '8px' : '4px' }
+  const blockStyle = { marginBottom: pagina && !ultimo ? pagina.espaco : '14px' }
+  const campoPt = compacto ? '16pt' : '11pt'
 
   switch (secao.tipo) {
     case 'paragrafo': {
       const s = secao as SecaoParagrafo
       // Com layout de página, as quebras de linha em branco que a cliente digitava no fim do texto não contam.
       const texto = compacto ? resolve(s.conteudo).trimEnd() : resolve(s.conteudo)
-      return <p style={{ ...blockStyle, textAlign: 'justify', whiteSpace: 'pre-wrap', margin: compacto ? 0 : undefined, marginBottom: blockStyle.marginBottom }}>{texto}</p>
+      return <p style={{ ...(compacto ? { margin: 0 } : {}), ...blockStyle, textAlign: 'justify', whiteSpace: 'pre-wrap' }}>{texto}</p>
     }
 
     case 'campo_data':
