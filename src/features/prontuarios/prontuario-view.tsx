@@ -6,6 +6,7 @@ import { useApi } from '@/hooks/use-api'
 import { PrazoRetornoModal, type PrazoRetornoEscolhido } from '@/features/retornos/prazo-retorno-modal'
 import {
   Calendar,
+  ClipboardList,
   CheckCircle,
   ChevronDown,
   Edit3,
