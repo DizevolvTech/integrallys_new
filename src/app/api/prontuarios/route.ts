@@ -5,6 +5,33 @@ import { dataBrParaIso } from '@/lib/data-br'
 import { mapProntuarioItem } from '@/lib/domain-mappers'
 import { authErrorResponse, assertPacienteInUnitScope, getRequestAuth } from '@/lib/request-auth'
 
+type AppSupabase = ReturnType<typeof getAppSupabase>
+type AnamneseDoProntuario = { queixa: string | null; campos_extras: unknown }
+const LOTE = 150
+
+/** Queixa e campos extras da anamnese gravada junto com o prontuario no atendimento (em lotes). */
+async function carregarAnamnesesDosProntuarios(supabase: AppSupabase, prontuarioIds: string[]) {
+  const lotes: string[][] = []
+  for (let i = 0; i < prontuarioIds.length; i += LOTE) lotes.push(prontuarioIds.slice(i, i + LOTE))
+  const finalizacoes = await Promise.all(
+    lotes.map((lote) => supabase.from('atendimento_finalizacoes').select('prontuario_id,anamnese_id').in('prontuario_id', lote)),
+  )
+  const erroFinalizacao = finalizacoes.find((r) => r.error)?.error
+  if (erroFinalizacao) return { map: {} as Record<string, AnamneseDoProntuario>, error: erroFinalizacao }
+  const porAnamnese: Record<string, string> = {}
+  for (const r of finalizacoes) for (const f of r.data ?? []) if (f.anamnese_id) porAnamnese[String(f.anamnese_id)] = String(f.prontuario_id)
+  const anamneseIds = Object.keys(porAnamnese)
+  const anamneseLotes: string[][] = []
+  for (let i = 0; i < anamneseIds.length; i += LOTE) anamneseLotes.push(anamneseIds.slice(i, i + LOTE))
+  const anamneses = await Promise.all(
+    anamneseLotes.map((lote) => supabase.from('anamneses').select('id,queixa,campos_extras').in('id', lote)),
+  )
+  const erro = anamneses.find((r) => r.error)?.error ?? null
+  const map: Record<string, AnamneseDoProntuario> = {}
+  for (const r of anamneses) for (const a of r.data ?? []) map[porAnamnese[String(a.id)]] = a
+  return { map, error: erro }
+}
+
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) {
@@ -23,6 +50,11 @@ export async function GET(request: NextRequest) {
     return supabaseErrorResponse(error, 'Falha ao carregar prontuários')
   }
 
+  const anamneses = await carregarAnamnesesDosProntuarios(supabase, (data ?? []).map((row) => String(row.id)))
+  if (anamneses.error) {
+    return supabaseErrorResponse(anamneses.error, 'Falha ao carregar prontuários')
+  }
+
   const { map, error: pacienteError } = await getEntityNameMap(
     supabase,
     'pacientes',
@@ -34,7 +66,15 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    data: (data ?? []).map((row) => mapProntuarioItem({ ...row, paciente_nome: map[String(row.paciente_id ?? '')] ?? '' })),
+    data: (data ?? []).map((row) => {
+      const anamnese = anamneses.map[String(row.id)]
+      return mapProntuarioItem({
+        ...row,
+        paciente_nome: map[String(row.paciente_id ?? '')] ?? '',
+        anamnese_queixa: anamnese?.queixa,
+        anamnese_extras: anamnese?.campos_extras,
+      })
+    }),
     meta: session,
   })
 }

@@ -4,6 +4,19 @@ import { requirePermission } from '@/lib/authz'
 import { mapEvolucaoItem } from '@/lib/domain-mappers'
 import { authErrorResponse, assertPacienteInUnitScope, getRequestAuth } from '@/lib/request-auth'
 
+const LOTE = 150
+
+async function contarDocumentosAnexados(supabase: ReturnType<typeof getAppSupabase>, ids: string[]) {
+  const lotes: string[][] = []
+  for (let i = 0; i < ids.length; i += LOTE) lotes.push(ids.slice(i, i + LOTE))
+  const respostas = await Promise.all(
+    lotes.map((lote) => supabase.from('evolucao_documentos').select('evolucao_id').in('evolucao_id', lote)),
+  )
+  const porEvolucao: Record<string, number> = {}
+  for (const r of respostas) for (const d of r.data ?? []) porEvolucao[String(d.evolucao_id)] = (porEvolucao[String(d.evolucao_id)] ?? 0) + 1
+  return { porEvolucao, error: respostas.find((r) => r.error)?.error ?? null }
+}
+
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) {
@@ -32,8 +45,20 @@ export async function GET(request: NextRequest) {
     return supabaseErrorResponse(pacienteError, 'Falha ao carregar evoluções')
   }
 
+  const anexados = await contarDocumentosAnexados(supabase, (data ?? []).map((row) => String(row.id)))
+  if (anexados.error) {
+    return supabaseErrorResponse(anexados.error, 'Falha ao carregar evoluções')
+  }
+
   return NextResponse.json({
-    data: (data ?? []).map((row) => mapEvolucaoItem({ ...row, paciente_nome: map[String(row.paciente_id ?? '')] ?? '' })),
+    data: (data ?? []).map((row) =>
+      mapEvolucaoItem({
+        ...row,
+        // Contagem da coluna DOCS = registros antigos sem arquivo (docs_count) + documentos anexados de verdade.
+        docs_count: Number(row.docs_count ?? 0) + (anexados.porEvolucao[String(row.id)] ?? 0),
+        paciente_nome: map[String(row.paciente_id ?? '')] ?? '',
+      }),
+    ),
     meta: session,
   })
 }

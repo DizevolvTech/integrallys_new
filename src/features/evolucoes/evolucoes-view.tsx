@@ -61,6 +61,8 @@ import {
   EditarRetornoRecepcaoModal,
   MarcarRetornoModal,
 } from './modals'
+import { EvolucaoProdutosLista } from '@/features/evolucoes/evolucao-produtos-lista'
+import { EvolucaoDocumentosModal } from '@/features/evolucoes/evolucao-documentos-modal'
 import { DocumentosDoPacienteCard } from '@/features/documentacao-gerar'
 
 type FormState = {
@@ -93,7 +95,7 @@ const getRetornoBadgeColor = (status?: string) => {
 }
 
 export function EvolucoesView() {
-  const { data, error, isLoading, createEvolucao, updateEvolucao, deleteEvolucao } = useEvolucoes()
+  const { data, error, isLoading, load, createEvolucao, updateEvolucao, deleteEvolucao } = useEvolucoes()
   const { data: pacientes, isLoading: isLoadingPacientes } = usePacientes()
   const [searchTerm, setSearchTerm] = useState('')
   const [patientFilter, setPatientFilter] = useState('Todos os Pacientes')
@@ -107,6 +109,7 @@ export function EvolucoesView() {
   const [isEditarRetornoOpen, setIsEditarRetornoOpen] = useState(false)
   const [isMarcarRetornoOpen, setIsMarcarRetornoOpen] = useState(false)
   const [isAddProdutoOpen, setIsAddProdutoOpen] = useState(false)
+  const [versaoDocs, setVersaoDocs] = useState(0)
   const [selectedItem, setSelectedItem] = useState<EvolucaoItem | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<FormState>(initialFormState)
@@ -209,35 +212,9 @@ export function EvolucoesView() {
     setIsViewOpen(true)
   }
 
-  const handleAddDocumentoEnviado = async (payload: {
-    evolucaoId: string
-    tipo: string
-    meio: string
-    dataEnvio: string
-    recebido: boolean
-    anexo?: string
-  }) => {
-    if (!selectedItem?.pacienteId) {
-      throw new Error('Não foi possível localizar o paciente desta evolução.')
-    }
-
-    const registro = [
-      '[Documento enviado]',
-      `Tipo: ${payload.tipo}`,
-      `Meio: ${payload.meio}`,
-      `Data: ${payload.dataEnvio}`,
-      `Recebido: ${payload.recebido ? 'Sim' : 'Não'}`,
-      ...(payload.anexo ? [`Anexo: ${payload.anexo}`] : []),
-    ].join(' | ')
-
-    await updateEvolucao({
-      id: selectedItem.id,
-      pacienteId: selectedItem.pacienteId,
-      data: selectedItem.data,
-      tipo: selectedItem.tipo,
-      resumo: `${selectedItem.resumo}\n\n${registro}`,
-      retornoRecepcao: selectedItem.retornoRecepcao,
-    })
+  const handleDocumentoSalvo = async () => {
+    setVersaoDocs((v) => v + 1)
+    await load()
   }
 
   const handleEditarRetornoRecepcao = async (payload: { id: string; retornoRecepcao: string }) => {
@@ -742,6 +719,8 @@ export function EvolucoesView() {
                 <p className="text-sm leading-6 text-app-text-secondary dark:text-white/80 whitespace-pre-wrap">{selectedItem.resumo}</p>
               </div>
 
+              <EvolucaoProdutosLista evolucaoId={selectedItem.id} versao={versaoDocs} />
+
               {selectedItem.pacienteId && (
                 <DocumentosDoPacienteCard
                   pacienteId={selectedItem.pacienteId}
@@ -760,86 +739,17 @@ export function EvolucoesView() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-        <DialogContent
-          hideCloseButton={true}
-          className="w-[95vw] sm:max-w-[600px] p-8 rounded-[24px] bg-app-card dark:bg-app-card-dark border border-app-border dark:border-app-border-dark shadow-lg block overflow-y-auto max-h-[90vh] custom-scrollbar"
-        >
-          <div className="flex justify-between items-start mb-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-app-text-primary dark:text-white" />
-                <h2 className="text-xl font-normal text-app-text-primary dark:text-white">Adicionar documento</h2>
-              </div>
-              <p className="text-base text-app-text-muted font-normal">Anexe um novo documento ao histórico do paciente</p>
-            </div>
-            <button
-              onClick={() => setIsDocumentsOpen(false)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg border border-app-border dark:border-app-border-dark hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors shrink-0"
-            >
-              <Plus className="h-4 w-4 text-app-text-muted rotate-45" />
-            </button>
-          </div>
-
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Label className="text-sm font-normal text-app-text-primary dark:text-white/80">Tipo de documento *</Label>
-              <Select>
-                <SelectTrigger className="h-12 rounded-[12px] bg-app-bg-secondary dark:bg-app-surface-muted border-app-border dark:border-app-border-dark">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent className="rounded-[12px]">
-                  <SelectItem value="prescricao">Prescrição</SelectItem>
-                  <SelectItem value="atestado">Atestado</SelectItem>
-                  <SelectItem value="exame">Resultado de Exame</SelectItem>
-                  <SelectItem value="encaminhamento">Encaminhamento</SelectItem>
-                  <SelectItem value="outros">Outros</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-normal text-app-text-primary dark:text-white/80">Meio de envio *</Label>
-              <Select>
-                <SelectTrigger className="h-12 rounded-[12px] bg-app-bg-secondary dark:bg-app-surface-muted border-app-border dark:border-app-border-dark">
-                  <SelectValue placeholder="Selecione o meio" />
-                </SelectTrigger>
-                <SelectContent className="rounded-[12px]">
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="email">E-mail</SelectItem>
-                  <SelectItem value="impresso">Impresso/Físico</SelectItem>
-                  <SelectItem value="portal">Portal do Paciente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="rounded-[16px] border-2 border-dashed border-app-border dark:border-app-border-dark p-8 flex flex-col items-center justify-center text-center hover:bg-app-bg-secondary dark:hover:bg-app-hover transition-colors cursor-pointer bg-app-bg-secondary/50 dark:bg-app-surface-muted">
-              <div className="h-12 w-12 rounded-full bg-app-bg-secondary dark:bg-app-hover flex items-center justify-center mb-3">
-                <UploadCloud className="h-6 w-6 text-app-primary dark:text-white" />
-              </div>
-              <p className="text-sm font-normal text-app-text-primary dark:text-white mb-1">Clique para fazer upload ou arraste e solte</p>
-              <p className="text-xs text-app-text-muted">PDF, JPG, PNG (máx. 10MB)</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-normal text-app-text-primary dark:text-white/80">Observações (opcional)</Label>
-              <Textarea
-                placeholder="Adicione observações sobre este documento..."
-                className="min-h-[100px] rounded-[12px] bg-app-bg-secondary dark:bg-app-surface-muted border-app-border dark:border-app-border-dark resize-none p-4 text-base"
-              />
-            </div>
-          </div>
-
-          <div className="sticky -bottom-8 z-10 -mx-8 -mb-8 mt-6 flex items-center justify-end gap-3 border-t border-app-border bg-app-card px-8 pb-8 pt-4 dark:border-app-border-dark dark:bg-app-card-dark">
-            <Button variant="ghost" onClick={() => setIsDocumentsOpen(false)} className="h-12 rounded-[12px] font-normal border border-app-border dark:border-app-border-dark">
-              Cancelar
-            </Button>
-            <Button onClick={() => setIsDocumentsOpen(false)} className="px-8 h-12 bg-app-primary hover:bg-app-primary-hover text-white rounded-[12px] font-normal gap-2">
-              Salvar documento
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EvolucaoDocumentosModal
+        isOpen={isDocumentsOpen}
+        onClose={() => setIsDocumentsOpen(false)}
+        evolucaoId={selectedItem?.id ?? ''}
+        titulo={selectedItem ? `${selectedItem.paciente} · ${selectedItem.data}` : ''}
+        versao={versaoDocs}
+        onAdicionar={() => {
+          setIsDocumentsOpen(false)
+          setIsDocEnviadoOpen(true)
+        }}
+      />
 
       <Dialog open={isNoteOpen} onOpenChange={setIsNoteOpen}>
         <DialogContent
@@ -915,14 +825,15 @@ export function EvolucoesView() {
         isOpen={isDocEnviadoOpen}
         onClose={() => setIsDocEnviadoOpen(false)}
         evolucaoId={selectedItem?.id ?? ''}
-        pacienteId={selectedItem?.pacienteId}
-        onSave={handleAddDocumentoEnviado}
+        onSaved={handleDocumentoSalvo}
       />
 
       <AdicionarProdutoModal
         isOpen={isAddProdutoOpen}
         onClose={() => setIsAddProdutoOpen(false)}
+        evolucaoId={selectedItem?.id ?? ''}
         pacienteNome={selectedItem?.paciente}
+        onSaved={handleDocumentoSalvo}
       />
 
       <EditarRetornoRecepcaoModal

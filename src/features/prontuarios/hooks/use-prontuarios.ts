@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
 import type { ApiListResponse } from '@/types/api'
+import type { ProntuarioDetalhe } from '@/lib/domain-mappers'
 
 export interface ProntuarioItem {
   id: string
@@ -11,6 +12,7 @@ export interface ProntuarioItem {
   data: string
   tipo: string
   status: string
+  detalhe?: ProntuarioDetalhe
 }
 
 export interface NovoProntuarioInput {

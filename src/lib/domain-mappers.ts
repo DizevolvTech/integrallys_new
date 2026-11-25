@@ -526,6 +526,43 @@ export function mapProntuarioItem(row: Record<string, unknown>) {
     status: String(row.status ?? ''),
     updatedAt: row.updated_at ? String(row.updated_at) : undefined,
     updatedBy: row.updated_by ? String(row.updated_by) : undefined,
+    detalhe: mapProntuarioDetalhe(row),
+  }
+}
+
+export interface ProntuarioDetalhe {
+  queixa: string
+  diagnostico: string
+  observacoes: string
+  plano: string
+  alergias: string
+  medicamentos: string
+  historicos: { label: string; value: string }[]
+}
+
+const texto = (valor: unknown) => (typeof valor === 'string' ? valor.trim() : '')
+
+/** Campos do prontuario finalizado no atendimento (conteudo) + queixa/alergias da anamnese ligada. */
+function mapProntuarioDetalhe(row: Record<string, unknown>): ProntuarioDetalhe {
+  const conteudo = (row.conteudo && typeof row.conteudo === 'object' ? row.conteudo : {}) as Record<string, unknown>
+  const extras = (row.anamnese_extras && typeof row.anamnese_extras === 'object' ? row.anamnese_extras : {}) as Record<string, unknown>
+  const queixa = texto(row.anamnese_queixa)
+  const observacoes = [texto(conteudo.anotacoes), texto(conteudo.observacoesFinais)]
+    .filter((parte, i, todas) => parte && todas.indexOf(parte) === i)
+    .join('\n\n')
+  const historicos = Array.isArray(conteudo.historicos)
+    ? (conteudo.historicos as Record<string, unknown>[])
+        .map((h) => ({ label: texto(h?.label), value: texto(h?.value) }))
+        .filter((h) => h.label)
+    : []
+  return {
+    queixa: queixa === 'Não informada' ? '' : queixa,
+    diagnostico: texto(conteudo.diagnose) || texto(extras.diagnostico),
+    observacoes,
+    plano: texto(conteudo.plano),
+    alergias: texto(extras.alergias),
+    medicamentos: texto(extras.medicamentos_uso),
+    historicos,
   }
 }
 

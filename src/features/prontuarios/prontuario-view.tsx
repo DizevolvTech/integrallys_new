@@ -6,18 +6,16 @@ import { useApi } from '@/hooks/use-api'
 import { PrazoRetornoModal, type PrazoRetornoEscolhido } from '@/features/retornos/prazo-retorno-modal'
 import {
   Calendar,
+  ClipboardList,
   CheckCircle,
   ChevronDown,
-  ClipboardList,
   Edit3,
   Eye,
   FileText,
   Filter,
-  MessageSquare,
   MoreHorizontal,
   Plus,
   Search,
-  Stethoscope,
   Trash2,
   User,
 } from 'lucide-react'
@@ -47,6 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { EditarProntuarioModal, ExcluirProntuarioModal, NovoProntuarioModal } from '@/features/prontuarios/modals'
+import { ProntuarioDetalheSecoes } from '@/features/prontuarios/prontuario-detalhe-secoes'
 import { HistoricoConsultas } from '@/features/prontuarios/historico-consultas'
 import { DocumentosDoPacienteCard } from '@/features/documentacao-gerar'
 import { ProntuarioHardwareGate } from '@/features/prontuarios/prontuario-live-viewer'
@@ -438,44 +437,7 @@ function ProntuarioViewList() {
                   </div>
                 </div>
 
-                {/* Queixa Principal */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-app-bg-secondary dark:bg-app-table-header-dark p-1.5 rounded-lg">
-                      <MessageSquare className="h-4 w-4 text-app-primary dark:text-white" />
-                    </div>
-                    <h3 className="text-base font-normal text-app-text-primary dark:text-white">Queixa principal</h3>
-                  </div>
-                  <div className="bg-app-bg-secondary/50 dark:bg-app-table-header-dark rounded-integrallys-lg p-5 border border-app-border/50 dark:border-app-border-dark">
-                    <p className="text-sm text-app-text-muted italic font-normal">Sem registro de queixa principal.</p>
-                  </div>
-                </div>
-
-                {/* Diagnóstico */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-app-bg-secondary dark:bg-app-table-header-dark p-1.5 rounded-lg">
-                      <Stethoscope className="h-4 w-4 text-app-primary dark:text-white" />
-                    </div>
-                    <h3 className="text-base font-normal text-app-text-primary dark:text-white">Diagnóstico</h3>
-                  </div>
-                  <div className="bg-app-bg-secondary/50 dark:bg-app-table-header-dark rounded-integrallys-lg p-5 border border-app-border/50 dark:border-app-border-dark">
-                    <p className="text-sm text-app-text-muted italic font-normal">Em avaliação.</p>
-                  </div>
-                </div>
-
-                {/* Observações e conduta */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-app-bg-secondary dark:bg-app-table-header-dark p-1.5 rounded-lg">
-                      <ClipboardList className="h-4 w-4 text-app-primary dark:text-white" />
-                    </div>
-                    <h3 className="text-base font-normal text-app-text-primary dark:text-white">Observações e conduta</h3>
-                  </div>
-                  <div className="bg-app-bg-secondary/50 dark:bg-app-table-header-dark rounded-integrallys-lg p-5 border border-app-border/50 dark:border-app-border-dark">
-                    <p className="text-sm text-app-text-muted italic font-normal">Sem observações registradas.</p>
-                  </div>
-                </div>
+                <ProntuarioDetalheSecoes detalhe={selectedItem.detalhe} />
 
                 {selectedItem.pacienteId && <HistoricoConsultas pacienteId={selectedItem.pacienteId} />}
 
