@@ -91,6 +91,7 @@ cross join (values
   -- 3. DECLARAÇÃO DE COMPARECIMENTO
   ('declaracao_comparecimento', 'Declaração de Comparecimento', 'declaracao', $json$
 {
+  "layout": "pagina_centrada",
   "cabecalho": { "titulo": "DECLARAÇÃO DE COMPARECIMENTO", "logo": true },
   "secoes": [
     { "tipo": "paragrafo", "conteudo": "Declaro, para os devidos fins, que o(a) Sr(a). #CLIENTE_NOME#, portador(a) do CPF nº #CLIENTE_CPF#, compareceu à #CLINICA_NOME# no dia #AGENDA_DATA_HORA# para atendimento profissional com #PROFISSIONAL_NOME#." },
@@ -162,6 +163,7 @@ cross join (values
   -- 7. PROCEDIMENTO — BIOMODULADOR INFRA-RED
   ('procedimento_biomodulador', 'Biomodulador Infra-Red', 'procedimento', $json$
 {
+  "layout": "pagina_cheia",
   "cabecalho": { "titulo": "PROTOCOLO — BIOMODULADOR INFRA-RED", "logo": true },
   "secoes": [
     { "tipo": "paragrafo", "conteudo": "Paciente: #CLIENTE_NOME#  |  Data: #DATA_ATUAL#" },
@@ -183,6 +185,7 @@ cross join (values
   -- 8. PROCEDIMENTO — FOTOTERAPY
   ('procedimento_fototerapy', 'Fototerapy', 'procedimento', $json$
 {
+  "layout": "pagina_cheia",
   "cabecalho": { "titulo": "PROTOCOLO — FOTOTERAPY", "logo": true },
   "secoes": [
     { "tipo": "paragrafo", "conteudo": "Paciente: #CLIENTE_NOME#  |  Data/Hora: #AGENDA_DATA_HORA#" },

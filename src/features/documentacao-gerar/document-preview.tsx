@@ -1,8 +1,9 @@
 'use client'
 
-import { forwardRef, useMemo } from 'react'
+import { forwardRef, useMemo, type CSSProperties } from 'react'
 import type {
   DocumentoTemplate,
+  LayoutDocumento,
   Secao,
   SecaoChecklist,
   SecaoCheckboxGrupo,
@@ -49,6 +50,9 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
     [contexto],
   )
 
+  const layout = template.conteudo.layout
+  const pagina = layout ? ESTILO_LAYOUT[layout] : null
+
   return (
     <div
       ref={ref}
@@ -56,11 +60,13 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
       style={{
         width: '210mm',
         minHeight: '297mm',
+        boxSizing: 'border-box',
         padding: '18mm',
         fontFamily: 'Georgia, "Times New Roman", serif',
         fontSize: '11pt',
         lineHeight: 1.5,
         color: '#1f2937',
+        ...(pagina ? { height: '297mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: pagina.fonte, lineHeight: pagina.altura } : {}),
       }}
     >
       <header
@@ -82,7 +88,7 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
           />
         )}
         <div>
-          <h1 style={{ color: corPrimaria, fontSize: '16pt', fontWeight: 700, margin: 0 }}>
+          <h1 style={{ color: corPrimaria, fontSize: pagina ? '20pt' : '16pt', fontWeight: 700, margin: 0 }}>
             {resolve(template.conteudo.cabecalho.titulo)}
           </h1>
           {contexto.clinica?.nome && (
@@ -91,13 +97,13 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
         </div>
       </header>
 
-      <main>
+      <main style={pagina?.corpo}>
         {template.conteudo.secoes.map((secao, index) => (
-          <SecaoRenderer key={index} secao={secao} valor={valores[index]} resolve={resolve} />
+          <SecaoRenderer key={index} secao={secao} valor={valores[index]} resolve={resolve} pagina={pagina} ultimo={index === template.conteudo.secoes.length - 1} />
         ))}
       </main>
 
-      <footer style={{ marginTop: '28px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+      <footer style={{ marginTop: pagina ? 0 : '28px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
         {template.conteudo.rodape.assinatura && (
           <div style={{ margin: '32px 0', textAlign: 'center' }}>
             {assinaturaUrl && (
@@ -149,22 +155,37 @@ export const DocumentPreview = forwardRef<HTMLDivElement, Props>(function Docume
   )
 })
 
+const ESTILO_LAYOUT: Record<LayoutDocumento, { fonte: string; altura: number; espaco: string; corpo: CSSProperties }> = {
+  // Corpo no meio da folha: o <main> ocupa o espaço entre o título e a assinatura e centraliza o texto na vertical.
+  pagina_centrada: { fonte: '15pt', altura: 2, espaco: '16mm', corpo: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } },
+  pagina_cheia: { fonte: '16pt', altura: 1.7, espaco: '10mm', corpo: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', padding: '6mm 0' } },
+}
+
 function SecaoRenderer({
   secao,
   valor,
   resolve,
+  pagina,
+  ultimo,
 }: {
   secao: Secao
   valor: unknown
   resolve: (text: string) => string
+  /** Documento com layout de página: tamanhos maiores e espaçamento fixo entre os blocos. */
+  pagina: (typeof ESTILO_LAYOUT)[LayoutDocumento] | null
+  ultimo: boolean
 }) {
-  const labelStyle = { fontSize: '10pt', fontWeight: 600, color: '#374151', marginBottom: '4px' }
-  const blockStyle = { marginBottom: '14px' }
+  const compacto = pagina !== null
+  const labelStyle = { fontSize: compacto ? '17pt' : '10pt', fontWeight: 600, color: '#374151', marginBottom: compacto ? '8px' : '4px' }
+  const blockStyle = { marginBottom: pagina && !ultimo ? pagina.espaco : '14px' }
+  const campoPt = compacto ? '16pt' : '11pt'
 
   switch (secao.tipo) {
     case 'paragrafo': {
       const s = secao as SecaoParagrafo
-      return <p style={{ ...blockStyle, textAlign: 'justify', whiteSpace: 'pre-wrap' }}>{resolve(s.conteudo)}</p>
+      // Com layout de página, as quebras de linha em branco que a cliente digitava no fim do texto não contam.
+      const texto = compacto ? resolve(s.conteudo).trimEnd() : resolve(s.conteudo)
+      return <p style={{ ...(compacto ? { margin: 0 } : {}), ...blockStyle, textAlign: 'justify', whiteSpace: 'pre-wrap' }}>{texto}</p>
     }
 
     case 'campo_data':
@@ -179,7 +200,7 @@ function SecaoRenderer({
       return (
         <div style={blockStyle}>
           <div style={labelStyle}>{s.label}</div>
-          <div style={{ fontSize: '11pt' }}>{valorFinal}</div>
+          <div style={{ fontSize: campoPt }}>{valorFinal}</div>
         </div>
       )
     }
@@ -195,7 +216,7 @@ function SecaoRenderer({
       return (
         <div style={blockStyle}>
           <div style={labelStyle}>{s.label}</div>
-          <div style={{ fontSize: '11pt', whiteSpace: 'pre-wrap', minHeight: '1.5em' }}>
+          <div style={{ fontSize: campoPt, whiteSpace: 'pre-wrap', minHeight: '1.5em' }}>
             {valorFinal || '____________________________________________'}
           </div>
         </div>
@@ -236,7 +257,7 @@ function SecaoRenderer({
       return (
         <div style={blockStyle}>
           <div style={labelStyle}>{s.label}</div>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: campoPt }}>
             {s.itens.map((item, idx) => (
               <li key={idx} style={{ padding: '2px 0' }}>
                 {marcados.has(idx) ? '☒' : '☐'} {item}
@@ -253,7 +274,7 @@ function SecaoRenderer({
       return (
         <div style={blockStyle}>
           <div style={labelStyle}>{s.label}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: compacto ? '10px 24px' : '8px 16px', fontSize: campoPt }}>
             {s.opcoes.map((opcao, idx) => (
               <span key={idx}>
                 {selecionados.has(idx) ? '☒' : '☐'} {opcao}

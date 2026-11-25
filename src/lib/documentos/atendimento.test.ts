@@ -6,7 +6,7 @@ import {
   normalizarConteudo,
   tokenizarConteudo,
 } from './atendimento'
-import { resolverConteudo } from './atendimento'
+import { comLayoutPadrao, resolverConteudo } from './atendimento'
 
 const estrutura = {
   cabecalho: { titulo: 'ORIENTAÇÕES ALIMENTARES', logo: true },
@@ -72,5 +72,18 @@ describe('conteudoAtestado', () => {
     expect(c.cabecalho.titulo).toBe('ATESTADO MÉDICO')
     expect(JSON.stringify(c)).toContain('por 3 dia(s)')
     expect(JSON.stringify(c)).toContain('Motivo: Repouso')
+  })
+})
+
+describe('comLayoutPadrao (#1645)', () => {
+  const base = { cabecalho: { titulo: 'X' }, secoes: [], rodape: {} }
+  it('declaração e protocolos ganham o layout de página quando o modelo não tem', () => {
+    expect(comLayoutPadrao('declaracao', base).layout).toBe('pagina_centrada')
+    expect(comLayoutPadrao('fototerapy', base).layout).toBe('pagina_cheia')
+    expect(comLayoutPadrao('biomodular', base).layout).toBe('pagina_cheia')
+  })
+  it('o layout do modelo manda e os demais documentos ficam como estão', () => {
+    expect(comLayoutPadrao('declaracao', { ...base, layout: 'pagina_cheia' }).layout).toBe('pagina_cheia')
+    expect(comLayoutPadrao('laudo', base)).toBe(base)
   })
 })

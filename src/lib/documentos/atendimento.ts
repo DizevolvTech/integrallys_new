@@ -1,4 +1,4 @@
-import type { ContextoVariaveis, Secao, TemplateConteudo } from './types'
+import type { ContextoVariaveis, LayoutDocumento, Secao, TemplateConteudo } from './types'
 import { buildTokenMap, resolverVariaveisEmTemplate, resolverVariaveisEmTexto } from './variables'
 
 /**
@@ -15,6 +15,21 @@ export const SLUG_MODELO_POR_DOCUMENTO: Record<string, string[]> = {
   declaracao: ['declaracao_comparecimento'],
   fototerapy: ['procedimento_fototerapy'],
   biomodular: ['procedimento_biomodulador'],
+}
+
+/**
+ * Diagramação A4 de cada documento do atendimento (#1645). Vale também para o modelo pessoal já salvo e para o
+ * texto padrão, que não têm a chave `layout`; se o modelo trouxer `layout`, ele manda.
+ */
+export const LAYOUT_POR_DOCUMENTO: Record<string, LayoutDocumento> = {
+  declaracao: 'pagina_centrada',
+  fototerapy: 'pagina_cheia',
+  biomodular: 'pagina_cheia',
+}
+
+export function comLayoutPadrao(docId: string, conteudo: TemplateConteudo): TemplateConteudo {
+  const layout = conteudo.layout ?? LAYOUT_POR_DOCUMENTO[docId]
+  return layout ? { ...conteudo, layout } : conteudo
 }
 
 export type ValoresDocumento = Record<number, unknown>

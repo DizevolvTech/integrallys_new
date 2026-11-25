@@ -79,7 +79,15 @@ export type Secao =
   | SecaoCheckboxLista
   | SecaoCheckboxGrupo
 
+/**
+ * Diagramação do documento na folha A4 (CSS de impressão, sem depender de Enter no texto):
+ * - `pagina_centrada`: título no alto, corpo no meio da página, cidade/data abaixo, assinatura embaixo;
+ * - `pagina_cheia`: protocolo com fonte maior e seções espaçadas, ocupando a folha inteira (1 página).
+ */
+export type LayoutDocumento = 'pagina_centrada' | 'pagina_cheia'
+
 export interface TemplateConteudo {
+  layout?: LayoutDocumento
   cabecalho: Cabecalho
   secoes: Secao[]
   rodape: Rodape
