@@ -36,7 +36,8 @@ export function ManualServicosModal({ isOpen, onClose, paciente }: ManualServico
   const [mostrarNumero, setMostrarNumero] = useState(false)
   const [numero, setNumero] = useState('')
   const [enviado, setEnviado] = useState(false)
-  const { data: clinicaConfig } = useClinicaConfig()
+  // A unidade do paciente define de qual clínica vem o manual (admin com várias unidades não tem unidade própria).
+  const { data: clinicaConfig, isLoading: carregandoManual } = useClinicaConfig(paciente?.unidadeId)
   const nomeClinica = clinicaConfig?.nome ?? 'Clínica'
   const manual = clinicaConfig?.manual_servicos?.trim() ?? ''
   const clinica = { nome: nomeClinica, cidadeUf: clinicaConfig?.cidade_uf }
@@ -58,7 +59,11 @@ export function ManualServicosModal({ isOpen, onClose, paciente }: ManualServico
     if (numero.replace(/\D/g, '').length < 10) return
     baixarManualPdf(paciente, clinica, manual)
     const texto = encodeURIComponent(mensagemWhatsAppManual(paciente.name ?? '', nomeClinica))
-    window.open(`https://wa.me/${numeroWhatsApp(numero)}?text=${texto}`, '_blank', 'noopener,noreferrer')
+    window.open(
+      `https://wa.me/${numeroWhatsApp(numero)}?text=${texto}`,
+      '_blank',
+      'noopener,noreferrer',
+    )
     setEnviado(true)
     setTimeout(() => {
       setEnviado(false)
@@ -95,6 +100,8 @@ export function ManualServicosModal({ isOpen, onClose, paciente }: ManualServico
                 clinicaLogoUrl={clinicaConfig?.logo_url}
               />
             </div>
+          ) : carregandoManual ? (
+            <p className="text-sm text-app-text-muted">Carregando manual…</p>
           ) : (
             <p
               role="status"
@@ -105,7 +112,7 @@ export function ManualServicosModal({ isOpen, onClose, paciente }: ManualServico
           )}
         </div>
 
-        <DialogFooter className="shrink-0 flex-wrap items-center justify-between gap-2 border-t border-app-border bg-app-bg-secondary p-4 dark:border-app-border-dark dark:bg-app-card-dark/50 md:p-6 sm:space-x-0">
+        <DialogFooter className="shrink-0 flex-row flex-wrap items-center justify-center gap-2 border-t sm:justify-between border-app-border bg-app-bg-secondary p-4 dark:border-app-border-dark dark:bg-app-card-dark/50 md:p-6 sm:space-x-0">
           {mostrarNumero ? (
             <div className="flex w-full items-center gap-2">
               <input
@@ -142,7 +149,11 @@ export function ManualServicosModal({ isOpen, onClose, paciente }: ManualServico
             </div>
           ) : (
             <>
-              <Button variant="outline" onClick={fechar} className="h-11 rounded-[12px] px-6 font-normal">
+              <Button
+                variant="outline"
+                onClick={fechar}
+                className="h-11 rounded-[12px] px-6 font-normal"
+              >
                 Fechar
               </Button>
               <Button

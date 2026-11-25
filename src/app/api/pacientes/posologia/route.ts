@@ -1,24 +1,22 @@
 import type { PostgrestError } from '@supabase/supabase-js'
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { emLotes } from '@/lib/em-lotes'
 import { hojeIsoClinica } from '@/lib/fuso-clinica'
 import {
+  type ItemPrescritoBruto,
   inicioJanelaPosologia,
   itensMaisRecentesPorProduto,
   MAX_POSOLOGIA,
-  type ItemPrescritoBruto,
 } from '@/lib/posologia-ajuste'
-import {
-  assertPacienteInUnitScope,
-  authErrorResponse,
-  getRequestAuth,
-} from '@/lib/request-auth'
+import { assertPacienteInUnitScope, authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 
 const STATUS_FORA = ['Cancelada', 'Rascunho']
 
-async function carregarItens(pacienteId: string): Promise<{ itens: ItemPrescritoBruto[]; erro: PostgrestError | null }> {
+async function carregarItens(
+  pacienteId: string,
+): Promise<{ itens: ItemPrescritoBruto[]; erro: PostgrestError | null }> {
   const supabase = getAppSupabase()
   const desde = inicioJanelaPosologia(hojeIsoClinica())
   const prescricoes = await supabase
@@ -102,7 +100,11 @@ export async function PUT(request: NextRequest) {
       return serverErrorResponse('Produto fora dos últimos 30 dias', 'ITEM_FORA_JANELA', 409)
     }
     if (!posologia || posologia.length > MAX_POSOLOGIA) {
-      return serverErrorResponse('Informe a nova forma de tomar (até 500 letras)', 'INVALID_POSOLOGIA', 400)
+      return serverErrorResponse(
+        'Informe a nova forma de tomar (até 500 letras)',
+        'INVALID_POSOLOGIA',
+        400,
+      )
     }
     if (posologia !== permitidos.get(ajuste.itemId)?.posologia) {
       validos.push({ itemId: ajuste.itemId, posologia })
@@ -123,7 +125,8 @@ export async function PUT(request: NextRequest) {
       posologia_nova: posologia,
       usuario_id: session.userId,
     })
-    if (historico.error) return supabaseErrorResponse(historico.error, 'Falha ao registrar o histórico do ajuste')
+    if (historico.error)
+      return supabaseErrorResponse(historico.error, 'Falha ao registrar o histórico do ajuste')
   }
   return NextResponse.json({ data: { alterados: validos.length } })
 }

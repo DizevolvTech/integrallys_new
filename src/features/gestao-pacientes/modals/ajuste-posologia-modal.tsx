@@ -38,7 +38,9 @@ export function AjustePosologiaModal({ isOpen, onClose, paciente }: AjustePosolo
     setErro(null)
     setNovas({})
     api
-      .get<{ data: ItemAjustavel[] }>(`/api/pacientes/posologia?pacienteId=${encodeURIComponent(pacienteId)}`)
+      .get<{ data: ItemAjustavel[] }>(
+        `/api/pacientes/posologia?pacienteId=${encodeURIComponent(pacienteId)}`,
+      )
       .then((res) => ativo && setItens(res.data))
       .catch((err) => {
         if (!ativo) return
@@ -62,7 +64,10 @@ export function AjustePosologiaModal({ isOpen, onClose, paciente }: AjustePosolo
     try {
       await api.put('/api/pacientes/posologia', {
         pacienteId,
-        ajustes: alterados.map((item) => ({ itemId: item.itemId, posologia: novas[item.itemId].trim() })),
+        ajustes: alterados.map((item) => ({
+          itemId: item.itemId,
+          posologia: novas[item.itemId].trim(),
+        })),
       })
       toast.success('Forma de tomar atualizada.')
       onClose()
@@ -90,7 +95,10 @@ export function AjustePosologiaModal({ isOpen, onClose, paciente }: AjustePosolo
             </DialogTitle>
             <DialogDescription className="text-base text-app-text-muted">
               Produtos prescritos para{' '}
-              <span className="font-medium text-app-text-primary dark:text-white">{paciente.name}</span> nos últimos 30 dias.
+              <span className="font-medium text-app-text-primary dark:text-white">
+                {paciente.name}
+              </span>{' '}
+              nos últimos 30 dias.
             </DialogDescription>
           </div>
           <button
@@ -118,7 +126,9 @@ export function AjustePosologiaModal({ isOpen, onClose, paciente }: AjustePosolo
             >
               <div>
                 <h4 className="text-base text-app-text-primary dark:text-white">{item.produto}</h4>
-                <p className="text-xs text-app-text-muted">Prescrito em {dataBr(item.dataPrescricao)}</p>
+                <p className="text-xs text-app-text-muted">
+                  Prescrito em {dataBr(item.dataPrescricao)}
+                </p>
               </div>
               <div className="rounded-[8px] border border-dashed border-app-border bg-app-bg-secondary px-3 py-2 dark:border-app-border-dark dark:bg-app-table-header-dark">
                 <span className="text-xs text-app-text-muted">Forma atual: </span>
@@ -135,7 +145,9 @@ export function AjustePosologiaModal({ isOpen, onClose, paciente }: AjustePosolo
                   placeholder="Ex.: 1 cápsula após o café e 1 ao dormir"
                   maxLength={500}
                   value={novas[item.itemId] ?? ''}
-                  onChange={(e) => setNovas((atual) => ({ ...atual, [item.itemId]: e.target.value }))}
+                  onChange={(e) =>
+                    setNovas((atual) => ({ ...atual, [item.itemId]: e.target.value }))
+                  }
                   className="h-11 rounded-integrallys font-normal"
                 />
               </div>
@@ -148,7 +160,11 @@ export function AjustePosologiaModal({ isOpen, onClose, paciente }: AjustePosolo
             {alterados.length > 0 ? 'Alterações pendentes para salvar' : 'Nenhuma alteração feita'}
           </span>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={onClose} className="h-11 rounded-integrallys px-6 font-normal">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="h-11 rounded-integrallys px-6 font-normal"
+            >
               Cancelar
             </Button>
             <Button

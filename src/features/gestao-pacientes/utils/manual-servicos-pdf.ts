@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf'
-import type { Patient } from '@/types/patient'
-import { formatarCPF } from '@/lib/validacao-br'
 import { formatarDataHoraClinica, hojeIsoClinica } from '@/lib/fuso-clinica'
+import { formatarCPF } from '@/lib/validacao-br'
+import type { Patient } from '@/types/patient'
 import { descreverOrigem } from './origem'
 
 export interface ClinicaManual {
@@ -43,7 +43,12 @@ export function montarManualPdf(paciente: Patient, clinica: ClinicaManual, manua
       y = MARGEM
     }
   }
-  const linhas = (texto: string, tamanho: number, estilo: 'normal' | 'bold' = 'normal', justificar = false) => {
+  const linhas = (
+    texto: string,
+    tamanho: number,
+    estilo: 'normal' | 'bold' = 'normal',
+    justificar = false,
+  ) => {
     pdf.setFont('helvetica', estilo)
     pdf.setFontSize(tamanho)
     const passo = tamanho * 0.5
@@ -51,7 +56,12 @@ export function montarManualPdf(paciente: Patient, clinica: ClinicaManual, manua
       const partes: string[] = bloco.trim() === '' ? [''] : pdf.splitTextToSize(bloco, LARGURA_UTIL)
       for (const parte of partes) {
         garantir(passo)
-        pdf.text(parte, MARGEM, y, justificar && parte ? { maxWidth: LARGURA_UTIL, align: 'justify' } : undefined)
+        pdf.text(
+          parte,
+          MARGEM,
+          y,
+          justificar && parte ? { maxWidth: LARGURA_UTIL, align: 'justify' } : undefined,
+        )
         y += passo
       }
     }
@@ -81,8 +91,19 @@ export function montarManualPdf(paciente: Patient, clinica: ClinicaManual, manua
   campo('Telefone', paciente.phone)
   campo('E-mail', paciente.email)
   campo('Origem', descreverOrigem(paciente.source, paciente.origemDetalhe))
-  const cidade = [paciente.addressDetails?.city, paciente.addressDetails?.state].filter(Boolean).join('/')
-  campo('Endereço', [paciente.address, cidade, paciente.addressDetails?.zipCode && `CEP ${paciente.addressDetails.zipCode}`].filter(Boolean).join(' - '))
+  const cidade = [paciente.addressDetails?.city, paciente.addressDetails?.state]
+    .filter(Boolean)
+    .join('/')
+  campo(
+    'Endereço',
+    [
+      paciente.address,
+      cidade,
+      paciente.addressDetails?.zipCode && `CEP ${paciente.addressDetails.zipCode}`,
+    ]
+      .filter(Boolean)
+      .join(' - '),
+  )
 
   if (paciente.responsible) {
     titulo('2. Dados do responsável')
@@ -103,12 +124,20 @@ export function montarManualPdf(paciente: Patient, clinica: ClinicaManual, manua
   pdf.line(meio + 8, y, MARGEM + LARGURA_UTIL, y)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(10)
-  pdf.text(paciente.name ?? '', MARGEM + (meio - 8 - MARGEM) / 2, y + 5, { align: 'center', maxWidth: meio - 8 - MARGEM })
-  pdf.text(clinica.nome, meio + 8 + (MARGEM + LARGURA_UTIL - meio - 8) / 2, y + 5, { align: 'center', maxWidth: meio - 8 - MARGEM })
+  pdf.text(paciente.name ?? '', MARGEM + (meio - 8 - MARGEM) / 2, y + 5, {
+    align: 'center',
+    maxWidth: meio - 8 - MARGEM,
+  })
+  pdf.text(clinica.nome, meio + 8 + (MARGEM + LARGURA_UTIL - meio - 8) / 2, y + 5, {
+    align: 'center',
+    maxWidth: meio - 8 - MARGEM,
+  })
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
   pdf.text('Paciente / Responsável', MARGEM + (meio - 8 - MARGEM) / 2, y + 10, { align: 'center' })
-  pdf.text('Administração', meio + 8 + (MARGEM + LARGURA_UTIL - meio - 8) / 2, y + 10, { align: 'center' })
+  pdf.text('Administração', meio + 8 + (MARGEM + LARGURA_UTIL - meio - 8) / 2, y + 10, {
+    align: 'center',
+  })
   pdf.setFontSize(8)
   pdf.text(`Gerado em ${formatarDataHoraClinica(new Date())}`, MARGEM, 290)
   return pdf
