@@ -46,11 +46,11 @@ export function EtiquetaAcoes({ itens, marca }: EtiquetaAcoesProps) {
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
-      <Button type="button" variant="outline" onClick={() => void baixar()} disabled={gerando || itens.length === 0} className="h-auto min-h-11 flex-1 whitespace-normal rounded-xl border-app-border font-normal dark:border-app-border-dark">
+      <Button type="button" variant="outline" onClick={() => void baixar()} disabled={gerando || itens.length === 0} className="h-auto min-h-11 flex-1 gap-2 whitespace-normal rounded-xl border-app-border font-normal dark:border-app-border-dark">
         <Download className="h-4 w-4 shrink-0" />
         {plural ? 'Baixar etiquetas (PDF)' : 'Baixar etiqueta (PDF)'}
       </Button>
-      <Button type="button" onClick={imprimir} disabled={itens.length === 0} className="h-auto min-h-11 flex-1 whitespace-normal rounded-xl bg-app-primary font-normal text-white hover:bg-app-primary-hover">
+      <Button type="button" onClick={imprimir} disabled={itens.length === 0} className="h-auto min-h-11 flex-1 gap-2 whitespace-normal rounded-xl bg-app-primary font-normal text-white hover:bg-app-primary-hover">
         <Printer className="h-4 w-4 shrink-0" />
         Imprimir
       </Button>

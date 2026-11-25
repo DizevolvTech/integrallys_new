@@ -320,9 +320,7 @@ export function PrescricoesView() {
       item.items.map((line) => ({
         patientName: item.paciente,
         productName: line.productName,
-        composition: line.posology,
-        usage: undefined,
-        validity: '',
+        usage: line.posology,
       })),
     )
   }

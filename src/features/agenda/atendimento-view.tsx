@@ -58,6 +58,7 @@ import { SignaturePad } from '@/components/shared/signature-pad'
 import { PacienteCadastroCard } from '@/components/shared/paciente-cadastro-card'
 import { AnatomyPanel } from '@/components/shared/anatomy-panel'
 import { LabelEditorModal } from './components/label-editor-modal'
+import { useRolarAoTopo } from './use-rolar-ao-topo'
 import type { LabelData } from './components/label-editor-modal'
 import {
   DocumentoAtendimentoEditor,
@@ -1597,6 +1598,8 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
   useProcedimentoRetornoAutomatico({ opcoes: opcoesRetorno, prazo: prazoValor, alvo: alvoRetorno, onAlvoChange: setAlvoRetorno })
   const [isFinalizing, setIsFinalizing] = useState(false)
   const finalizandoRef = useRef(false)
+  const raizRef = useRef<HTMLDivElement>(null)
+  useRolarAoTopo(raizRef, currentStep)
 
   const handleNext = () => {
     if (currentStep < 5) setCurrentStep(currentStep + 1)
@@ -1665,7 +1668,7 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
   }
 
   return (
-    <div className="app-page space-y-6">
+    <div ref={raizRef} className="app-page space-y-6">
       {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
