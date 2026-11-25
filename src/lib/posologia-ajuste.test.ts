@@ -28,9 +28,10 @@ describe('posologia-ajuste', () => {
       item({ id: 'b', posologia: ' 1 cap. após café ', dataPrescricao: '2026-11-25' }),
       item({ id: 'c', descricao: 'Ômega 3', dataPrescricao: '2026-11-22' }),
     ])
+    // ordem por nome do produto (Ômega antes de Vitamina)
     expect(lista.map((i) => [i.itemId, i.posologia])).toEqual([
-      ['b', '1 cap. após café'],
       ['c', ''],
+      ['b', '1 cap. após café'],
     ])
   })
 
