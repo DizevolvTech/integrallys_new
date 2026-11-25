@@ -598,7 +598,7 @@ export const CONFIG_RELATORIOS: Record<string, ConfigRelatorio> = {
       { key: 'situacao', label: 'Situação', tipo: 'badge' },
       { key: 'valor', label: 'Valor do atendimento', tipo: 'dinheiro', direita: true },
       { key: 'percentual', label: 'Percentual', tipo: 'pct', direita: true, vazio: SEM_PERCENTUAL, vazioSe: 'semRegra' },
-      { key: 'repasse', label: 'Repasse', tipo: 'dinheiro', direita: true, vazio: SEM_PERCENTUAL, vazioSe: 'semRegra' },
+      { key: 'repasse', label: 'Repasse', tipo: 'dinheiro', direita: true, vazio: 'Sem percentual', vazioSe: 'semRegra' },
       { key: 'situacaoRepasse', label: 'Situação do repasse', tipo: 'badge', dica: DICA_SITUACAO_REPASSE },
     ],
     filtros: [
