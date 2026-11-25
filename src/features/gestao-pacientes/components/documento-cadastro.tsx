@@ -11,6 +11,22 @@ interface DocumentoCadastroProps {
     clinicaLogoUrl?: string | null;
 }
 
+/** Manual já formatado: parágrafos separados e o título "1. DO AGENDAMENTO:" em negrito. */
+function ManualTexto({ texto }: { texto: string }) {
+    return (
+        <>
+            {texto.split(/\n\s*\n/).map((paragrafo, i) => {
+                const m = paragrafo.trim().match(/^(\d+\.\s+[^:\n]{2,60}:)([\s\S]*)$/)
+                return (
+                    <p key={`${i}-${paragrafo.slice(0, 12)}`} className="mb-2 whitespace-pre-wrap">
+                        {m ? <><strong>{m[1]}</strong>{m[2]}</> : paragrafo.trim()}
+                    </p>
+                )
+            })}
+        </>
+    )
+}
+
 export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadastroProps>(({ data, manualText, clinicaNome, clinicaSubtitulo, clinicaLogoUrl }, ref) => {
     const nomeClinica = clinicaNome ?? 'Clínica';
     return (
@@ -88,7 +104,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
             <section className="mb-8 text-justify leading-relaxed text-xs">
                 <h2 className="text-lg font-bold mb-3 uppercase border-b border-app-border pb-1">3. Manual de Serviços e Termos</h2>
                 {manualText ? (
-                    <div className="whitespace-pre-wrap">{manualText}</div>
+                    <ManualTexto texto={manualText} />
                 ) : (
                     <>
                         <p className="mb-2">

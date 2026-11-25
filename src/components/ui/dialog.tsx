@@ -58,6 +58,7 @@ const DialogContent = React.forwardRef<
       <div className="flex min-h-full items-center justify-center p-4 sm:p-8">
         <DialogPrimitive.Content
           ref={ref}
+          data-dialog-content=""
           onInteractOutside={(event) => {
             if (!allowOutsideClose) {
               event.preventDefault()
@@ -65,7 +66,7 @@ const DialogContent = React.forwardRef<
             onInteractOutside?.(event)
           }}
           className={cn(
-            "pointer-events-auto relative z-50 grid w-full max-h-[90vh] gap-4 overflow-y-auto rounded-[16px] border border-app-border bg-app-card p-6 text-app-text-primary shadow-lg transition-[opacity,transform] duration-200 data-[state=closed]:opacity-0 data-[state=open]:opacity-100 data-[state=closed]:scale-95 data-[state=open]:scale-100 dark:border-app-border-dark dark:bg-app-card-dark dark:text-white",
+            "pointer-events-auto relative z-50 grid w-full max-h-[90vh] gap-4 overflow-y-auto overscroll-contain rounded-[16px] border border-app-border bg-app-card p-6 text-app-text-primary shadow-lg transition-[opacity,transform] duration-200 data-[state=closed]:opacity-0 data-[state=open]:opacity-100 data-[state=closed]:scale-95 data-[state=open]:scale-100 dark:border-app-border-dark dark:bg-app-card-dark dark:text-white",
             dialogSizeClass[size],
             className
           )}
@@ -106,7 +107,8 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      // sticky: com o corpo rolando, os botões ficam sempre à vista no rodapé da janela
+      "sticky bottom-0 z-10 flex flex-col-reverse bg-app-card pb-4 pt-3 dark:bg-app-card-dark sm:flex-row sm:justify-end sm:space-x-2",
       className
     )}
     {...props}
