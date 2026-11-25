@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { FileText, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -9,39 +9,32 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DocumentoDropzone } from '@/features/evolucoes/documento-dropzone'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 interface AdicionarDocumentoEnviadoModalProps {
   isOpen: boolean
   onClose: () => void
   evolucaoId: string
-  /** Paciente da evolução: o arquivo anexado fica nos exames/documentos dele. */
-  pacienteId?: string
-  onSave: (payload: {
-    evolucaoId: string
-    tipo: string
-    meio: string
-    dataEnvio: string
-    recebido: boolean
-    anexo?: string
-  }) => Promise<void>
+  /** Chamado depois de salvar, para a tela atualizar a coluna DOCS. */
+  onSaved: () => void | Promise<void>
 }
 
 export function AdicionarDocumentoEnviadoModal({
   isOpen,
   onClose,
   evolucaoId,
-  pacienteId,
-  onSave,
+  onSaved,
 }: AdicionarDocumentoEnviadoModalProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null)
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [link, setLink] = useState('')
   const [tipo, setTipo] = useState('')
   const [meio, setMeio] = useState('whatsapp')
   const [dataEnvio, setDataEnvio] = useState('')
   const [recebido, setRecebido] = useState(false)
+  const [observacoes, setObservacoes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
   const reset = () => {
@@ -52,6 +45,7 @@ export function AdicionarDocumentoEnviadoModal({
     setIsSaving(false)
     setArquivo(null)
     setLink('')
+    setObservacoes('')
   }
 
   const handleClose = () => {
@@ -66,28 +60,28 @@ export function AdicionarDocumentoEnviadoModal({
       return
     }
 
-    if (arquivo && !pacienteId) {
-      toast.error('Não foi possível localizar o paciente para anexar o arquivo.')
+    if (!arquivo && !link.trim()) {
+      toast.error('Anexe um arquivo ou cole o link do documento.')
       return
     }
 
     setIsSaving(true)
     try {
-      let anexo: string | undefined = link.trim() || undefined
-      if (arquivo && pacienteId) {
-        const form = new FormData()
-        form.append('file', arquivo)
-        form.append('pacienteId', pacienteId)
-        form.append('nome', arquivo.name)
-        form.append('tipo', tipo)
-        const res = await fetch('/api/pacientes/exames/upload', { method: 'POST', body: form, credentials: 'include' })
-        if (!res.ok) {
-          const body = await res.json().catch(() => null)
-          throw new Error(body?.error ?? 'Falha ao enviar o anexo')
-        }
-        anexo = arquivo.name
+      const form = new FormData()
+      if (arquivo) form.append('file', arquivo)
+      form.append('link', link.trim())
+      form.append('nome', arquivo?.name ?? link.trim())
+      form.append('tipo', tipo)
+      form.append('meio', meio)
+      form.append('dataEnvio', dataEnvio)
+      form.append('recebido', String(recebido))
+      form.append('observacoes', observacoes)
+      const res = await fetch(`/api/evolucoes/${evolucaoId}/documentos`, { method: 'POST', body: form, credentials: 'include' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error ?? 'Não foi possível salvar o documento.')
       }
-      await onSave({ evolucaoId, tipo, meio, dataEnvio, recebido, anexo })
+      await onSaved()
       toast.success('Documento registrado.')
       reset()
       onClose()
@@ -167,30 +161,8 @@ export function AdicionarDocumentoEnviadoModal({
             <Label className="text-sm font-normal text-app-text-primary dark:text-white">
               Anexo (opcional)
             </Label>
-            <Button
-              variant="outline"
-              className="w-full h-12 rounded-[12px] bg-app-card dark:bg-app-card-dark border-app-border dark:border-app-border-dark text-app-text-primary dark:text-white font-normal hover:bg-app-bg-secondary dark:hover:bg-app-hover flex items-center justify-center gap-2"
-              onClick={() => inputRef.current?.click()}
-            >
-              <FileText className="h-4 w-4" />
-              {arquivo ? arquivo.name : 'Anexar arquivo'}
-            </Button>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf,image/jpeg,image/png"
-              className="hidden"
-              aria-label="Arquivo do documento"
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null
-                if (f && f.size > 10 * 1024 * 1024) {
-                  toast.error('Arquivo acima de 10 MB.')
-                  return
-                }
-                setArquivo(f)
-              }}
-            />
-            <p className="text-xs text-app-text-muted">PDF, JPG ou PNG até 10 MB. Fica guardado nos exames e documentos do paciente.</p>
+            <DocumentoDropzone arquivo={arquivo} onChange={setArquivo} disabled={isSaving} />
+            <p className="text-xs text-app-text-muted">Fica guardado nos documentos do paciente e na evolução.</p>
             <div className="flex items-center gap-4">
               <div className="h-px flex-1 bg-app-bg-secondary dark:bg-app-bg-dark"></div>
               <span className="text-xs font-normal text-app-text-muted">ou</span>
@@ -201,6 +173,16 @@ export function AdicionarDocumentoEnviadoModal({
               onChange={(e) => setLink(e.target.value)}
               placeholder="Cole o link do documento (URL)"
               className="h-12 rounded-[12px] bg-app-bg-secondary dark:bg-app-surface-muted border-app-border dark:border-app-border-dark focus:ring-[var(--app-primary)] text-app-text-primary dark:text-white"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-normal text-app-text-primary dark:text-white">Observações (opcional)</Label>
+            <Textarea
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Adicione observações sobre este documento..."
+              className="min-h-[80px] resize-none rounded-[12px] border-app-border bg-app-bg-secondary p-4 dark:border-app-border-dark dark:bg-app-surface-muted"
             />
           </div>
 
