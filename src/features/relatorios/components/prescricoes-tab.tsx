@@ -38,6 +38,14 @@ function badgeSituacao(situacao: string) {
   return { tone: BADGE_SEM_VALIDADE, label: 'Sem validade' }
 }
 
+/** Faixa do resumo -> valor do filtro "Situação" da lista. */
+const SITUACAO_DA_FAIXA: Record<string, PrescricaoSituacaoFilter> = {
+  vencidos: 'vencido',
+  vencem_em_breve: 'limite_prazo',
+  no_prazo: 'no_prazo',
+  sem_validade: 'sem_validade',
+}
+
 const ROTULO_FAIXA: Record<string, string> = {
   vencidos: 'Vencidos',
   vencem_em_breve: 'Vencem em breve (até 10 dias)',
@@ -53,6 +61,7 @@ function resumoValidade(meta: { resumoValidade: Array<{ faixa: string; qtd: numb
       larga: true,
       itens: meta.resumoValidade.map((f) => ({
         nome: ROTULO_FAIXA[f.faixa] ?? f.faixa,
+        chave: SITUACAO_DA_FAIXA[f.faixa],
         valor: meta.valorOculto ? String(f.qtd) : `${f.qtd} · ${formatMoney(f.valor)}`,
       })),
     },
@@ -215,6 +224,7 @@ export function PrescricoesTab() {
               <SelectItem value="no_prazo">No prazo</SelectItem>
               <SelectItem value="limite_prazo">Limite de prazo (≤10 dias)</SelectItem>
               <SelectItem value="vencido">Vencido</SelectItem>
+              <SelectItem value="sem_validade">Sem validade</SelectItem>
             </SelectContent>
           </Select>
           <div className="grid grid-cols-2 gap-2">
@@ -357,7 +367,13 @@ export function PrescricoesTab() {
           </div>
         </div>
 
-        <RelatorioResumos resumos={resumoValidade(prescricoesRelatorio.meta)} />
+        <RelatorioResumos
+          resumos={resumoValidade(prescricoesRelatorio.meta)}
+          selecionada={prescricoesRelatorio.filtros.situacao}
+          onSelecionar={(situacao) =>
+            prescricoesRelatorio.setFiltros((prev) => ({ ...prev, situacao: situacao as PrescricaoSituacaoFilter }))
+          }
+        />
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-end gap-3 px-2">
           <p className="text-sm text-app-text-secondary dark:text-white/70">

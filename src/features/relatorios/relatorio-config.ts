@@ -34,7 +34,7 @@ export interface CartaoTotal {
 
 export interface ResumoLista {
   titulo: string
-  itens: Array<{ nome: string; valor: string }>
+  itens: Array<{ nome: string; valor: string; /** Linha clicável: devolvida a `onSelecionar` ao clicar. */ chave?: string }>
   /** Mostra o quadro mesmo sem itens, com este texto. */
   vazio?: string
   /** Ocupa a linha inteira (itens com texto comprido, como "Profissional · Mês"). */
