@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
   let query = getAppSupabase()
     .from('produtos_estoque')
     .select('id,nome,categoria')
+    // Só o que o Estoque mostra: procedimentos e consultas ficam fora (controla_estoque = false).
+    .eq('controla_estoque', true)
     .order('nome', { ascending: true })
     .limit(LIMITE)
   if (scoped.unidadeId) query = query.eq('unidade_id', scoped.unidadeId)

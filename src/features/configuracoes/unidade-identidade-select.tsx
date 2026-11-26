@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import {
   Select,
   SelectContent,
@@ -17,6 +18,11 @@ interface Props {
 /** Admin/master com mais de uma unidade: escolhe de qual unidade é a identidade que vai nos documentos. */
 export function UnidadeIdentidadeSelect({ value, onChange }: Props) {
   const { data: unidades, isLoading } = useUnidades()
+  // Abre já com a primeira unidade, para a tela não vir com os campos vazios (a pessoa troca se quiser).
+  const primeira = unidades[0]?.id
+  useEffect(() => {
+    if (!value && primeira) onChange(primeira)
+  }, [value, primeira, onChange])
   return (
     <div className="space-y-2 max-w-md">
       <label
@@ -40,11 +46,9 @@ export function UnidadeIdentidadeSelect({ value, onChange }: Props) {
           ))}
         </SelectContent>
       </Select>
-      {!value && (
-        <p className="text-xs text-app-text-muted">
-          Há mais de uma unidade: escolha qual nome, cidade e logotipo você quer ver e alterar.
-        </p>
-      )}
+      <p className="text-xs text-app-text-muted">
+        Há mais de uma unidade: escolha qual nome, cidade e logotipo você quer ver e alterar.
+      </p>
     </div>
   )
 }

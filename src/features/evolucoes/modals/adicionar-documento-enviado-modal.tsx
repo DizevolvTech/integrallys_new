@@ -13,6 +13,7 @@ import { DocumentoDropzone } from '@/features/evolucoes/documento-dropzone'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { hojeIsoClinica } from '@/lib/fuso-clinica'
 
 interface AdicionarDocumentoEnviadoModalProps {
   isOpen: boolean
@@ -32,20 +33,22 @@ export function AdicionarDocumentoEnviadoModal({
   const [link, setLink] = useState('')
   const [tipo, setTipo] = useState('')
   const [meio, setMeio] = useState('whatsapp')
-  const [dataEnvio, setDataEnvio] = useState('')
+  const [dataEnvio, setDataEnvio] = useState(() => hojeIsoClinica())
   const [recebido, setRecebido] = useState(false)
   const [observacoes, setObservacoes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [erro, setErro] = useState('')
 
   const reset = () => {
     setTipo('')
     setMeio('whatsapp')
-    setDataEnvio('')
+    setDataEnvio(hojeIsoClinica())
     setRecebido(false)
     setIsSaving(false)
     setArquivo(null)
     setLink('')
     setObservacoes('')
+    setErro('')
   }
 
   const handleClose = () => {
@@ -55,15 +58,21 @@ export function AdicionarDocumentoEnviadoModal({
   }
 
   const handleSave = async () => {
-    if (!tipo || !meio || !dataEnvio) {
-      toast.error('Preencha tipo, meio e data de envio.')
+    const faltando = [!tipo && 'tipo de documento', !meio && 'meio de envio', !dataEnvio && 'data de envio'].filter(Boolean)
+    if (faltando.length > 0) {
+      const msg = `Preencha: ${faltando.join(', ')}.`
+      setErro(msg)
+      toast.error(msg)
       return
     }
 
     if (!arquivo && !link.trim()) {
-      toast.error('Anexe um arquivo ou cole o link do documento.')
+      const msg = 'Anexe um arquivo ou cole o link do documento.'
+      setErro(msg)
+      toast.error(msg)
       return
     }
+    setErro('')
 
     setIsSaving(true)
     try {
@@ -196,6 +205,12 @@ export function AdicionarDocumentoEnviadoModal({
             <Switch id="confirmar-recebimento" checked={recebido} onCheckedChange={setRecebido} />
           </div>
         </div>
+
+        {erro && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {erro}
+          </p>
+        )}
 
         <DialogFooter className="flex flex-col sm:flex-row items-center gap-3 sm:justify-end w-full border-t border-app-border dark:border-app-border-dark pt-6">
           <Button

@@ -109,7 +109,7 @@ export const DocumentoCadastro = React.forwardRef<HTMLDivElement, DocumentoCadas
 
             {/* Manual de Serviços (Texto Legal/Contratual) */}
             <section className="mb-8 text-justify leading-relaxed text-xs">
-                <h2 className="text-lg font-bold mb-3 uppercase border-b border-app-border pb-1">3. Manual de Serviços e Termos</h2>
+                <h2 className="text-lg font-bold mb-3 uppercase border-b border-app-border pb-1">{data.responsible ? 3 : 2}. Manual de Serviços e Termos</h2>
                 {manualText ? (
                     <ManualTexto texto={manualText} />
                 ) : (
